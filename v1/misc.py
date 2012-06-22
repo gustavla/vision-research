@@ -1,7 +1,7 @@
 import pylab as P
-from amitedges import amitedges
+from amitgroup.features import bedges 
 def plot_image_edges(image):
-    edges = amitedges(image)
+    edges = bedges(image)
     P.subplot(331)
     p = P.imshow(image, cmap=P.cm.gray)
     p.set_interpolation('nearest')
