@@ -204,6 +204,36 @@ def imagedef(F, I):
         #plt.show() 
 
      
+def deform(I, u):
+    """Deform I according to u"""
+    im = np.zeros(I.shape)
+
+    xs = np.empty(im.shape + (2,))
+    for x0 in range(im.shape[0]):
+        for x1 in range(im.shape[1]):
+            xs[x0,x1] = np.array([float(x0)/im.shape[0], float(x1)/im.shape[1]])
+
+    xs0 = xs[:,:,0]
+    xs1 = xs[:,:,1]
+
+    a = 2 
+    iP1 = inv_Psi(u[0], a)
+    iP2 = inv_Psi(u[1], a)
+    def Um(x): 
+        return np.array([
+            iP1(x),
+            iP2(x),
+        ])
+
+    interpI = interp2d(xs0, xs1, I)
+
+    for x0 in range(im.shape[0]): 
+        for x1 in range(im.shape[1]): 
+            x = xs[x0,x1]
+            z = x + Um(x)
+            
+            im[x0,x1] = interpI(z)
+    return im
 
 if __name__ == '__main__':
     #from amitgroup.io.mnist import read
@@ -215,9 +245,31 @@ if __name__ == '__main__':
     shifted[:-3,:] = images[0,3:,:]
 
     im1, im2 = images[0], shifted
-    im1, im2 = images[0], images[1] 
+    im1, im2 = images[1], images[3] 
 
     if 1:
+        u = np.array([[[-0.48947856, -4.84035154],
+                       [-0.03106279, 0.01453099]],
+                      [[-0.1421006,  -2.0178281 ],
+                       [ 0.18980185, -0.05704723]]])/(twopi*images[0].shape[0])
+
+        im3 = deform(im2, u)
+
+        d = dict(origin='lower', interpolation='nearest')
+        plt.figure(figsize=(14,6))
+        plt.subplot(131)
+        plt.title("Prototype")
+        plt.imshow(im1, **d)
+        plt.subplot(132)
+        plt.title("Original")
+        plt.imshow(im2, **d) 
+        plt.subplot(133)
+        plt.title("Deformed")
+        plt.imshow(im3, **d)
+        plt.colorbar()
+        plt.show()
+
+    elif 1:
         plt.figure(figsize=(14,6))
         plt.subplot(121)
         plt.title("F")
@@ -227,5 +279,6 @@ if __name__ == '__main__':
         plt.imshow(im2, origin='lower') 
         plt.show()
 
-    imagedef(im1, im2)
+    else:
+        imagedef(im1, im2)
     
