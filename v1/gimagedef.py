@@ -5,6 +5,21 @@ from scipy import linalg
 
 twopi = 2.0 * np.pi
 
+def lerp(a, x, y):
+    return y * a + (1-a) * x 
+
+def interp2d(x, y, z, fill_value=0.0):
+ #   @np.vectorize
+    def f(p):
+        for i in range(len(x[:,0])-1):
+            for j in range(len(y[0,:])-1):
+                if x[i+1,0] >= p[0] >= x[i,0] and y[0,j+1] >= p[1] >= y[0,j]:
+                    xp1 = lerp((p[0]-x[i,0])/(x[i+1,0]-x[i,0]), z[i,j], z[i+1,j])
+                    xp2 = lerp((p[0]-x[i,0])/(x[i+1,0]-x[i,0]), z[i,j+1], z[i+1,j+1])
+                    return lerp((p[1]-y[0,j])/(y[0,j+1]-y[0,j]), xp1, xp2)
+        return fill_value 
+    return f
+
 def psi(k1, k2, x):
     return twopi * np.real(np.exp(twopi * 1j * (k1 * x[0] + k2 * x[1])))
 
@@ -26,20 +41,60 @@ def imagedef(F, I):
     F: Prototype
     I: Image that will be deformed
     """
-    # Calculate the gradients of F
-    delF = np.gradient(F)
-    ix, iy = np.mgrid[0:F.shape[0]-1:1j*F.shape[0], 0:F.shape[1]-1:1j*F.shape[1]]
-    interpF = interpolate.interp2d(ix, iy, F, kind='cubic')
-    interpDelF = []
-    for q in range(len(delF)):
-        interpDelF.append(interpolate.interp2d(ix, iy, delF[q], kind='cubic'))
-
-    #import pdb; pdb.set_trace()
-
     xs = np.empty(F.shape + (2,))
     for x0 in range(F.shape[0]):
         for x1 in range(F.shape[1]):
             xs[x0,x1] = np.array([float(x0)/F.shape[0], float(x1)/F.shape[1]])
+
+    xs0 = xs[:,:,0]
+    xs1 = xs[:,:,1]
+
+    px = xs1
+    py = xs0
+
+    # Calculate the gradients of F 
+    # (the gradient does not know dx from just F, so we must multiply by dx)
+    delF = np.gradient(F)
+    delF[0] /= F.shape[0]
+    delF[1] /= F.shape[1]
+    ix, iy = np.mgrid[0:F.shape[0]-1:1j*F.shape[0], 0:F.shape[1]-1:1j*F.shape[1]]
+    interpF = interp2d(xs[:,:,0], xs[:,:,1], F)
+    #_interpF = interp2d(ix, iy, F)
+    #tck = interpolate.bisplrep(ix, iy, F, s=0)
+    #def interpF(x):
+        #return _interpF(x[0]*F.shape[0], x[1]*F.shape[1])[0]
+        #return _interpF(x[0]*F.shape[0], x[1]*F.shape[1])[0]
+    #    return 0.0
+
+    def fI(x):
+        x, y = int(round(x[0]*F.shape[0])), int(round(x[1]*F.shape[1])) 
+        return I[x,y]
+
+    interpDelF = []
+    for q in range(len(delF)):
+        f = interp2d(xs[:,:,0], xs[:,:,1], delF[q])
+        interpDelF.append(f)
+    
+    if 0:
+        #xnew, ynew = np.mgrid[0:F.shape[0]-1:1j*F.shape[0],0:F.shape[1]-1:1j*F.shape[1]]
+        xnew, ynew = np.mgrid[0:F.shape[0]-1:1j*F.shape[0]*4-1,0:F.shape[1]-1:1j*F.shape[1]*4-1]
+        #xnew, ynew = np.mgrid[0:F.shape[0]-1:1j*F.shape[0]/2.0,0:F.shape[1]-1:1j*F.shape[1]/2.0]
+        #znew = _interpF(xnew[:,0], ynew[0,:])
+        znew = _interpF(xnew, ynew)
+        print znew.shape
+        print znew
+        #plt.pcolor(ix, iy, F)
+        #plt.pcolor(ynew, xnew[::-1,:], znew)
+        plt.imshow(znew)
+        #plt.pcolor(F)
+        plt.colorbar()
+        plt.show()
+
+    #plt.quiver(delF[0], delF[1])
+    #plt.show()
+
+
+    #import pdb; pdb.set_trace()
 
     A = 4
     d = scriptN(A)
@@ -47,8 +102,8 @@ def imagedef(F, I):
     u = np.zeros((2, d, d))
     m = 0
     a = 2
-    stepsize = 0.1
-    for loop in range(8):
+    stepsize = 0.4
+    for loop in range(100):
         # 2.
         iP1 = inv_Psi(u[0], a)
         iP2 = inv_Psi(u[1], a)
@@ -61,39 +116,30 @@ def imagedef(F, I):
 
         def W(q, x):
             z = x + Um(x)
-            #print 'hj',z
-            #print(q, x)
-            return interpDelF[q](*z)[0] * (interpF(*z)[0] - I[x[0],x[1]])
+            return interpDelF[q](z) * (interpF(z) - fI(x))
 
         #print(xs)
     
-        # 4.
-        Wx0 = np.empty((scriptN(a), scriptN(a)) + xs.shape[:2])
-        Wx1 = np.empty((scriptN(a), scriptN(a)) + xs.shape[:2])
-        for k1 in range(scriptN(a)):
-            for k2 in range(scriptN(a)):
-                for i in range(xs.shape[0]):
-                    for j in range(xs.shape[1]):
-                        p = psi(k1, k2, (i, j))
-                        Wx0[k1,k2,i,j] = p * W(0, xs[i,j])
-                        Wx1[k1,k2,i,j] = p * W(1, xs[i,j])
-
-        # Must include psi as well!!
-
-
         v = np.empty((2,)+(scriptN(a),)*2)
-        
+        # 4.
+        #Wx0 = np.empty((scriptN(a), scriptN(a)) + xs.shape[:2])
+        #Wx1 = np.empty((scriptN(a), scriptN(a)) + xs.shape[:2])
+        dx = (xs.shape[0]*xs.shape[1])
         for k1 in range(scriptN(a)):
             for k2 in range(scriptN(a)):
-                #v[0,k1,k2] = np.trapz(np.trapz(Wx0[k1,k2])) 
-                #v[1,k1,k2] = np.trapz(np.trapz(Wx1[k1,k2]))
                 v[0,k1,k2] = 0.0
                 v[1,k1,k2] = 0.0
                 for x0 in range(xs.shape[0]):
                     for x1 in range(xs.shape[1]):
-                        x = np.array([float(x0)/F.shape[0], float(x1)/F.shape[1]])
-                        v[0,k1,k2] += Wx0[k1,k2,x0,x1] * xs.shape[0]*xs.shape[1] 
-                        v[1,k1,k2] += Wx1[k1,k2,x0,x1] * xs.shape[0]*xs.shape[1] 
+                        x = xs[x0,x1] 
+                        p = psi(k1, k2, x)
+                        Wx0 = p * W(0, x)
+                        Wx1 = p * W(1, x)
+                        v[0,k1,k2] += Wx0 / dx 
+                        v[1,k1,k2] += Wx1 / dx
+
+        # Must include psi as well!!
+
             
 
 
@@ -109,13 +155,19 @@ def imagedef(F, I):
         defs = np.empty(F.shape + (2,))
         for x0 in range(F.shape[0]):
             for x1 in range(F.shape[1]):
-                x = np.array([float(x0)/F.shape[0], float(x1)/F.shape[1]])
+                x = xs[x0,x1] 
                 z = x + Um(x)
                 defs[x0, x1] = Um(x)
                 #print z
-                loglikelihood += (interpF(z[0],z[1])[0] - I[x0,x1])**2#/(F.shape[0]*F.shape[1])
+                # TODO: Um(x) should 
+                #loglikelihood += (interpF(z) - fI(x))**2#/(F.shape[0]*F.shape[1])
+                loglikelihood += (interpF(z) - fI(x))**2 / (F.shape[0]*F.shape[1])
 
-        #print "MAX DEF:", np.max(defs[:,:,0]), np.max(defs[:,:,1])
+        print "MAX DEF:", np.max(np.fabs(defs[:,:,0])), np.max(np.fabs(defs[:,:,1]))
+
+        if loop == 10:
+            plt.quiver(defs[:,:,1], defs[:,:,0])
+            plt.show() 
 
         # Cost function
         J = logprior + loglikelihood
@@ -132,8 +184,8 @@ def imagedef(F, I):
                     new_u[q,k1,k2] = u[q,k1,k2] - stepsize * term
                 
 
-        print "========= U ==========="
-        print u[:,0:scriptN(a),0:scriptN(a)]
+        print "========= U (pixels) ==========="
+        print u[:,0:scriptN(a),0:scriptN(a)] * F.shape[0] * twopi
         #print new_u
         u = new_u
         #a += 1
@@ -143,27 +195,37 @@ def imagedef(F, I):
         Uvy = np.empty(F.shape)
         for x0 in range(F.shape[0]):
             for x1 in range(F.shape[1]):
-                x = np.array([float(x0)/F.shape[0], float(x1)/F.shape[1]])
+                x = xs[x0,x1]
                 ux = Um(x)
                 Uvx[x0,x1] = ux[0]
                 Uvy[x0,x1] = ux[1]
 
-        Q = plt.quiver(Uvx, Uvy)
-        plt.show() 
+        #Q = plt.quiver(Uvx, Uvy)
+        #plt.show() 
 
      
 
 if __name__ == '__main__':
     #from amitgroup.io.mnist import read
     #images, _ = read('training', '/local/mnist', [9]) 
-    images = np.load("/local/nines.npz")['images']
+    images = np.load("nines.npz")['images'][:,::-1,:]
     import pylab as plt
-    if 0:
-        plt.figure()
-        plt.subplot(211)
-        plt.imshow(images[0])
-        plt.subplot(212)
-        plt.imshow(images[1]) 
+
+    shifted = np.zeros(images[0].shape)    
+    shifted[:-3,:] = images[0,3:,:]
+
+    im1, im2 = images[0], shifted
+    im1, im2 = images[0], images[1] 
+
+    if 1:
+        plt.figure(figsize=(14,6))
+        plt.subplot(121)
+        plt.title("F")
+        plt.imshow(im1, origin='lower')
+        plt.subplot(122)
+        plt.title("I")
+        plt.imshow(im2, origin='lower') 
         plt.show()
-    imagedef(images[0], images[1])
+
+    imagedef(im1, im2)
     
