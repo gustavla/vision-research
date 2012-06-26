@@ -27,6 +27,15 @@ def interp2d(x, y, _z, fill_value=0.0):
 
 from math import cos
 
+def deformfield(xs, ys, u, a):
+    iP1 = inv_Psi(u[0], a)
+    iP2 = inv_Psi(u[1], a)
+    def Um(x): 
+        return np.array([
+            iP1(x),
+            iP2(x),
+        ])
+
 def psi(k1, k2, x):
     #return twopi * np.real(np.exp(twopi * 1j * (k1 * x[0] + k2 * x[1])))
     return twopi * cos(twopi * (k1 * x[0] + k2 * x[1]))
@@ -325,6 +334,8 @@ def main():
             plt.title("Deformed")
             plt.imshow(im3, **d)
             plt.show()
+
+        im3 = deform(im2, u)
 
     elif 1:
         plt.figure(figsize=(14,6))
