@@ -20,6 +20,15 @@ def interp2d(x, y, z, fill_value=0.0):
         return fill_value 
     return f
 
+def deformfield(xs, ys, u, a):
+    iP1 = inv_Psi(u[0], a)
+    iP2 = inv_Psi(u[1], a)
+    def Um(x): 
+        return np.array([
+            iP1(x),
+            iP2(x),
+        ])
+
 def psi(k1, k2, x):
     return twopi * np.real(np.exp(twopi * 1j * (k1 * x[0] + k2 * x[1])))
 
@@ -257,13 +266,15 @@ if __name__ == '__main__':
 
         d = dict(origin='lower', interpolation='nearest')
         plt.figure(figsize=(14,6))
-        plt.subplot(131)
+        plt.subplot(221)
         plt.title("Prototype")
         plt.imshow(im1, **d)
-        plt.subplot(132)
+        plt.subplot(222)    
+        plt.quiver(
+        plt.subplot(223)
         plt.title("Original")
         plt.imshow(im2, **d) 
-        plt.subplot(133)
+        plt.subplot(224)
         plt.title("Deformed")
         plt.imshow(im3, **d)
         plt.colorbar()
