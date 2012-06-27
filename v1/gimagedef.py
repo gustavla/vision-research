@@ -4,6 +4,7 @@ from scipy import interpolate
 from scipy import linalg
 import amitgroup as ag
 from copy import copy
+from math import cos 
 
 twopi = 2.0 * np.pi
 
@@ -25,33 +26,31 @@ def interp2d(x, y, _z, fill_value=0.0):
         return fill_value 
     return interp2d_f
 
-from math import cos 
-
-def deformfield(xs, ys, u, a):
-    iP1 = inv_Psi(u[0], a)
-    iP2 = inv_Psi(u[1], a)
-    def Um(x): 
-        return np.array([
-            iP1(x),
-            iP2(x),
-        ])
-
 def psi(k1, k2, x):
-    #return twopi * np.real(np.exp(twopi * 1j * (k1 * x[0] + k2 * x[1])))
     return twopi * cos(twopi * (k1 * x[0] + k2 * x[1]))
 
 def scriptN(a):
     return a
 
-def inv_Psi(uxi, a):
-    def inv_Psi_f(x):
-        t = 0.0
-        for k1 in xrange(scriptN(a)):
-            for k2 in xrange(scriptN(a)):
-                #print k1, k2
-                t += uxi[k1,k2] * psi(k1, k2, x)
-        return t 
-    return inv_Psi_f 
+def U(x, u, a):
+    inv_Psi0 = 0.0
+    inv_Psi1 = 0.0
+    n = scriptN(a)
+    for k1 in xrange(n):
+        for k2 in xrange(n):
+            ps = psi(k1, k2, x)
+            inv_Psi0 += u[0,k1,k2] * ps
+            inv_Psi1 += u[1,k1,k2] * ps
+    return np.array([inv_Psi0, inv_Psi1]) 
+
+def _deform_x(xs, u, a):
+    zs = np.empty(xs.shape)
+    for x0 in range(xs.shape[0]):
+        for x1 in range(xs.shape[1]):
+            x = xs[x0,x1] 
+            z = x + U(x, u, a)
+            zs[x0,x1] = z
+    return zs
 
 def imagedef(F, I):
     """
@@ -70,126 +69,112 @@ def imagedef(F, I):
     py = xs0
 
     delF = np.gradient(F)
+    # TODO: Does not handle rectangular images
     delF[0] /= F.shape[0]
     delF[1] /= F.shape[0]
-    ix, iy = np.mgrid[0:F.shape[0]-1:1j*F.shape[0], 0:F.shape[1]-1:1j*F.shape[1]]
-    
-
      
-    #interpF = ag.math.interp2d_func(F)
-    #interpF.dx = 1.0/np.array(F.shape)
-
-    interpDelF = []
-    for q in range(len(delF)):
-        interpDelF_f = ag.math.interp2d_func(delF[q])
-        interpDelF_f.dx = 1.0/np.array(F.shape)
-        interpDelF.append(interpDelF_f)
-
+    # 1.
+    rho = 1.0 
     A = 3 
     d = scriptN(A)
-    # 1.
     u = np.zeros((2, d, d))
+    u[:,0,0] = 3.0/twopi/32.0
+    u[0,1,0] = 1.0/twopi/32.0
     m = 0
-    a = 1 
-    stepsize = 0.2
+    a = 0 
+    stepsize = 0.3
     dx = 1.0/(xs.shape[0]*xs.shape[1])
-    for loop in range(200):
-        # 2.
-        iP1 = inv_Psi(u[0], a)
-        iP2 = inv_Psi(u[1], a)
+    for a in range(1, A+1):
+        n = scriptN(a)
+        for loop_inner in range({1: 150, 2:500, 3:0}[a]):
+            # 2.
 
-        # Calculate deformed xs
-        zs = np.empty(xs.shape)
-        for x0 in range(xs.shape[0]):
-            for x1 in range(xs.shape[1]):
-                x = xs[x0,x1] 
-                z = x + np.array([iP1(x), iP2(x)]) 
-                zs[x0,x1] = z
+            # Calculate deformed xs
+            zs = _deform_x(xs, u, a)
 
-        # Interpolated F at zs
-        import sys
-        Fzs = ag.math.interp2d(zs, F, startx=np.zeros(2))
+            # Interpolated F at zs
+            Fzs = ag.math.interp2d(zs, F, startx=np.zeros(2))
 
-        v = np.zeros((2,)+(scriptN(a),)*2)
-        # 4.
-        for x0 in range(xs.shape[0]):
-            for x1 in range(xs.shape[1]):
-                x = xs[x0,x1] 
-                x2pi = twopi * x
-                z = zs[x0,x1]
-                #assert np.fabs(interpF(z)-Fzs[x0,x1])<0.0000001, "z = {0} interpF = {1} Fzs = {2}, {3}".format(z, interpF(z), Fzs[x0,x1], interpF.dx)
-                term = (Fzs[x0,x1] - I[x0,x1])
-                for k1 in range(scriptN(a)):
-                    for k2 in range(scriptN(a)):
-                        #p = psi(k1, k2, x)
-                        pterm = term * cos(k1 * x2pi[0] + k2 * x2pi[1])
-                        Wx0 = interpDelF[0](z) * pterm
-                        Wx1 = interpDelF[1](z) * pterm
-                        v[0,k1,k2] += Wx0
-                        v[1,k1,k2] += Wx1
+            # Interpolate delF at zs 
+            delFzs = np.empty((2,) + F.shape) 
+            for q in range(2):
+                delFzs[q] = ag.math.interp2d(zs, delF[q])
 
-        # We didn't multiply by this
-        v *= dx * twopi
-
-        # Must include psi as well!!
-
-            
-
-
-        # Calculate cost, just for sanity check
-        if 0:
-            logprior = 0.0
-            for k1 in range(scriptN(a)):
-                for k2 in range(scriptN(a)):
-                    lmbk = (k1**2 + k2**2)
-                    logprior += lmbk * (u[0,k1,k2]**2 + u[1,k1,k2]**2)
-            logprior /= 2.0
-
-            loglikelihood = 0.0
-            for x0 in range(F.shape[0]):
-                for x1 in range(F.shape[1]):
+            v = np.zeros((2,)+(n,)*2)
+            # 4.
+            terms = Fzs - I
+            for x0 in range(xs.shape[0]):
+                for x1 in range(xs.shape[1]):
                     x = xs[x0,x1] 
-                    z = zs[x0,x1]
-                    loglikelihood += (interpF(z) - I[x0,x1])**2 / (F.shape[0]*F.shape[1])
+                    term = terms[x0,x1]#Fzs[x0,x1] - I[x0,x1]
+                    for k1 in range(n):
+                        for k2 in range(n):
+                            #p = psi(k1, k2, x)
+                            #pterm = term * cos(k1 * x2pi[0] + k2 * x2pi[1])
+                            pterm = term * psi(k1, k2, x)
+                            v[:,k1,k2] += delFzs[:,x0,x1] * pterm 
 
-            if False and loop == 10:
-                plt.quiver(defs[:,:,1], defs[:,:,0])
-                plt.show() 
+            # We didn't multiply by this
+            v *= dx# * twopi
 
-            # Cost function
-            J = logprior + loglikelihood
-            print "Cost:", J, logprior, loglikelihood
+            # Must include psi as well!!
 
-        new_u = np.copy(u)
-
-        # 5. Gradient descent
-        for q in range(2):
-            for k1 in range(scriptN(a)):
-                for k2 in range(scriptN(a)):
-                    lmbk = (k1**2 + k2**2)
-                    term = (lmbk * u[q,k1,k2] + v[q,k1,k2])
-                    new_u[q,k1,k2] = u[q,k1,k2] - stepsize * term
                 
 
-        print "========= U (pixels) ==========="
-        print u[:,0:scriptN(a),0:scriptN(a)] * F.shape[0] * twopi
-        #print new_u
-        u = new_u
-        #a += 1
 
-        # Print the new deformation as a vector field
-        if 0:
-            Uvx = np.empty(F.shape)
-            Uvy = np.empty(F.shape)
-            for x0 in range(F.shape[0]):
-                for x1 in range(F.shape[1]):
-                    x = xs[x0,x1]
-                    ux = Um(x)
-                    Uvx[x0,x1] = ux[0]
-                    Uvy[x0,x1] = ux[1]
+            # Calculate cost, just for sanity check
+            if 1:
+                logprior = 0.0
+                for k1 in range(n):
+                    for k2 in range(n):
+                        lmbk = (k1**2 + k2**2)**rho
+                        logprior += lmbk * (u[0,k1,k2]**2 + u[1,k1,k2]**2)
+                logprior /= 2.0
 
-        #Q = plt.quiver(Uvx, Uvy)
-        #plt.show() 
+                loglikelihood = 0.0
+                for x0 in range(F.shape[0]):
+                    for x1 in range(F.shape[1]):
+                        loglikelihood += (Fzs[x0,x1] - I[x0,x1])**2 
+                loglikelihood *= dx
+
+                if False and loop_outer == 10:
+                    plt.quiver(defs[:,:,1], defs[:,:,0])
+                    plt.show() 
+
+                # Cost function
+                J = logprior + loglikelihood
+                print "Cost:", J, logprior, loglikelihood
+
+            new_u = np.copy(u)
+
+            # 5. Gradient descent
+            for q in range(2):
+                for k1 in range(n):
+                    for k2 in range(n):
+                        lmbk = float(k1**2 + k2**2)**rho
+                        term = (lmbk * u[q,k1,k2] + v[q,k1,k2])
+                        new_u[q,k1,k2] = u[q,k1,k2] - stepsize * term
+                    
+
+            print "========= U (pixels) ==========="
+            print u[:,0:n,0:n] * F.shape[0] * twopi
+            #print new_u
+            u = new_u
+            #a += 1
+
+            # Print the new deformation as a vector field
+            if 0:
+                Uvx = np.empty(F.shape)
+                Uvy = np.empty(F.shape)
+                for x0 in range(F.shape[0]):
+                    for x1 in range(F.shape[1]):
+                        x = xs[x0,x1]
+                        ux = Um(x)
+                        Uvx[x0,x1] = ux[0]
+                        Uvy[x0,x1] = ux[1]
+
+            #Q = plt.quiver(Uvx, Uvy)
+            #plt.show() 
 
 
     return u
@@ -207,24 +192,8 @@ def deform(I, u):
     xs1 = xs[:,:,1]
 
     a = u.shape[0]
-    #a = u.size-2
-    iP1 = inv_Psi(u[0], a)
-    iP2 = inv_Psi(u[1], a)
-    def Um(x): 
-        return np.array([
-            iP1(x),
-            iP2(x),
-        ])
-
-    interpI = ag.math.interp2d_func(I)
-    interpI.dx = 1.0/np.array(I.shape)
-
-    for x0 in range(im.shape[0]): 
-        for x1 in range(im.shape[1]): 
-            x = xs[x0,x1]
-            z = x + Um(x)
-            
-            im[x0,x1] = interpI(z)
+    zs = _deform_x(xs, u, a)
+    im = ag.math.interp2d(zs, I)
     return im
 
 def main():
@@ -248,6 +217,10 @@ def main():
     im2 = im2[::-1,:]
 
     u = np.array(2*range(9)[::-1]).reshape((2,3,3))/2000.0
+    u = np.zeros((2,3,3))
+    u[:,0,0] = 3.0/twopi/32.0
+    u[0,1,0] = 1.0/twopi/32.0
+    #u = np.array([3.0, 3.0])/twopi/im1.shape[0]
 
     im2 = deform(im1, u)    
 
