@@ -3,12 +3,12 @@ import numpy as np
 from scipy import interpolate
 from scipy import linalg
 import amitgroup as ag
-import amitgroup.ml
+from amitgroup.ml.imagedefw import imagedef, deform, deform_map
 from copy import copy
 from math import cos 
 from itertools import product
 PLOT = True 
-PLOT = False
+#PLOT = False
 if PLOT: 
     import matplotlib.pylab as plt
 
@@ -36,11 +36,46 @@ def main():
     #im2 = deform(im1, u)    
 
     if 1:
+        u = []
+        for q in range(2):
+            u0 = [np.zeros((1,1))]
+            for s in range(0, 20):
+                u0.append((np.zeros((2**s,2**s)), np.zeros((2**s,2**s)), np.zeros((2**s,2**s))))
+            u.append(u0)
+
+        u[0][1][0][0] += 0.5 
+        u[1][1][1][0] += 0.2 
+
+        print u
+
+        xs = np.empty((20, 20, 2))
+        for x0 in range(xs.shape[0]):
+            for x1 in range(xs.shape[1]):
+                xs[x0,x1] = np.array([x0/float(xs.shape[0]), x1/float(xs.shape[1])])
+        
+        defx = deform_map(xs, u)
+
+        imdef = deform(im1, u)
+        d = dict(origin='lower', interpolation='nearest', cmap=plt.cm.gray)
+
+        plt.figure(figsize=(14,4))
+        plt.subplot(131)
+        plt.title("Original")
+        plt.imshow(im1, **d) 
+        plt.subplot(132)
+        plt.title("Deformed")
+        plt.imshow(imdef, **d)
+        plt.subplot(133)
+        plt.title("Deform map")
+        plt.quiver(xs[:,:,1], xs[:,:,0], defx[:,:,1], defx[:,:,0])
+        plt.show()
+        
+    elif 1:
         #import pylab as plt
         #plt.imshow(im2, **d)
         #plt.show()
 
-        u, costs, logpriors, loglikelihoods = ag.ml.imagedef(im1, im2, A=8)
+        u, costs, logpriors, loglikelihoods = imagedef(im1, im2, A=2)
         print u
 
         if PLOT:
@@ -82,12 +117,9 @@ def main():
         plt.title("I")
         plt.imshow(im2, origin='lower') 
         plt.show()
-
-    else:
-        imagedef(im1, im2)
     
 
 if __name__ == '__main__':
     import cProfile
-    cProfile.run('main()')
-    #main()
+    #cProfile.run('main()')
+    main()
