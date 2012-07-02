@@ -16,17 +16,38 @@ def main():
     #import amitgroup.io.mnist
     #images, _ = read('training', '/local/mnist', [9]) 
     images = np.load("data/nines.npz")['images']
-    #shifted = np.zeros(images[0].shape)    
-    #shifted[:-3,:] = images[0,3:,:]
+    shifted = np.zeros(images[0].shape)    
+    shifted[:-3,:] = images[0,3:,:]
+
+    im1, im2 = np.zeros((32, 32)), np.zeros((32, 32))
 
     #im1, im2 = images[0], shifted
-    im1, im2 = images[0], images[2] 
+    im1[:28,:28] = images[0]
+    #im2[
+    #im1, im2 = images[0], images[2] 
 
-    im1 = ag.io.load_image('data/Images_0', 45)
-    im2 = ag.io.load_image('data/Images_1', 23)
+    #im1 = ag.io.load_image('data/Images_0', 45)
+    #im2 = ag.io.load_image('data/Images_1', 23)
+
+    #im1 = im1[:8,:8]
+    #im2 = im2[:8,:8]
 
     im1 = im1[::-1,:]
     im2 = im2[::-1,:]
+
+    A = 2
+    u = []
+    for q in range(2):
+        u0 = [np.zeros((1,1))]
+        for s in range(0, A):
+            sh = (2**s, 2**s)
+            u0.append((np.zeros(sh), np.zeros(sh), np.zeros(sh)))
+        u.append(u0)
+
+    u[0][0] -= 2.0/(28.0/4.0)
+    u[1][1][1][0,0] += 1.5/(28.0/4.0)
+
+    im2 = deform(im1, u)
 
     #u = np.zeros((2,3,3))
     #u[:,0,0] = 3.0/twopi/32.0
@@ -35,18 +56,21 @@ def main():
     # For testing:
     #im2 = deform(im1, u)    
 
-    if 1:
+    A = 2 
+    if 0:
         u = []
         for q in range(2):
             u0 = [np.zeros((1,1))]
-            for s in range(0, 20):
+            for s in range(0, A):
                 u0.append((np.zeros((2**s,2**s)), np.zeros((2**s,2**s)), np.zeros((2**s,2**s))))
             u.append(u0)
 
-        u[0][1][0][0] += 0.5 
-        u[1][1][1][0] += 0.2 
+        #u[0][1][0][0] += 0.5 
+        #u[1][1][1][0] += 0.2 
+        
+        #u[0][1:][2][0][0,3] = 0.2 
 
-        print u
+        #print u[0][1:][2][0]
 
         xs = np.empty((20, 20, 2))
         for x0 in range(xs.shape[0]):
@@ -75,7 +99,7 @@ def main():
         #plt.imshow(im2, **d)
         #plt.show()
 
-        u, costs, logpriors, loglikelihoods = imagedef(im1, im2, A=2)
+        u, costs, logpriors, loglikelihoods = imagedef(im1, im2, A=A)
         print u
 
         if PLOT:
@@ -91,7 +115,7 @@ def main():
     
         if PLOT:
             d = dict(origin='lower', interpolation='nearest', cmap=plt.cm.gray)
-            im3 = ag.ml.deform(im1, u)
+            im3 = deform(im1, u)
 
             plt.figure(figsize=(16,6))
             plt.subplot(141)
@@ -106,6 +130,7 @@ def main():
             plt.subplot(144)
             plt.title("Deformed")
             plt.imshow(im2-im3, **d)
+            plt.colorbar()
             plt.show()
 
     elif 1:
