@@ -26,8 +26,8 @@ def main():
     #im2[
     #im1, im2 = images[0], images[2] 
 
-    #im1 = ag.io.load_image('data/Images_0', 45)
-    #im2 = ag.io.load_image('data/Images_1', 23)
+    im1 = ag.io.load_image('data/Images_0', 45)
+    im2 = ag.io.load_image('data/Images_1', 23)
 
     #im1 = im1[:8,:8]
     #im2 = im2[:8,:8]
@@ -44,10 +44,10 @@ def main():
             u0.append((np.zeros(sh), np.zeros(sh), np.zeros(sh)))
         u.append(u0)
 
-    u[0][0] -= 2.0/(28.0/4.0)
-    u[1][1][1][0,0] += 1.5/(28.0/4.0)
+    u[0][0] -= 2.0/(32.0/4.0)
+    u[1][1][1][0,0] += 1.5/(32.0/4.0)
 
-    im2 = deform(im1, u)
+    #im2 = deform(im1, u)
 
     #u = np.zeros((2,3,3))
     #u[:,0,0] = 3.0/twopi/32.0
@@ -102,7 +102,7 @@ def main():
         u, costs, logpriors, loglikelihoods = imagedef(im1, im2, A=A)
         print u
 
-        if PLOT:
+        if PLOT and costs:
             plt.figure(figsize=(8,12))
             plt.subplot(211)
             plt.semilogy(costs, label="J")
