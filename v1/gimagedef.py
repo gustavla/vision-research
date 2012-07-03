@@ -7,6 +7,7 @@ from amitgroup.ml.imagedefw import imagedef, deform, deform_map
 from copy import copy
 from math import cos 
 from itertools import product
+import pywt
 PLOT = True 
 #PLOT = False
 if PLOT: 
@@ -23,6 +24,16 @@ def main():
 
     #im1, im2 = images[0], shifted
     im1[:28,:28] = images[0]
+
+    im1 = np.zeros((32,32))
+
+    for i in range(32):
+        im1[8,i] = 0.5
+        im1[24,i] = 0.5
+        im1[i,8] = 0.5
+        im1[i,24] = 0.5
+        im1[16,i] = 1.0
+        im1[i,16] = 1.0
     #im2[
     #im1, im2 = images[0], images[2] 
 
@@ -34,18 +45,31 @@ def main():
 
     im1 = im1[::-1,:]
     im2 = im2[::-1,:]
+    
+    #im1 = im1[:,::-1]
+    #im2 = im2[:,::-1]
 
-    A = 2
+    levels = 3
+    scriptNs = map(len, pywt.wavedec(range(32), 'db2', level=levels)) + [0]
+
+    minA = 2
+    A = 2 
+    #u = np.zeros((2, d, d))
     u = []
     for q in range(2):
-        u0 = [np.zeros((1,1))]
-        for s in range(0, A):
-            sh = (2**s, 2**s)
+        u0 = [np.zeros((scriptNs[0],)*2)]
+        for a in range(1, levels):
+            sh = (scriptNs[a],)*2
             u0.append((np.zeros(sh), np.zeros(sh), np.zeros(sh)))
         u.append(u0)
 
-    u[0][0] -= 2.0/(32.0/4.0)
-    u[1][1][1][0,0] += 1.5/(32.0/4.0)
+    #u[0][0] -= 2.0/(32.0/4.0)
+    #u[1][1][1][0,0] += 1.5/(32.0/4.0)
+    #initial = -0.5
+    #u[0][0][2,0] = initial 
+    #u[0][0][1,1] = 0.2 
+    #u[1][1][1][0,0] = 0.8
+    #u[1][1][2][1,2] = 1.4
 
     #im2 = deform(im1, u)
 
@@ -99,16 +123,25 @@ def main():
         #plt.imshow(im2, **d)
         #plt.show()
 
-        u, costs, logpriors, loglikelihoods = imagedef(im1, im2, A=A)
-        print u
+        # Blur images
+        im1b = im1#ag.math.blur_image(im1, 2)
+        im2b = im2#ag.math.blur_image(im2, 2)
+
+        u, costs, logpriors, loglikelihoods = imagedef(im1b, im2b, A=A)
+        #print "Final"
+        #print u[0][0][0,0], 0.0
+        #print u[0][0][1,0], 0.0
+        #print u[0][0][2,0], initial 
 
         if PLOT and costs:
+            plotfunc = plt.semilogy
             plt.figure(figsize=(8,12))
             plt.subplot(211)
-            plt.semilogy(costs, label="J")
-            plt.semilogy(loglikelihoods, label="log likelihood")
+            plotfunc(costs, label="J")
+            plotfunc(loglikelihoods, label="log likelihood")
+            plt.legend()
             plt.subplot(212) 
-            plt.semilogy(logpriors, label="log prior")
+            plotfunc(logpriors, label="log prior")
             plt.legend()
             plt.show()
 
