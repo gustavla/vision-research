@@ -14,7 +14,8 @@ im1, im2 = np.zeros((32, 32)), np.zeros((32, 32))
 #im1, im2 = images[0], shifted
 im1[:28,:28] = images[0]
 
-face = ag.io.load_example('faces')[0]
+#face = ag.io.load_example('faces')[0]
+face = ag.io.load_image('data/Images_0', 45)
 face = face[::-1,:]
 
 if 0:
@@ -52,11 +53,12 @@ u2 = pickle.load(open('u.p', 'rw')) # np.load('u')['u']
 
 from copy import deepcopy
 u = deepcopy(u2)
-for q in range(2):
-    #u[q][0][:] = 0.0 
-    for a in range(1, len(u[q])):
-        for alpha in range(3):
-            u[q][a][alpha][:,:] = 0.0 
+if 0:
+    for q in range(2):
+        u[q][0][:] = 0.0 
+        for a in range(1, len(u[q])):
+            for alpha in range(3):
+                u[q][a][alpha][:,:] = 0.0 
 
 #u[0][0][:] = 0.0
 #print u[1][0]
