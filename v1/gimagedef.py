@@ -7,8 +7,8 @@ from copy import copy
 from math import cos 
 from itertools import product
 import pywt
-PLOT = True 
-#PLOT = False
+#PLOT = True 
+PLOT = False
 if PLOT: 
     import matplotlib.pylab as plt
 
