@@ -7,8 +7,8 @@ from copy import copy
 from math import cos 
 from itertools import product
 import pywt
-#PLOT = True 
-PLOT = False
+PLOT = True 
+#PLOT = False
 if PLOT: 
     import matplotlib.pylab as plt
 
@@ -73,20 +73,27 @@ def main():
         if PLOT:
             d = dict(origin='lower', interpolation='nearest', cmap=plt.cm.gray)
 
-            plt.figure(figsize=(16,6))
-            plt.subplot(141)
+            plt.figure(figsize=(9,9))
+            plt.subplot(221)
             plt.title("Prototype")
             plt.imshow(im1, **d)
-            plt.subplot(142)
+            plt.subplot(222)
             plt.title("Original")
             plt.imshow(im2, **d) 
-            plt.subplot(143)
+            plt.subplot(223)
             plt.title("Deformed")
             plt.imshow(im3, **d)
-            plt.subplot(144)
-            plt.title("Deformed")
-            plt.imshow(im2-im3, **d)
-            plt.colorbar()
+            
+            plt.subplot(224)
+            if 0:
+                plt.title("Deformed")
+                plt.imshow(im2-im3, **d)
+                plt.colorbar()
+            else:
+                plt.title("Deformation map")
+                x, y = imgdef.get_x(im1.shape)
+                Ux, Uy = imgdef.deform_map(x, y) 
+                plt.quiver(y, x, Uy, Ux)
             plt.show()
 
     elif 1:
