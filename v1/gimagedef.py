@@ -49,10 +49,11 @@ def main():
 
         imgdef, info = ag.ml.imagedef(im1b, im2b, rho=3.0, calc_costs=show_costs)
 
+        print info['iterations_per_level']
 
         if PLOT and show_costs:
-            logpriors = info['logpriors']
-            loglikelihoods = info['loglikelihoods']
+            logpriors = -info['logpriors']
+            loglikelihoods = -info['loglikelihoods']
             np.savez('logs', logpriors=logpriors, loglikelihoods=loglikelihoods)
 
             plotfunc = plt.semilogy
