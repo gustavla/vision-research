@@ -6,7 +6,7 @@ import os
 import matplotlib.pylab as plt
 
 def classify(image, F):
-    
+    pass 
 
 def zeropad(array, pad_width):
     shape = list(array.shape)

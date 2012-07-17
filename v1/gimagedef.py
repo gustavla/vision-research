@@ -3,6 +3,7 @@ import numpy as np
 from scipy import interpolate
 from scipy import linalg
 import amitgroup as ag
+import amitgroup.ml
 from copy import copy
 from math import cos 
 from itertools import product
