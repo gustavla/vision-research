@@ -9,6 +9,8 @@ import sys
 import numpy as np
 import matplotlib.pylab as plt
 
+PLOT = '--plot' in sys.argv
+
 def add_blur(x):
     y = np.copy(x)
     x[:,1:,:] += y[:,:-1,:]
@@ -50,10 +52,12 @@ def main(F, coef, filename=None, test_index=1):
 
     settings = dict(origin='lower', interpolation='nearest', cmap=None, vmin=0.0, vmax=1.0)
     feat = int(sys.argv[1]) 
+
+    costs = []
     for d in [9]: 
         print("Digit:", d)
-        #imdef, info = ag.ml.bernoulli_model(testing[test_index], F[d], coef=coef, rho=2.5, stepsize=0.01*1e-3/coef, calc_costs=True, tol=1e-3)
-        imdef, info = ag.ml.imagedef(testing[test_index], F[d], calc_costs=True)
+        imdef, info = ag.ml.bernoulli_model(F[d], testing[test_index], calc_costs=True, tol=1e-4)
+        #imdef, info = ag.ml.imagedef(F[d], testing[test_index], coef=1e-2, stepsize=0.3, calc_costs=True)
 
 
         print(info['iterations_per_level'])
@@ -71,30 +75,37 @@ def main(F, coef, filename=None, test_index=1):
         #print(imdef.u)
 
         imf = imdef.deform(subject) 
-        im = imdef.deform(testing[test_index])
+        canon_nine = np.load('canonical-digits.npz')['F'][9]
+        #im = imdef.deform(F[d,feat])
+        im = imdef.deform(canon_nine)
+       
+        costs.append(-info['loglikelihoods'][-1] - info['loglikelihoods'][-1])
 
-        plt.figure(figsize=(11,7))
-        plt.subplot(231)
-        plt.imshow(subject, **settings)
-        plt.subplot(232)
-        plt.imshow(imf, **settings)
-        plt.subplot(233)
-        #plt.imshow(F[d,feat], **settings)
-        plt.imshow(F[d], **settings)
-        plt.subplot(234)
-        plt.quiver(y, x, Uy, Ux) 
-        plt.subplot(235)
-        plt.imshow(testing[test_index], **settings)
-        plt.subplot(236)
-        plt.imshow(im, **settings)
-        plt.colorbar()
-        #plt.plot(-(info['loglikelihoods']+info['logpriors']))
+        if PLOT:
+            plt.figure(figsize=(11,7))
+            plt.subplot(231)
+            plt.imshow(subject, **settings)
+            plt.subplot(232)
+            plt.imshow(imf, **settings)
+            plt.subplot(233)
+            #plt.imshow(F[d,feat], **settings)
+            plt.imshow(F[d,feat], **settings)
+            plt.subplot(234)
+            plt.quiver(y, x, Uy, Ux, scale=1.0) 
+            plt.subplot(235)
+            plt.imshow(testing[test_index], **settings)
+            plt.subplot(236)
+            plt.imshow(im, **settings)
+            plt.colorbar()
+            #plt.plot(-(info['loglikelihoods']+info['logpriors']))
 
+    print("RESULT Digit: {0}".format(np.argmin(costs)))
 
-    if filename:
-        plt.savefig(filename)
-    else:
-        plt.show()
+    if PLOT:
+        if filename:
+            plt.savefig(filename)
+        else:
+            plt.show()
 
 if __name__ == '__main__':
     try:
@@ -105,13 +116,14 @@ if __name__ == '__main__':
     if option == 'features':
         features()
     else:
-        #F = np.load("F.npz")['F']
-        F = np.load("canonical-digits.npz")['F']
-        #F = F[:,:,::-1]
-        F = F[:,::-1]
+        F = np.load("F.npz")['F']
+        F = F[:,:,::-1]
+        print(F.shape)
+        #F = np.load("canonical-digits.npz")['F']
+        #F = F[:,::-1]
         if 0:
             for i in range(5):
-                coef = 0.005
+                coef = 0.001
                 main(F, coef, 'nine{0}.png'.format(i), test_index=i)    
         elif 1:
             coef = 0.05 
