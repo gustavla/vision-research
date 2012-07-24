@@ -30,7 +30,7 @@ for i, f in enumerate(files):
     res[i] = data[:,:,:3].mean(axis=2) 
 
 try:
-    np.savez(path_output, data=res)
+    np.save(path_output, res)
 except IOError:
     print("Could not save to {0}".format(output))    
 
