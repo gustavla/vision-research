@@ -1,6 +1,7 @@
 import numpy as np
 import amitgroup as ag
 import sys
+import os
 
 try:
     dataset = sys.argv[1] 
