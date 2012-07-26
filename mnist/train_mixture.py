@@ -1,4 +1,3 @@
-
 from __future__ import print_function
 import amitgroup as ag
 from amitgroup.stats import BernoulliMixture
@@ -8,13 +7,16 @@ import sys
 
 try:
     filename = sys.argv[1]
+    output_filename = sys.argv[2]
 except IndexError:
-    print("boo boo, need filename!")
+    print("boo boo, need <intput filename> <output filename>!")
     sys.exit(0)
 
 data = np.load(filename)
 
 def train_mixture(data):
+    all_templates = []
+    all_weights = []
     for d in range(10):
         print(d)
         str_d = str(d)
@@ -25,8 +27,11 @@ def train_mixture(data):
         mixture = BernoulliMixture(9, digits)
         mixture.run_EM(1e-3)
         
-        mixture.save('mix/mixture-digit-{0}'.format(d))
-        break
+        #mixture.save('mix/mixture-digit-{0}'.format(d))
+        all_templates.append(mixture.templates)
+        all_weights.append(mixture.weights)
+
+    np.savez(output_filename, templates=all_templates, weights=all_weights) 
 
 import cProfile as profile
 if __name__ == '__main__':
