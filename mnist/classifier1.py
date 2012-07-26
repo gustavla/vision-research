@@ -8,41 +8,19 @@ import sys
 
 QUICK = '--quick' in sys.argv
 
-num_mixtures = 9 
-
 bedges_k = 4
 inflate = True 
 
-mixtures = []
-if 1:
-    path = "/var/tmp/local"
-    
-else:
-    for d in range(10):
-        digits, _ = ag.io.load_mnist('training', [d])
-        if QUICK:
-            digits = digits[:500]
-        edges = ag.features.bedges(digits, inflate=inflate, k=bedges_k)
-       
-        #edges_flat = edges.flatten()
-        #edges_1d = np.array([edges_flat])
-
-        # Train the mixture model
-        print("Training mixture model for digit", d)
-        mixture = ag.stats.BernoulliMixture(num_mixtures, edges)
-        mixture.run_EM(1e-4, save_template=True)
+all_templates = np.load('mixtures.npz')['templates'] 
         
-        mixtures.append(mixture) 
-
 # Classifer 
-def classify(features, mixtures):
+def classify(features, all_templates):
     eps = 1e-3
     lookup = []
     # min loglikelihood
     min_cost = None
     min_which = None
-    for digit, mixture in enumerate(mixtures):
-        templates = mixture.get_templates()
+    for digit, templates in enumerate(all_templates):
         # Clip them, to avoid 0 probabilities
         templates = np.clip(templates, eps, 1.0 - eps)
 
@@ -64,17 +42,17 @@ testing_edges = ag.features.bedges(testing_digits, inflate=inflate, k=bedges_k)
 N = len(testing_edges)
 c = 0
 for i, features in enumerate(testing_edges):
-    label, comp = classify(features, mixtures)
+    label, comp = classify(features, all_templates)
     correct = label == testing_labels[i]
     c += int(correct)
-    print(correct)
-    if not correct:
+    print(i, N, correct)
+    if False and not correct:
         print("Label = {0}, component = {1}".format(label, comp))
         ag.plot.images(testing_digits[i])
         plt.show()
         ag.plot.images(np.rollaxis(features, 2))
         plt.show()
-        ag.plot.images(np.rollaxis(mixtures[label].templates[comp], 2))
+        ag.plot.images(np.rollaxis(all_templates[label,comp], 2))
         plt.show()
 
 print("Success rate: {0:.2f} ({1}/{2})".format(100*c/N, c, N))
