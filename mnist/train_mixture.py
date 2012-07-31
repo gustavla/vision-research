@@ -8,8 +8,10 @@ import sys
 try:
     filename = sys.argv[1]
     output_filename = sys.argv[2]
+    #k = int(sys.argv[3])
+    #inflate = 'inflate' in sys.argv
 except IndexError:
-    print("boo boo, need <intput filename> <output filename>!")
+    print("<intput filename> <output filename>")
     sys.exit(0)
 
 data = np.load(filename)
