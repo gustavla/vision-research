@@ -36,6 +36,10 @@ def main():
         means = []
         means2 = []
         priors = []
+        #delFs = []
+        #del2Fs = []
+        A = []
+        B = []
 
         shifts = np.linspace(0, 5.3333, 40)
         #shifts = [3.528]
@@ -92,6 +96,13 @@ def main():
             terms = (F - I) * delF
             print terms.shape
 
+            #delFs.append(delOneF)
+            delOne2F = np.gradient(delOneF, 1/len(x))
+            #del2Fs.append(delOne2F)
+            A.append((delOne2F * (oneF - oneI)).mean())
+            B.append((delOneF**2).mean())
+            
+
             #import pywt
             #u = pywt.wavedec2(terms[0], 'db1', mode='per') 
             #print u[0]
@@ -118,6 +129,9 @@ def main():
 
             del2m2 = np.gradient(delm2, shifts[-1]/40)
             del2priors = np.gradient(delpriors, shifts[-1]/40)
+            costs = -(priors+means2)
+            delcosts = np.gradient(costs, shifts[-1]/40)
+            del2costs = np.gradient(delcosts, shifts[-1]/40)
 
             plt.plot(shifts, means2, label='means2')
             #plt.plot(shifts, means, label='means')
@@ -126,7 +140,14 @@ def main():
             plt.plot(shifts, priors, label='prior')
             plt.plot(shifts, delpriors, label='del priors')
             plt.plot(shifts, del2priors, label='del2 priors')
-            plt.plot(shifts, -(priors+means2), label='cost')
+            plt.plot(shifts, delcosts, label='del costs')
+            plt.plot(shifts, del2costs, label='del2 costs')
+            #plt.plot(shifts, del2, label='del2 costs')
+            plt.plot(shifts, costs, label='cost')
+            plt.plot(shifts, A, label='A')
+            plt.plot(shifts, B, label='B')
+            #plt.plot(shifts, delFs, label='del F')
+            #plt.plot(shifts, del2Fs, label='del2 F')
             plt.legend()
             print ':', delm2.max()
             print '--->', shifts[np.argmin(-(priors+means2))]
@@ -158,7 +179,7 @@ def main():
     #penalty /= 32 * 32
     #dt = 0.01 * 32 * 32
     dt = None
-    imdef, info = ag.ml.imagedef(F, I, stepsize=dt, penalty=penalty, rho=1.0, A=1, tol=0.000000001, \
+    imdef, info = ag.ml.imagedef(F, I, stepsize=dt, penalty=penalty, rho=1.0, A=3, tol=0.0001, \
                                  max_iterations_per_level=500, start_level=1, calc_costs=True, wavelet='db1')
     Fdef = imdef.deform(F)
     t2 = time()
