@@ -6,15 +6,19 @@ import numpy as np
 from time import time
 from scipy.stats import norm
 
-
-
 def main():
     #x, y = np.mgrid[0:1.0-1/F.shape[0]:F.shape[0]*1j, 0:1.0-1/F.shape[1]:F.shape[1]*1j]
     wavelet = 'db2'
-    if 0:
+    if 1:
         F = ag.io.load_example('faces2')[0]
+        N = 64 
+        M = 32 
+        if (N, M) != F.shape:
+            from scipy.signal import resample
+            F = resample(resample(F, N, axis=0), M, axis=1)
+
         imdef2 = ag.util.DisplacementFieldWavelet(F.shape, wavelet=wavelet)
-        imdef2.u[0,0,0,0,0] = 2.1 
+        imdef2.u[0,0,0,0,0] = 3.1 
         if 1:
             imdef2.u[0,1,0,1,0] = 1.3
             imdef2.u[0,1,0,1,1] = -1.25
@@ -25,9 +29,11 @@ def main():
             imdef2.u[1,2,0,0,1] = -0.1
             imdef2.u[1,2,0,3,3] = 0.3
             imdef2.u[1,2,1,1,1] = 1.1 
-        I = imdef2.deform(F)
 
+        I = imdef2.deform(F)
+    
         x, y = imdef2.meshgrid()
+
     elif 0:
         F, I = ag.io.load_example('faces2')
     else:
@@ -47,11 +53,11 @@ def main():
             F = resample(resample(F, N, axis=0), M, axis=1)
             I = resample(resample(I, N, axis=0), M, axis=1)
 
-    penalty = 2.0 
+    penalty = 0.1 
     #dt = 0.01 * 32 * 32
     t1 = time()
-    imdef, info = ag.ml.imagedef(F, I, penalty=penalty, rho=2.0, start_level=1, last_level=5,
-                                 tol=0.001, stepsize_scale_factor=3.0, max_iterations_per_level=1000, calc_costs=True, \
+    imdef, info = ag.ml.imagedef(F, I, penalty=penalty, rho=2.0, start_level=1, last_level=5, \
+                                 tol=0.001, stepsize_scale_factor=1.0, max_iterations_per_level=1000, \
                                  wavelet=wavelet)
     t2 = time()
     print "Time", (t2 -t1)
