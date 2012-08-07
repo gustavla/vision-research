@@ -178,9 +178,8 @@ def main():
 
     #penalty /= 32 * 32
     #dt = 0.01 * 32 * 32
-    dt = None
-    imdef, info = ag.ml.imagedef(F, I, stepsize=dt, penalty=penalty, rho=1.0, A=3, tol=0.0001, \
-                                 max_iterations_per_level=500, start_level=1, calc_costs=True, wavelet='db1')
+    imdef, info = ag.ml.imagedef(F, I, stepsize_scale_factor=0.5, penalty=penalty, rho=1.0, last_level=3, tol=0.0001, \
+                                 max_iterations_per_level=500, start_level=1, wavelet='db1')
     Fdef = imdef.deform(F)
     t2 = time()
 
@@ -192,7 +191,7 @@ def main():
         #Also print some info before showing
         print info['iterations_per_level'] 
         
-        x, y = imdef.get_x(F.shape)
+        x, y = imdef.meshgrid()
         Ux, Uy = imdef.deform_map(x, y)
         print 'max', Ux.max()
         print Ux[0,0] * 32, 'pixels'

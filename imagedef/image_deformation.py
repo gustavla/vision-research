@@ -9,7 +9,7 @@ from scipy.stats import norm
 def main():
     #x, y = np.mgrid[0:1.0-1/F.shape[0]:F.shape[0]*1j, 0:1.0-1/F.shape[1]:F.shape[1]*1j]
     wavelet = 'db2'
-    if 1:
+    if 0:
         F = ag.io.load_example('faces2')[0]
         N = 64 
         M = 32 
@@ -18,15 +18,15 @@ def main():
             F = resample(resample(F, N, axis=0), M, axis=1)
 
         imdef2 = ag.util.DisplacementFieldWavelet(F.shape, wavelet=wavelet)
-        imdef2.u[0,0,0,0,0] = 3.1 
+        imdef2.u[0,0,0,0,0] = 0.1 
         if 1:
             imdef2.u[0,1,0,1,0] = 1.3
             imdef2.u[0,1,0,1,1] = -1.25
             imdef2.u[0,1,1,0,0] = -1.3
             imdef2.u[0,1,1,0,1] = 1.45
             
-            imdef2.u[1,2,0,0,0] = 0.2
-            imdef2.u[1,2,0,0,1] = -0.1
+            imdef2.u[1,2,0,0,0] = 2.2
+            imdef2.u[1,2,0,0,1] = -1.1
             imdef2.u[1,2,0,3,3] = 0.3
             imdef2.u[1,2,1,1,1] = 1.1 
 
@@ -34,7 +34,7 @@ def main():
     
         x, y = imdef2.meshgrid()
 
-    elif 0:
+    elif 1:
         F, I = ag.io.load_example('faces2')
     else:
         F_, I_ = ag.io.load_example('mnist')[:2]
