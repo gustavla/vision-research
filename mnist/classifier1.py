@@ -14,7 +14,6 @@ bedges_k = 5
 inflate = True 
 eps = 1e-3
 
-        
 # Classifer 
 def classify(features, all_templates):
     # min loglikelihood
@@ -45,7 +44,8 @@ def main():
     try:
         mixtures_filename = sys.argv[1]
     except IndexError:
-        raise ValueError("Usage: <mixtures file> [<inspect test index>]")
+        print("Usage: <mixtures file> [<inspect test index>]")
+        sys.exit(0)
 
     try:
         inspect_component = int(sys.argv[2])
@@ -59,6 +59,7 @@ def main():
         #testing_digits, testing_labels = ag.io.load_mnist('testing', indices=slice(None, 10))
         #ag.io.load_mnist('testing', indices=inspect_component)
         digits, labels = ag.io.load_mnist('testing')
+        digits = ag.util.zeropad(digits, (0, 2, 2))
         digit, correct_label = digits[inspect_component], labels[inspect_component]
         
         features = ag.features.bedges(digit, inflate=inflate, k=bedges_k)
@@ -72,11 +73,12 @@ def main():
         testing_digits, testing_labels = ag.io.load_mnist('testing')
         if QUICK:
             testing_digits = testing_digits[:100]
+        testing_digits = ag.util.zeropad(testing_digits, (0, 2, 2))
         testing_edges = ag.features.bedges(testing_digits, inflate=inflate, k=bedges_k)
 
         N = len(testing_edges)
         c = 0
-        all_templates = np.clip(all_templates, eps, 1.0 - eps)
+        #all_templates = np.clip(all_templates, eps, 1.0 - eps)
         for i, features in enumerate(testing_edges):
             label, comp = classify(features, all_templates)
             correct = label == testing_labels[i]

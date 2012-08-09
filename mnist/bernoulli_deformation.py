@@ -93,7 +93,7 @@ def main():
         plt.show()
         import sys; sys.exit(0)
 
-    imdef, info = ag.ml.bernoulli_model(F, I, stepsize_scale_factor=1.0, penalty=1.0, rho=2.0, last_level=4, tol=0.001, \
+    imdef, info = ag.ml.bernoulli_deformation(F, I, stepsize_scale_factor=1.0, penalty=1.0, rho=2.0, last_level=4, tol=0.001, \
                                         start_level=1, wavelet='db8', max_iterations_per_level=2000, debug_plot=True)
 
     Favg = F.sum(axis=0)
