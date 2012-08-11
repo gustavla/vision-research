@@ -40,10 +40,8 @@ for d in range(10):
     slices = [[] for i in range(M)]
     all_features = features_file[str(d)] 
     N = len(all_features)
-    #N = 2 
-    N = 11
     us = []
-    for i in range(10, N):
+    for i in range(N):
         if PLOT and not plw.tick():
             sys.exit(0) 
         affinities = all_affinities[i]
@@ -70,7 +68,6 @@ for d in range(10):
                 plw.imshow(F[j], subplot=j*3+1)
                 plw.imshow(imdef.deform(F[j]), subplot=j*3+2)
 
-    import sys; sys.exit(0)
     for m in range(M):
         data = np.asarray(entries[m])
         assert len(data) > 0, "Need more data!" 
