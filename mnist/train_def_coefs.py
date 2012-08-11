@@ -2,6 +2,7 @@
 import amitgroup as ag
 import numpy as np
 import sys
+import time
 
 try:
     features_filename = sys.argv[1]
@@ -39,7 +40,7 @@ for d in range(10):
     slices = [[] for i in range(M)]
     all_features = features_file[str(d)] 
     N = len(all_features)
-    N = 20 
+    N = 19 
     us = []
     for i in range(N):
         if PLOT and not plw.tick():
@@ -49,8 +50,12 @@ for d in range(10):
         F = np.rollaxis(all_templates[d,m], axis=2)
         I = np.rollaxis(all_features[i], axis=2).astype(float)
 
-        imdef, info = ag.ml.bernoulli_deformation(F, I, penalty=10.0, stepsize_scale_factor=0.3, tol=0.0001, last_level=4, wavelet='db2', debug_plot=False)
-        print i, info['iterations_per_level']
+        t1 = time.time()
+        imdef, info = ag.stats.bernoulli_deformation(F, I, penalty=100.0, gtol=0.1, maxiter=1000, last_level=3, wavelet='db8', debug_plot=True)
+        t2 = time.time()
+        print "Time:", (t2-t1)
+        print '===', imdef.u
+        #imdef, info = ag.ml.bernoulli_deformation(F, I, penalty=100.0, stepsize_scale_factor=0.1, tol=0.000001, maxiter=1000, last_level=4, wavelet='db2', debug_plot=False)
 
         #us.append(imdef.u)
         entries[m].append(imdef.u)
@@ -64,12 +69,13 @@ for d in range(10):
                 plw.imshow(I[j], subplot=j*3)
                 plw.imshow(F[j], subplot=j*3+1)
                 plw.imshow(imdef.deform(F[j]), subplot=j*3+2)
-            plw.flip()
 
+    import sys; sys.exit(0)
     for m in range(M):
         data = np.asarray(entries[m])
         assert len(data) > 0, "Need more data!" 
 
+        print means.shape, data.shape
         # Prior
         means[d, m] = data.mean(axis=0) 
         variances[d, m] = data.var(axis=0) 
