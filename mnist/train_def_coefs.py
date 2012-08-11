@@ -40,9 +40,10 @@ for d in range(10):
     slices = [[] for i in range(M)]
     all_features = features_file[str(d)] 
     N = len(all_features)
-    N = 19 
+    #N = 2 
+    N = 11
     us = []
-    for i in range(N):
+    for i in range(10, N):
         if PLOT and not plw.tick():
             sys.exit(0) 
         affinities = all_affinities[i]
@@ -51,10 +52,9 @@ for d in range(10):
         I = np.rollaxis(all_features[i], axis=2).astype(float)
 
         t1 = time.time()
-        imdef, info = ag.stats.bernoulli_deformation(F, I, penalty=100.0, gtol=0.1, maxiter=1000, last_level=3, wavelet='db8', debug_plot=True)
+        imdef, info = ag.stats.bernoulli_deformation(F, I, penalty=100.0, gtol=0.1, maxiter=1000, last_level=3, wavelet='db8', debug_plot=False)
         t2 = time.time()
-        print "Time:", (t2-t1)
-        print '===', imdef.u
+        print i, "time:", (t2-t1)
         #imdef, info = ag.ml.bernoulli_deformation(F, I, penalty=100.0, stepsize_scale_factor=0.1, tol=0.000001, maxiter=1000, last_level=4, wavelet='db2', debug_plot=False)
 
         #us.append(imdef.u)
@@ -82,7 +82,7 @@ for d in range(10):
 
         # Likelihood
         values = np.asarray(slices[m]).flatten()
-        np.save('tmp-values.{0}.npy', values)
+        np.save('tmp-values.{0}.npy'.format(m), values)
 
         llh_means[d, m] = values.mean()
         llh_variances[d, m] = values.var()
