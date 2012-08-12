@@ -18,7 +18,10 @@ features_filename = args.features
 mixtures_filename = args.mixtures
 output_filename = args.output
 PLOT = args.plot
-inspect = args.inspect[0]
+if args.inspect is not None:
+    inspect = args.inspect[0]
+else:
+    inspect = None
 digit = args.digit
 
 features_file = np.load(features_filename)
