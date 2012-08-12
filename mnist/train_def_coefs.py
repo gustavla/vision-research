@@ -31,18 +31,20 @@ all_affinities = mixtures_file['affinities']
 
 M = all_affinities.shape[1]
 
-sh = (10, M) + ag.util.DisplacementFieldWavelet.shape_for_size(all_templates.shape[2:4])
+if digit is not None:
+    digits = [digit]
+    shape = (1, M)
+else:
+    digits = range(10)
+    shape = (10, M)
+
+sh = shape + ag.util.DisplacementFieldWavelet.shape_for_size(all_templates.shape[2:4])
 means = np.empty(sh)
 variances = np.empty(sh)
 
 llh_sh = (10, M)
 llh_means = np.empty(llh_sh)
 llh_variances = np.empty(llh_sh)
-
-if digit is not None:
-    digits = [digit]
-else:
-    digits = range(10)
 
 #means = [[] for i in range(M)]
 #variances = [[] for i in range(M)]
