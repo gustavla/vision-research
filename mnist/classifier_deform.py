@@ -56,7 +56,7 @@ def classify(features, all_templates, means, variances, llh_means, llh_variances
         cost, digit, mix_component = t 
         print("Doing cost {0} digit {1} mix_component {2}".format(*t))
         # Do a deformation
-        means[digit, mix_component]
+        #means[digit, mix_component]
     
         F = np.rollaxis(all_templates[digit][mix_component], axis=2)
         I = np.rollaxis(features, axis=2)
@@ -69,10 +69,34 @@ def classify(features, all_templates, means, variances, llh_means, llh_variances
         #variances[digit, mix_component, :, -2:] = 0.0
         llh_variances = np.clip(llh_variances, 0.0001, 10000000)
         var = variances[digit, mix_component]/llh_variances[digit, mix_component]
+        me = means[digit, mix_component]
+        penalty = 1.0 
 
-        imdef, info = ag.ml.bernoulli_deformation(F, I, wavelet='db8', stepsize_scale_factor=0.01, means=means[digit, mix_component], variances=var, last_level=3, debug_plot=True, tol=0.00004)
+        var[64:] = 1.0
+
+        print(variances.shape)
+        print(llh_variances.shape)
+        print('prior vars:', variances[digit, mix_component,:,0])
+        print('data vars: ', llh_variances[digit, mix_component])
+
+        #print('var:', var[:,:16].mean(), var[:,:(64-48)].min(), var[:,:16].max())
+        import sys; sys.exit(0)
+
+        #print 'around:', means[digit, mix_component].mean()/var.mean()
+
+        print("var0:", var[0,0], var[1,0])
+
+    
+        if 0:
+            me = None
+            var = None
+            penalty = 1000000.0
+
+        #ag.plot.images(F)
+
+        imdef, info = ag.stats.bernoulli_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=0, last_level=0, debug_plot=True, gtol=0.1, maxiter=20)
         # Update the cost 
-        print(t, 'new cost:', info['costs'][-1])
+        print(t, 'new cost:', info['cost'])
 
     return min_which
 

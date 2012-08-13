@@ -11,18 +11,26 @@ parser.add_argument('mixtures', metavar='<mixtures file>', type=str, help='Filen
 parser.add_argument('output', metavar='<output file>', type=str, help='Filename of output')
 parser.add_argument('-p', '--plot', action='store_true', help='Plot using pygame')
 parser.add_argument('-i', '--inspect', nargs=1, type=int, help='Inspect a single element')
-parser.add_argument('-d', '--digit', nargs='?', type=int, help='Process only one digit')
+parser.add_argument('-d', '--digit', nargs=1, type=int, help='Process only one digit')
+parser.add_argument('-r', '--range', nargs=2, type=int, help='Range of frames, from (incl) and to (excl)')
 
 args = parser.parse_args()
 features_filename = args.features
 mixtures_filename = args.mixtures
 output_filename = args.output
 PLOT = args.plot
+digits = args.digit
 if args.inspect is not None:
     inspect = args.inspect[0]
 else:
     inspect = None
-digit = args.digit
+
+if args.range is not None:
+    n0 = args.range[0]
+    n1 = args.range[1]
+else:
+    n0 = 0
+    n1 = np.inf
 
 features_file = np.load(features_filename)
 mixtures_file = np.load(mixtures_filename)
@@ -31,10 +39,9 @@ all_affinities = mixtures_file['affinities']
 
 M = all_affinities.shape[1]
 
-if digit is not None:
-    digits = [digit]
+if digits is not None:
     shape = (1, M)
-    d0 = digit
+    d0 = digits[0]
 else:
     digits = range(10)
     shape = (10, M)
@@ -52,13 +59,10 @@ for d in digits:
     entries = [[] for i in range(M)]
     slices = [[] for i in range(M)]
     all_features = features_file[str(d)] 
-    n0 = 0
-    n1 = len(all_features)
+    n1 = min(n1, len(all_features))
     if inspect is not None:
         n0 = inspect
         n1 = n0+1 
-
-    n1 = 30 
 
     us = []
     for i in range(n0, n1):
@@ -70,9 +74,9 @@ for d in digits:
         x, y = ag.util.DisplacementFieldWavelet.meshgrid_for_shape(F.shape[1:])
 
         t1 = time.time()
-        imdef, info = ag.stats.bernoulli_deformation(F, I, penalty=10000.0, rho=2.0, gtol=0.1, maxiter=10, start_level=1, last_level=1, wavelet='db4', debug_plot=PLOT)
+        imdef, info = ag.stats.bernoulli_deformation(F, I, penalty=10000.0, rho=2.0, gtol=0.1, maxiter=5, start_level=1, last_level=3, wavelet='db4', debug_plot=PLOT)
         t2 = time.time()
-        print "{0}.{1} (time = {2}".format(d, i, t2-t1)
+        print "{0}.{1} (time = {2})".format(d, i, t2-t1)
 
         if imdef is None:
             sys.exit(0) 
