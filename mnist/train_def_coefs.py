@@ -69,7 +69,7 @@ for d in digits:
 
     us = []
     for i in range(n0, n1):
-        affinities = all_affinities[i]
+        affinities = all_affinities[d,i]
         m = np.argmax(affinities)
         #F = np.rollaxis(all_templates[d,m], axis=2)
         #I = np.rollaxis(all_features[i], axis=2).astype(float)

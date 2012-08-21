@@ -12,6 +12,7 @@ parser.add_argument('-p', '--plot', action='store_true', help='Plot in real-time
 parser.add_argument('-i', dest='inspect', nargs=1, default=[None], metavar='INDEX', type=int, help='Run and inspect a single test index')
 parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), type=int, default=(0, sys.maxint), help='Range of testing indices, FROM (incl) and TO (excl)')
 parser.add_argument('--no-deform', dest='deform', action='store_false', help='Do not perform deformations')
+parser.add_argument('-v', '--verbose', action='store_true', help='Print intermediate information')
 
 args = parser.parse_args()
 feat_file = args.features
@@ -21,10 +22,13 @@ inspect_component = args.inspect[0]
 n0, n1 = args.range
 PLOT = args.plot
 use_deformation = args.deform
+verbose = args.verbose
 
 import numpy as np
 from classifier import classify, surplus
 from scipy.optimize import fmin
+import amitgroup as ag
+ag.set_verbose(verbose)
 
 features_data = np.load(feat_file)
 all_features = features_data['features']

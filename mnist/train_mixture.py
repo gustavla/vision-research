@@ -49,7 +49,7 @@ def train_mixture(data):
     np.savez(output_file, 
              templates=all_templates, 
              weights=all_weights, 
-             affinities=mixture.affinities,
+             affinities=all_affinities,
              meta=dict(mixtures=M, eps=eps, shape=meta['shape']))
 
 if __name__ == '__main__':
