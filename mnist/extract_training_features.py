@@ -7,6 +7,7 @@ parser.add_argument('output', metavar='<output file>', type=argparse.FileType('w
 parser.add_argument('-k', nargs=1, default=[5], choices=range(1, 7), type=int, help='Sensitivity of features. 1-6, with 6 being the most conservative.')
 parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), default=(0, 10000), type=int, help='Range of frames, FROM (incl) and TO (excl)')
 parser.add_argument('--no-inflate', dest='inflate', action='store_false', help='Do not inflate the featured pixels to neigbhors')
+parser.add_argument('--save-originals', dest='graylevel', action='store_true', help='Store original graylevel images as well')
 
 args = parser.parse_args()
 dataset = args.dataset
@@ -14,6 +15,7 @@ output_file = args.output
 k = args.k[0]
 n0, n1 = args.range
 inflate = args.inflate
+save_graylevel = args.graylevel
     
 #assert dataset in ('training', 'testing')
 
@@ -22,16 +24,23 @@ import amitgroup as ag
 import sys
 import os
 
+if save_graylevel:
+    all_digits = np.empty((10, n1-n0, 32, 32), dtype=np.float64)
+
 all_features = np.empty((10, n1-n0, 8, 32, 32), dtype=np.uint8)
 
 min_index = np.inf
 max_index = 0
+
 
 digit_features = {} 
 for d in range(10):
     print("Extracting features for digit", d)
     digits, indices = ag.io.load_mnist(dataset, digits=[d], selection=slice(n0, n1), return_labels=False, return_indices=True)
     digits = ag.util.zeropad(digits, (0, 2, 2))
+
+    if save_graylevel:
+        all_digits[d] = digits
 
     min_index = min(min_index, indices[0])
     max_index = max(max_index, indices[-1])
@@ -52,6 +61,9 @@ meta['inflate'] = inflate
 meta['shape'] = (32, 32)
 
 digit_features['meta'] = meta
+
+if save_graylevel:
+    digit_features['originals'] = all_digits 
 
 np.savez(output_file, **digit_features)
 
