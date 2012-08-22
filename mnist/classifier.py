@@ -36,7 +36,7 @@ def surplus(costs, correct_label):
 
 
 # Classifer 
-def classify(features, all_templates, means, variances, graylevels=None, all_graylevel_templates=None, samples=None, deformation='bernoulli', correct_label=None, threshold_multiple=1.2, b0 = None, lmb0 = None, debug_plot=False):
+def classify(features, all_templates, means, variances, graylevels=None, graylevel_templates=None, samples=None, deformation='edges', correct_label=None, threshold_multiple=1.2, b0 = None, lmb0 = None, debug_plot=False):
     # min loglikelihood
     min_cost = None
     min_which = None
@@ -95,18 +95,18 @@ def classify(features, all_templates, means, variances, graylevels=None, all_gra
                     new_var = (b0 + samples*var/2) / (b0 * lmb0 + samples/2)
                     var = new_var
 
-                if deformation == 'bernoulli':
+                if deformation == 'edges':
                     F = all_templates[digit, mix_component]
                     I = features
                 
                     imdef, information = ag.stats.bernoulli_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=0, last_level=3, debug_plot=debug_plot, gtol=0.1, maxiter=5)
 
-                elif deformation == 'graylevel':
-                    assert originals is not None, "Graylevel deformation requires originals"
-                    F = all_graylevel_templates[digit, mix_component] 
+                elif deformation == 'intensity':
+                    #assert originals is not None, "Intensity deformation requires originals"
+                    F = graylevel_templates[digit, mix_component] 
                     I = graylevels
 
-                    imdef, information = ag.stats.image_deformation(F, I, wvaelet='db4', penalty=penalty, means=me, variances=var, start_level=0, last_level=3, debug_plot=debug_plot, tol=0.00001, maxiter=50)
+                    imdef, information = ag.stats.image_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=0, last_level=3, debug_plot=debug_plot, tol=0.00001, maxiter=50)
 
                 # Kill if cancelled
                 imdef or sys.exit(0)
