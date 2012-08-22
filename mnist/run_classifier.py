@@ -107,9 +107,8 @@ else:
     #all_templates = np.clip(all_templates, eps, 1.0 - eps)
     for i, features in enumerate(all_features):
         additional = {}
-        try:
-            additional['graylevels'] = all_graylevels
-            additional['graylevel_templates'] = all_graylevel_templates
+        additional['graylevels'] = all_graylevels
+        additional['graylevel_templates'] = all_graylevel_templates
 
         label, info = classify(features, all_templates, means, variances, samples, deformation=use_deformation, correct_label=all_labels[i], debug_plot=PLOT, threshold_multiple=1.3, **additional)
         correct = label == all_labels[i]

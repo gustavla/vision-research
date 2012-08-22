@@ -64,7 +64,7 @@ all_digit_features = features_data['features']
 
 for d in digits:
     entries = [[] for i in range(M)]
-    #slices = [[] for i in range(M)]
+    slices = [[] for i in range(M)]
     all_features = all_digit_features[d]
     n1 = min(n1, len(all_features))
     if inspect is not None:
@@ -103,10 +103,8 @@ for d in digits:
         imdef or sys.exit(0)
 
         entries[m].append(imdef.u)
-        #Fdef = np.asarray([
-        #    imdef.deform(F[j]) for j in range(8)
-        #])
-        #slices[m].append(Fdef - I)
+        Fdef = imdef.deform(F)
+        slices[m].append(Fdef - I)
 
     for m in range(M):
         data = np.asarray(entries[m])
@@ -115,12 +113,14 @@ for d in digits:
         print means.shape, data.shape
         # Prior
         print d, m, means.shape
+
+        llhs = np.asarray(slices[m])
+
         samples[d-d0, m] = data.shape[0]
-        means[d-d0, m] = data.mean(axis=0) 
-        variances[d-d0, m] = data.var(axis=0) 
+        means[d-d0, m] = data.mean(axis=0)
+        variances[d-d0, m] = data.var(axis=0) / llhs.var()
 
         # Likelihood
-        #values = np.asarray(slices[m]).flatten()
         #np.save("tmp-values.{0}.{1}.npy".format(d, m), values)
         #np.save("tmp-values.{0}.{1}.npy".format(d, m), data)
 
