@@ -1,10 +1,10 @@
 
-def plotb(lmb0, b0, digit=0, mixture=0, axis=0):
+def plotb(coefs_file, lmb0, b0, digit=0, mixture=0, axis=0):
     import numpy as np
     import matplotlib.pylab as plt
     import amitgroup as ag
 
-    coefs_data = np.load('c-coefs2.npz')
+    coefs_data = np.load(coefs_file)
     var = coefs_data['prior_var']
     samples = coefs_data['samples']
 
@@ -23,13 +23,15 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Plot posterior variance')
+    parser.add_argument('coefficients', metavar='<coef file>', type=argparse.FileType('rb'), help='Filename of model coefficients')
     parser.add_argument('lmb', metavar='LAMBDA', type=float, help='Prior lambda peak of Gamma distribution')
     parser.add_argument('b', metavar='B', type=float, help='Prior hypercoefficient b of Gamma distribution')
     parser.add_argument('-i', '--index', nargs=3, metavar=('DIGIT', 'MIXTURE', 'AXIS'), default=(0, 0, 0), type=int, help='Index of data, with choice of DIGIT, MIXTURE and AXIS. Defaults to (0, 0, 0).')
 
     args = parser.parse_args()
+    coef_file = args.coefficients
     lmb0 = args.lmb
     b0 = args.b
     digit, mixture, axis = args.index
 
-    plotb(lmb0, b0, digit, mixture, axis)
+    plotb(coef_file, lmb0, b0, digit, mixture, axis)

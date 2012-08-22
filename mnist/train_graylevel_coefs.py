@@ -31,12 +31,12 @@ import time
 
 features_data = np.load(features_file)
 mixtures_data = np.load(mixtures_file)
-all_templates = mixtures_data['templates']
-all_affinities = mixtures_data['affinities']
 try:
-    all_originals = mixtures_data['originals']
+    all_originals = features_data['originals']
+    all_templates = mixtures_data['graylevel_templates']
 except KeyError:
     raise Exception("The feature file must be run with --save-originals")
+all_affinities = mixtures_data['affinities']
 
 meta = mixtures_data['meta'].flat[0]
 M = meta['mixtures'] 
@@ -64,7 +64,7 @@ all_digit_features = features_data['features']
 
 for d in digits:
     entries = [[] for i in range(M)]
-    slices = [[] for i in range(M)]
+    #slices = [[] for i in range(M)]
     all_features = all_digit_features[d]
     n1 = min(n1, len(all_features))
     if inspect is not None:
@@ -78,33 +78,35 @@ for d in digits:
         #F = np.rollaxis(all_templates[d,m], axis=2)
         #I = np.rollaxis(all_features[i], axis=2).astype(float)
         F = all_templates[d,m]
-        I = all_features[i].astype(float)
+        #I = all_features[i].astype(float)
+        I = all_originals[d,i]
+        print F.shape, I.shape
 
-        x, y = ag.util.DisplacementFieldWavelet.meshgrid_for_shape(F.shape[1:])
+        x, y = ag.util.DisplacementFieldWavelet.meshgrid_for_shape(F.shape)
 
         settings = dict(    
             penalty=penalty, 
             rho=rho, 
-            gtol=0.1, 
-            maxiter=5, 
+            tol=0.00001, 
+            maxiter=100, 
             start_level=1, 
             last_level=3, 
             wavelet='db4'
         )
 
         t1 = time.time()
-        imdef, info = ag.stats.bernoulli_deformation(F, I, debug_plot=PLOT, **settings)
+        #imdef, info = ag.stats.bernoulli_deformation(F, I, debug_plot=PLOT, **settings)
+        imdef, info = ag.stats.image_deformation(F, I, debug_plot=PLOT, **settings)
         t2 = time.time()
         print "{3:.02f}% Digit: {0} Index: {1} (time = {2} s)".format(d, i, t2-t1, 100*(d+(1+i-n0)/(n1-n0))/10)
 
-        if imdef is None:
-            sys.exit(0) 
+        imdef or sys.exit(0)
 
         entries[m].append(imdef.u)
-        Fdef = np.asarray([
-            imdef.deform(F[j]) for j in range(8)
-        ])
-        slices[m].append(Fdef - I)
+        #Fdef = np.asarray([
+        #    imdef.deform(F[j]) for j in range(8)
+        #])
+        #slices[m].append(Fdef - I)
 
     for m in range(M):
         data = np.asarray(entries[m])
@@ -120,7 +122,7 @@ for d in digits:
         # Likelihood
         #values = np.asarray(slices[m]).flatten()
         #np.save("tmp-values.{0}.{1}.npy".format(d, m), values)
-        np.save("tmp-values.{0}.{1}.npy".format(d, m), data)
+        #np.save("tmp-values.{0}.{1}.npy".format(d, m), data)
 
         #llh_means[d-d0, m] = values.mean()
         #llh_variances[d-d0, m] = values.var()
