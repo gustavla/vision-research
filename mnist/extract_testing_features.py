@@ -7,6 +7,7 @@ parser.add_argument('output', metavar='<output file>', type=argparse.FileType('w
 parser.add_argument('-k', nargs=1, default=[5], choices=range(1, 7), type=int, help='Sensitivity of features. 1-6, with 6 being the most conservative.')
 parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), default=(0, -1), type=int, help='Range of frames, FROM (incl) and TO (excl)')
 parser.add_argument('--no-inflate', dest='inflate', action='store_false', help='Do not inflate the featured pixels to neigbhors')
+parser.add_argument('--save-originals', dest='graylevel', action='store_true', help='Store original graylevel images as well')
 
 args = parser.parse_args()
 dataset = args.dataset
@@ -14,6 +15,7 @@ output_file = args.output
 k = args.k[0]
 n0, n1 = args.range
 inflate = args.inflate
+save_graylevel = args.graylevel
     
 #assert dataset in ('training', 'testing')
 
@@ -43,6 +45,9 @@ meta['inflate'] = inflate
 meta['shape'] = (32, 32)
 
 digit_features['meta'] = meta
+
+if save_graylevel:
+    digit_features['originals'] = digits_padded
 
 np.savez(output_file, **digit_features)
 

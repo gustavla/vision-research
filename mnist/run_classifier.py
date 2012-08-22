@@ -11,8 +11,8 @@ parser.add_argument('coefficients', metavar='<coef file>', type=argparse.FileTyp
 parser.add_argument('-p', '--plot', action='store_true', help='Plot in real-time using pygame')
 parser.add_argument('-i', dest='inspect', nargs=1, default=[None], metavar='INDEX', type=int, help='Run and inspect a single test index')
 parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), type=int, default=(0, sys.maxint), help='Range of testing indices, FROM (incl) and TO (excl)')
-parser.add_argument('-d', '--deform', dest='deform', type=str, choices=('none', 'bernoulli', 'graylevel'), help='What kind of deformations to perform.')
-parser.add_argument('--graylevel-deform', action='store_true', help='Use graylevel deformations (image_deformation), and not feature deformations (bernoulli_deformation)')
+parser.add_argument('-d', '--deform', dest='deform', type=str, choices=('none', 'edges', 'intensity'), help='What kind of features to perform the deformations on.')
+#parser.add_argument('--graylevel-deform', action='store_true', help='Use graylevel deformations (image_deformation), and not feature deformations (bernoulli_deformation)')
 parser.add_argument('-v', '--verbose', action='store_true', help='Print intermediate information')
 
 args = parser.parse_args()
@@ -37,14 +37,15 @@ ag.set_verbose(verbose)
 features_data = np.load(feat_file)
 all_features = features_data['features']
 all_labels = features_data['labels'] 
-all_templates = np.load(mixtures_file)['templates'] 
+mixtures_data = np.load(mixtures_file)
+all_templates = mixtures_data['templates'] 
 coefs = np.load(coef_file)
 
 try:
     all_graylevels = features_data['originals']
     all_graylevel_templates = mixtures_data['graylevel_templates']
 except KeyError:
-    raise Exception("The feature file must be run with --save-originals")
+        raise Exception("The feature file must be run with --save-originals, and the mixtures must be trained with this file")
 
 
 if (n0, n1) != (0, sys.maxint):
@@ -107,10 +108,10 @@ else:
     #all_templates = np.clip(all_templates, eps, 1.0 - eps)
     for i, features in enumerate(all_features):
         additional = {}
-        additional['graylevels'] = all_graylevels
+        additional['graylevels'] = all_graylevels[i]
         additional['graylevel_templates'] = all_graylevel_templates
 
-        label, info = classify(features, all_templates, means, variances, samples, deformation=use_deformation, correct_label=all_labels[i], debug_plot=PLOT, threshold_multiple=1.3, **additional)
+        label, info = classify(features, all_templates, means, variances, samples=samples, deformation=deform_type, correct_label=all_labels[i], debug_plot=PLOT, threshold_multiple=1.3, **additional)
         correct = label == all_labels[i]
         c += correct
         print(i, N, correct)
