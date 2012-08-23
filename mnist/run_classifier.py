@@ -108,11 +108,8 @@ else:
     #all_templates = np.clip(all_templates, eps, 1.0 - eps)
     for i, features in enumerate(all_features):
         additional = {}
-        try:
-            additional['graylevels'] = all_graylevels[i]
-            additional['graylevel_templates'] = all_graylevel_templates
-        except KeyError:
-            raise Exception("You need to store your features with --save-originals")
+        additional['graylevels'] = all_graylevels[i]
+        additional['graylevel_templates'] = all_graylevel_templates
 
         label, info = classify(features, all_templates, means, variances, samples=samples, deformation=deform_type, correct_label=all_labels[i], debug_plot=PLOT, threshold_multiple=1.3, **additional)
         correct = label == all_labels[i]
