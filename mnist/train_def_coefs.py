@@ -85,13 +85,13 @@ for d in digits:
             maxiter=5, 
             start_level=1, 
             last_level=3, 
-            wavelet='db4'
+            wavelet='db2'
         )
 
         t1 = time.time()
         imdef, info = ag.stats.bernoulli_deformation(F, I, debug_plot=PLOT, **settings)
         t2 = time.time()
-        print "{3:.02f}% Digit: {0} Index: {1} (time = {2} s)".format(d, i, t2-t1, 100*(d+(1+i-n0)/(n1-n0))/10)
+        print "{3:.02f}% Digit: {0} Index: {1} (time = {2} s) min cost: {4}".format(d, i, t2-t1, 100*(d+(1+i-n0)/(n1-n0))/10, info['cost'])
 
         if imdef is None:
             sys.exit(0) 
