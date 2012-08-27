@@ -68,7 +68,7 @@ for d in digits:
         n1 = n0+1 
 
     us = []
-    for i in range(n0, n1):
+    for i in xrange(n0, n1):
         affinities = all_affinities[d,i]
         m = np.argmax(affinities)
         #F = np.rollaxis(all_templates[d,m], axis=2)
@@ -85,7 +85,7 @@ for d in digits:
             maxiter=5, 
             start_level=1, 
             last_level=3, 
-            wavelet='db2'
+            wavelet='db4'
         )
 
         t1 = time.time()
@@ -98,11 +98,11 @@ for d in digits:
 
         entries[m].append(imdef.u)
         Fdef = np.asarray([
-            imdef.deform(F[j]) for j in range(8)
+            imdef.deform(F[j]) for j in xrange(8)
         ])
         slices[m].append(Fdef - I)
 
-    for m in range(M):
+    for m in xrange(M):
         data = np.asarray(entries[m])
         assert len(data) > 0, "Need more data!" 
 
