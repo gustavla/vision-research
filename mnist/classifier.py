@@ -120,6 +120,7 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
                 if new_cost < min_cost:
                     min_cost = new_cost
                     min_which = (digit, mix_component)
+                
 
 
             # Reevaluate the surplus!
