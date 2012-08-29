@@ -1,7 +1,7 @@
 from __future__ import print_function
 import argparse
 
-eps_default = 0.01
+eps_default = 0.05
 
 parser = argparse.ArgumentParser(description='Train mixture model on edge data')
 parser.add_argument('features', metavar='<features file>', type=argparse.FileType('rb'), help="Filename of feature file (npz)")
@@ -39,7 +39,7 @@ def train_mixture(data):
 
         # Train a mixture model
         mixture = BernoulliMixture(M, digits, init_seed=seed)
-        mixture.run_EM(1e-15, min_probability=eps, debug_plot=PLOT)
+        mixture.run_EM(1e-10, min_probability=eps, debug_plot=PLOT)
         
         #mixture.save('mix/mixture-digit-{0}'.format(d))
         all_templates.append(mixture.templates)
@@ -54,7 +54,7 @@ def train_mixture(data):
         templates=all_templates,
         weights=all_weights, 
         affinities=all_affinities,
-        meta=dict(mixtures=M, eps=eps, shape=meta['shape'])
+        meta=dict(mixtures=M, eps=eps, shape=meta['shape'], seed=seed)
     )
 
     if 'originals' in data:
