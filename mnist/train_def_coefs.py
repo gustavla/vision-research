@@ -112,9 +112,6 @@ for loop in xrange(ITERS):
             ])
             slices[m].append(Fdef - I)
         
-        print totcost
-        import sys; sys.exit(0)
-
         for m in xrange(M):
             data = np.asarray(entries[m])
             assert len(data) >= 2 #, "Need more data! (some mixture components had not a single data point" 
