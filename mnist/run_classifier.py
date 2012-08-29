@@ -56,7 +56,7 @@ means = coefs['prior_mean']
 variances = coefs['prior_var']
 samples = coefs['samples']
 
-if 0:
+if 1:
     #all_templates = np.clip(all_templates, eps, 1.0 - eps)
     
     # Do a search for the best surplus

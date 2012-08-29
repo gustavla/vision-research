@@ -60,6 +60,8 @@ samples = np.empty(sh)
 #llh_variances = np.empty(llh_sh)
 all_digit_features = features_data['features'] 
 
+totcost = 0.0
+
 for loop in xrange(ITERS):
     for d in digits:
         entries = [[] for i in xrange(M)]
@@ -80,9 +82,9 @@ for loop in xrange(ITERS):
             I = all_features[i].astype(float)
 
             settings = dict(    
-                gtol=0.1, 
-                maxiter=5, 
-                start_level=1, 
+                tol=0.1, 
+                maxiter=200, 
+                start_level=2, 
                 last_level=3, 
                 wavelet='db4'
             )
@@ -102,12 +104,16 @@ for loop in xrange(ITERS):
                 sys.exit(0) 
 
             print "{5}/{6} {3:.02f}% Digit: {0} Index: {1} (time = {2} s) min cost: {4}".format(d, i, t2-t1, 100*(d+(1+i-n0)/(n1-n0))/10, info['cost'], loop+1, ITERS)
+            totcost += info['cost']
              
             entries[m].append(imdef.u)
             Fdef = np.asarray([
                 imdef.deform(F[j]) for j in xrange(8)
             ])
             slices[m].append(Fdef - I)
+        
+        print totcost
+        import sys; sys.exit(0)
 
         for m in xrange(M):
             data = np.asarray(entries[m])

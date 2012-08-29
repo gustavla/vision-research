@@ -8,7 +8,7 @@ try:
     filename = sys.argv[1]
     letter = int(sys.argv[2])
 except IndexError: 
-    print "<mixture file> <letter> [<rotation>]"
+    print "<mixture file> <letter>"
     sys.exit(0)
 
 try:
@@ -35,6 +35,7 @@ if rotation is None:
             templates[letter,m,j] for m, j in product(range(M), range(J))
         ], subplots=(M, J))
 else:
+    raise NotImplementedError("Broken")
     assert 0 <= rotation <= 8
     ag.plot.images(templates[letter,:,:,:,rotation])
 
