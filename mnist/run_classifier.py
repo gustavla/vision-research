@@ -56,7 +56,7 @@ means = coefs['prior_mean']
 variances = coefs['prior_var']
 samples = coefs['samples']
 
-if 1:
+if 0:
     #all_templates = np.clip(all_templates, eps, 1.0 - eps)
     
     # Do a search for the best surplus
@@ -64,7 +64,7 @@ if 1:
         print("Running b0 =", b0)
         total_surplus = 0.0
         for i, features in enumerate(all_features):
-            label, info = classify(features, all_templates, means, variances, deform=deform_type, correct_label=all_labels[i], b0=b0, lmb0=1e4, debug_plot=PLOT)
+            label, info = classify(features, all_templates, means, variances, deformation=deform_type, correct_label=all_labels[i], b0=b0, lmb0=1e4, debug_plot=PLOT)
             total_surplus += info['surplus_change']
         print("Returning surplus", total_surplus)
         return -total_surplus

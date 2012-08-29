@@ -99,7 +99,7 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
                     F = all_templates[digit, mix_component]
                     I = features
                 
-                    imdef, information = ag.stats.bernoulli_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=0, last_level=3, debug_plot=debug_plot, gtol=0.1, maxiter=5)
+                    imdef, information = ag.stats.bernoulli_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=0, last_level=3, debug_plot=debug_plot, tol=0.1, maxiter=200)
 
                 elif deformation == 'intensity':
                     #assert originals is not None, "Intensity deformation requires originals"
