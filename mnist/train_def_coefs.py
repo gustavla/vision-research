@@ -80,14 +80,19 @@ for loop in xrange(ITERS):
             I = all_features[i].astype(float)
 
             settings = dict(    
-                penalty=penalty, 
-                rho=rho, 
                 gtol=0.1, 
                 maxiter=5, 
                 start_level=1, 
                 last_level=3, 
                 wavelet='db4'
             )
+            
+            if loop == 0:
+                settings['penalty'] = penalty 
+                settings['rho'] = rho
+            else:
+                settings['means'] = means[loop-1,d-d0,m]
+                settings['variances'] = variances[loop-1,d-d0,m]
 
             t1 = time.time()
             imdef, info = ag.stats.bernoulli_deformation(F, I, debug_plot=PLOT, **settings)
@@ -97,8 +102,7 @@ for loop in xrange(ITERS):
                 sys.exit(0) 
 
             print "{5}/{6} {3:.02f}% Digit: {0} Index: {1} (time = {2} s) min cost: {4}".format(d, i, t2-t1, 100*(d+(1+i-n0)/(n1-n0))/10, info['cost'], loop+1, ITERS)
-            import sys; sys.exit(0)
-
+             
             entries[m].append(imdef.u)
             Fdef = np.asarray([
                 imdef.deform(F[j]) for j in xrange(8)
@@ -107,7 +111,7 @@ for loop in xrange(ITERS):
 
         for m in xrange(M):
             data = np.asarray(entries[m])
-            assert len(data) > 0, "Need more data! (some mixture components had not a single data point" 
+            assert len(data) >= 2 #, "Need more data! (some mixture components had not a single data point" 
 
             #print means.shape, data.shape
             # Prior
@@ -115,6 +119,11 @@ for loop in xrange(ITERS):
             samples[loop,d-d0, m] = data.shape[0]
             means[loop,d-d0, m] = data.mean(axis=0) 
             variances[loop,d-d0, m] = data.var(axis=0) 
+
+            #print len(data)
+            #print variances[loop,d-d0,m].min(), variances[loop,d-d0,m].max()
+            #ag.plot.images(variances[loop,d-d0,m], zero_to_one=False)
+            #import sys; sys.exit(0)
 
             # Likelihood
             #values = np.asarray(slices[m]).flatten()
