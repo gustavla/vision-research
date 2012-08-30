@@ -103,7 +103,6 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
     
                 # Calculate the posterior variance
                 if b0 and eta and rho and samples is not None:
-                    print("Using new")
                     lmb0 = ag.util.DisplacementFieldWavelet.make_lambdas(shape, levels, eta=eta, rho=rho)
                     new_var = (b0 + samp*var/2) / (b0 * lmb0 + samp/2)
                     var = new_var
