@@ -14,6 +14,8 @@ parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), type=in
 parser.add_argument('-d', '--deform', dest='deform', type=str, choices=('none', 'edges', 'intensity'), help='What kind of features to perform the deformations on.')
 #parser.add_argument('--graylevel-deform', action='store_true', help='Use graylevel deformations (image_deformation), and not feature deformations (bernoulli_deformation)')
 parser.add_argument('-v', '--verbose', action='store_true', help='Print intermediate information')
+parser.add_argument('-a', dest='alpha', metavar='ALPHA', nargs=1, default=[1.3], type=float, help='Selective deformation threshold multiple')
+parser.add_argument('--test-conjugate', nargs=4, metavar=('BFROM', 'BTO', 'ETA', 'N'), default=(None, None, None, 0), type=float, help='Test various values of beta and eta and store in surplus.npz')
 
 args = parser.parse_args()
 feat_file = args.features
@@ -23,6 +25,9 @@ inspect_component = args.inspect[0]
 n0, n1 = args.range
 PLOT = args.plot
 deform_type = args.deform
+alpha = args.alpha[0]
+bfrom, bto, eta, bN = args.test_conjugate
+bN = int(bN)
 if deform_type == 'none':
     deform_type = None
 
@@ -56,7 +61,7 @@ means = coefs['prior_mean']
 variances = coefs['prior_var']
 samples = coefs['samples']
 
-if 0:
+if bN:
     #all_templates = np.clip(all_templates, eps, 1.0 - eps)
     
     # Do a search for the best surplus
@@ -64,7 +69,7 @@ if 0:
         print("Running b0 =", b0)
         total_surplus = 0.0
         for i, features in enumerate(all_features):
-            label, info = classify(features, all_templates, means, variances, deformation=deform_type, correct_label=all_labels[i], b0=b0, lmb0=1e4, debug_plot=PLOT)
+            label, info = classify(features, all_templates, means, variances, deformation=deform_type, correct_label=all_labels[i], b0=b0, lmb0=100, samples=samples, debug_plot=PLOT, threshold_multiple=alpha)
             total_surplus += info['surplus_change']
         print("Returning surplus", total_surplus)
         return -total_surplus
@@ -77,9 +82,8 @@ if 0:
         print(ret)
 
     if 1:
-        N = 50
-        bs = np.linspace(0.0, 0.001, N)
-        ys = np.empty(N)
+        bs = np.linspace(bfrom, bto, bN)
+        ys = np.empty(bN)
         for i, b0 in enumerate(bs):
             total_surplus = -check_neg_surplus(b0) 
             print("b0:", b0, "Total surplus:", total_surplus)
@@ -105,15 +109,30 @@ elif inspect_component is not None:
 else:
     N = len(all_features)
     c = 0
+    num_deformed = 0
+    num_contendors = 0
+    incorrect_and_undeformed = 0
+    turned_correct = 0
+    turned_incorrect = 0
     #all_templates = np.clip(all_templates, eps, 1.0 - eps)
     for i, features in enumerate(all_features):
         additional = {}
         additional['graylevels'] = all_graylevels[i]
         additional['graylevel_templates'] = all_graylevel_templates
 
-        label, info = classify(features, all_templates, means, variances, samples=samples, deformation=deform_type, correct_label=all_labels[i], debug_plot=PLOT, threshold_multiple=1.3, **additional)
+        label, info = classify(features, all_templates, means, variances, samples=samples, deformation=deform_type, correct_label=all_labels[i], debug_plot=PLOT, threshold_multiple=alpha, **additional)
         correct = label == all_labels[i]
         c += correct
+        num_deformed += info['deformation']
+        if info['deformation']:
+            num_contendors += info['num_contendors']
+            turned_correct += info['turned_correct']
+            turned_incorrect += info['turned_incorrect']
+        
+
+        if not correct and not info['deformation']:
+            # It was not correct and no deformation was made. Alpha might be too low!
+            incorrect_and_undeformed += 1
         print(i, N, correct)
 
         if False and not correct:
@@ -125,4 +144,10 @@ else:
             ag.plot.images(np.rollaxis(all_templates[label,info['comp']], 2))
             plt.show()
 
-    print("Success rate: {0:.2f} ({1}/{2})".format(100*c/N, c, N))
+
+    print("Deformed: {0:.2f}%".format(100*num_deformed/N))
+    if num_deformed > 0:
+        print("Average contendors: {0:.2f}".format(num_contendors/num_deformed))
+    print("Incorrect and undeformed: {0:.2f}%".format(100*incorrect_and_undeformed/N))
+    print("Turned correct, incorrect: {0:.2f}%, {1:.2f}%".format(100*turned_correct/N, 100*turned_incorrect/N))
+    print("Miss rate: {0:.2f}% ({1}/{2})".format(100*(N-c)/N, (N-c), N))

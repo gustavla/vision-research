@@ -54,35 +54,43 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
                 min_cost = cost 
                 min_which = (digit, mix_component) 
 
-    costs = filter(lambda t: t[0] < min_cost * threshold_multiple, costs)
-    costs.sort()
-
     info = {}
 
-    # If all the costs left are the same digit, don't bother doing the deformation
-    checked = [] 
-    for t in costs:
-        if t[1] not in checked:
-            checked.append(t[1])
-    
+    if correct_label is not None:
+        info['mixture_correct'] = correct_label == min_which[0]
 
-    info['contendors'] = len(checked)
+    #info['contendors'] = len(checked)
     info['surplus_change'] = 0.0
+    info['deformation'] = False
+    info['num_contendors'] = 0 
 
-    if len(checked) != 1:
+    if deformation:
+        costs = filter(lambda t: t[0] < min_cost * threshold_multiple, costs)
+        costs.sort()
+
+        # If all the costs left are the same digit, don't bother doing the deformation
+        checked = [] 
+        for t in costs:
+            if t[1] not in checked:
+                checked.append(t[1])
+        
+
         if correct_label is not None:
             info['surplus_before'] = surplus(costs, correct_label)
 
-        # Filter so that we have only one of each mixture (Not necessary, could even damage results!)
-        if 0:
-            for i, t in enumerate(costs):
-                if t[1] not in checked:
-                    checked.append(t[1])
-                else:
-                    del[costs[i]]
+        if len(checked) != 1:
+            # Filter so that we have only one of each mixture (Not necessary, could even damage results!)
+            if 0:
+                for i, t in enumerate(costs):
+                    if t[1] not in checked:
+                        checked.append(t[1])
+                    else:
+                        del[costs[i]]
 
-        if deformation:
+            # Do the deformation
             new_costs = []
+            info['deformation'] = True
+            info['num_contendors'] = len(costs) 
             for t in costs:
                 cost, digit, mix_component = t 
             
@@ -92,6 +100,7 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
     
                 # Calculate the posterior variance
                 if b0 and lmb0 and samples is not None:
+                    print("Using new")
                     new_var = (b0 + samples*var/2) / (b0 * lmb0 + samples/2)
                     var = new_var
 
@@ -99,14 +108,14 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
                     F = all_templates[digit, mix_component]
                     I = features
                 
-                    imdef, information = ag.stats.bernoulli_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=0, last_level=3, debug_plot=debug_plot, tol=0.1, maxiter=200)
+                    imdef, information = ag.stats.bernoulli_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=1, last_level=3, debug_plot=debug_plot, tol=0.1, maxiter=200)
 
                 elif deformation == 'intensity':
                     #assert originals is not None, "Intensity deformation requires originals"
                     F = graylevel_templates[digit, mix_component] 
                     I = graylevels
 
-                    imdef, information = ag.stats.image_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=0, last_level=3, debug_plot=debug_plot, tol=0.00001, maxiter=50)
+                    imdef, information = ag.stats.image_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=1, last_level=3, debug_plot=debug_plot, tol=0.00001, maxiter=50)
 
                 # Kill if cancelled
                 imdef or sys.exit(0)
@@ -127,6 +136,17 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
             if correct_label is not None:
                 info['surplus_after'] = surplus(new_costs, correct_label)
                 info['surplus_change'] = info['surplus_after'] - info['surplus_before']
+
+    if correct_label is not None:
+        info['turned_correct'] = False
+        info['turned_incorrect'] = False
+        if (correct_label == min_which[0]) != info['mixture_correct']:
+            if correct_label == min_which[0]:
+                info['turned_correct'] = True
+            else:
+                info['turned_incorrect'] = True 
+        
+        info['mixture_correct'] = correct_label == min_which[0]
 
     info['comp'] = min_which[1]
 
