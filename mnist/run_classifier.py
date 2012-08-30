@@ -16,6 +16,9 @@ parser.add_argument('-d', '--deform', dest='deform', type=str, choices=('none', 
 parser.add_argument('-v', '--verbose', action='store_true', help='Print intermediate information')
 parser.add_argument('-a', dest='alpha', metavar='ALPHA', nargs=1, default=[1.3], type=float, help='Selective deformation threshold multiple')
 parser.add_argument('--test-conjugate', nargs=4, metavar=('BFROM', 'BTO', 'ETA', 'N'), default=(None, None, None, 0), type=float, help='Test various values of beta and eta and store in surplus.npz')
+parser.add_argument('-s', nargs=1, dest='surplus', metavar='<surplus file>', type=argparse.FileType('wb'), default=['surplus.npz'], help='Filename of surplus file, if using --test-conjugate')
+parser.add_argument('-l', dest='penalty', nargs=1, default=[100.0], type=float, help='Penalty term')
+parser.add_argument('--rho', dest='rho', nargs=1, default=[1.0], type=float, help='Penalty exponent rho')
 
 args = parser.parse_args()
 feat_file = args.features
@@ -28,6 +31,9 @@ deform_type = args.deform
 alpha = args.alpha[0]
 bfrom, bto, eta, bN = args.test_conjugate
 bN = int(bN)
+surplus_file = args.surplus[0]
+eta0 = args.penalty[0]
+rho0 = args.rho[0]
 if deform_type == 'none':
     deform_type = None
 
@@ -69,7 +75,7 @@ if bN:
         print("Running b0 =", b0)
         total_surplus = 0.0
         for i, features in enumerate(all_features):
-            label, info = classify(features, all_templates, means, variances, deformation=deform_type, correct_label=all_labels[i], b0=b0, lmb0=100, samples=samples, debug_plot=PLOT, threshold_multiple=alpha)
+            label, info = classify(features, all_templates, means, variances, deformation=deform_type, correct_label=all_labels[i], b0=b0, eta=eta0, rho=rho0, samples=samples, debug_plot=PLOT, threshold_multiple=alpha)
             total_surplus += info['surplus_change']
         print("Returning surplus", total_surplus)
         return -total_surplus
@@ -89,7 +95,7 @@ if bN:
             print("b0:", b0, "Total surplus:", total_surplus)
             ys[i] = total_surplus
 
-        np.savez('surplus.npz', b=bs, surplus=ys)
+        np.savez(surplus_file, b=bs, surplus=ys)
 
 elif inspect_component is not None:
     #testing_digits, testing_labels = ag.io.load_mnist('testing', indices=slice(None, 10))
