@@ -96,12 +96,13 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
             
                 var = variances[digit, mix_component]
                 me = means[digit, mix_component]
+                samp = samples[digit, mix_component] 
                 penalty = None 
     
                 # Calculate the posterior variance
                 if b0 and lmb0 and samples is not None:
                     print("Using new")
-                    new_var = (b0 + samples*var/2) / (b0 * lmb0 + samples/2)
+                    new_var = (b0 + samp*var/2) / (b0 * lmb0 + samp/2)
                     var = new_var
 
                 if deformation == 'edges':
