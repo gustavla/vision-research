@@ -32,6 +32,7 @@ ITERS = args.iterations[0] + 1
 import amitgroup as ag
 import numpy as np
 import time
+from copy import copy
 from classifier import add_prior
 
 features_data = np.load(features_file)
@@ -106,7 +107,7 @@ for loop in xrange(1, ITERS):
                 variances[0, d-d0, m] = 1/ag.util.DisplacementFieldWavelet.make_lambdas(im_shape, level_capacity, eta=eta, rho=rho)
     
                 # Save the initial settings as part of meta
-                meta = settings 
+                meta = copy(settings)
                 meta['b0'] = b0
             else:
                 settings['means'] = means[loop-1,d-d0,m]
