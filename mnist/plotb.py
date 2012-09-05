@@ -33,6 +33,8 @@ def plotb(coefs_files, eta, rho, b0, digit=0, mixture=0, axis=0):
 
         plt.semilogy(1/var_flat, label="ML"+add)
     plt.legend(loc=0)
+    plt.xlabel('Coefficient')
+    plt.ylabel('Precision $\lambda$')
     plt.show()
 
 if __name__ == '__main__':
