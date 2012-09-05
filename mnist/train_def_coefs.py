@@ -11,9 +11,10 @@ parser.add_argument('-p', '--plot', action='store_true', help='Plot in real-time
 parser.add_argument('-i', dest='inspect', nargs=1, default=[None], metavar='INDEX', type=int, help='Inspect a single element')
 parser.add_argument('-d', dest='digit', nargs=1, metavar='DIGIT', type=int, help='Process only one digit')
 parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), type=int, default=(0, sys.maxint), help='Range of frames, FROM (incl) and TO (excl)')
-parser.add_argument('-l', dest='penalty', nargs=1, default=[100000.0], type=float, help='Penalty term')
+parser.add_argument('-l', dest='eta', nargs=1, default=[100000.0], type=float, help='Penalty coefficient eta')
 parser.add_argument('--rho', dest='rho', nargs=1, default=[2.0], type=float, help='Penalty exponent rho')
-parser.add_argument('-n', dest='iterations', nargs=1, default=[1], type=int, help='Number of iterations (reduces impact on initial penalty/rho)')
+parser.add_argument('-n', dest='iterations', nargs=1, default=[1], type=int, help='Number of iterations (reduces impact on initial eta/rho)')
+parser.add_argument('-b', metavar='B', nargs=1, default=[0.0], type=float, help='Prior hypercoefficient b of Gamma distribution')
 
 args = parser.parse_args()
 features_file = args.features
@@ -22,22 +23,24 @@ output_file = args.output
 PLOT = args.plot
 digits = args.digit
 inspect = args.inspect[0]
-penalty = args.penalty[0]
-n0, n1 = args.range
+eta = args.eta[0]
 rho = args.rho[0]
-ITERS = args.iterations[0]
+b0 = args.b[0]
+n0, n1 = args.range
+ITERS = args.iterations[0] + 1
 
 import amitgroup as ag
 import numpy as np
 import time
+from classifier import add_prior
 
 features_data = np.load(features_file)
 mixtures_data = np.load(mixtures_file)
 all_templates = mixtures_data['templates']
 all_affinities = mixtures_data['affinities']
 
-meta = mixtures_data['meta'].flat[0]
-M = meta['mixtures'] 
+mixtures_meta = mixtures_data['meta'].flat[0]
+M = mixtures_meta['mixtures'] 
 
 if digits is not None:
     shape = (1, M)
@@ -47,8 +50,10 @@ else:
     shape = (10, M)
     d0 = 0
 
-im_shape = meta['shape']
-sh = (ITERS,) + shape + ag.util.DisplacementFieldWavelet.shape_for_size(im_shape, level_capacity=3)
+level_capacity = 3
+
+im_shape = mixtures_meta['shape']
+sh = (ITERS,) + shape + ag.util.DisplacementFieldWavelet.shape_for_size(im_shape, level_capacity=level_capacity)
 
 # Storage for means, variances and how many samples were used to calculate these 
 means = np.empty(sh)
@@ -62,7 +67,9 @@ all_digit_features = features_data['features']
 
 totcost = 0.0
 
-for loop in xrange(ITERS):
+meta = {}
+
+for loop in xrange(1, ITERS):
     for d in digits:
         entries = [[] for i in xrange(M)]
         slices = [[] for i in xrange(M)]
@@ -85,17 +92,27 @@ for loop in xrange(ITERS):
                 tol=0.1, 
                 maxiter=200, 
                 start_level=2, 
-                last_level=3, 
+                last_level=level_capacity,
                 wavelet='db4'
             )
             
-            if loop == 0:
-                settings['penalty'] = penalty 
+            if loop == 1:
+                settings['penalty'] = eta 
                 settings['rho'] = rho
+
+                # Save these initial values
+                samples[0, d-d0, m] = 0 # not applicable 
+                means[0, d-d0, m] = 0.0 
+                variances[0, d-d0, m] = 1/ag.util.DisplacementFieldWavelet.make_lambdas(im_shape, level_capacity, eta=eta, rho=rho)
+    
+                # Save the initial settings as part of meta
+                meta = settings 
+                meta['b0'] = b0
             else:
                 settings['means'] = means[loop-1,d-d0,m]
                 settings['variances'] = variances[loop-1,d-d0,m]
-
+        
+          
             t1 = time.time()
             imdef, info = ag.stats.bernoulli_deformation(F, I, debug_plot=PLOT, **settings)
             t2 = time.time()
@@ -119,9 +136,13 @@ for loop in xrange(ITERS):
             #print means.shape, data.shape
             # Prior
             #print d, m, means.shape
-            samples[loop,d-d0, m] = data.shape[0]
-            means[loop,d-d0, m] = data.mean(axis=0) 
-            variances[loop,d-d0, m] = data.var(axis=0) 
+            samples[loop, d-d0, m] = data.shape[0]
+            means[loop, d-d0, m] = data.mean(axis=0) 
+            variances[loop, d-d0, m] = data.var(axis=0) 
+
+            # Smooth it with a prior
+            if eta is not None and rho is not None and b0 > 0: 
+                variances[loop, d-d0, m] = add_prior(variances[loop, d-d0, m], level_capacity, im_shape, eta, rho, b0, samples[loop,d-d0,m])
 
             #print len(data)
             #print variances[loop,d-d0,m].min(), variances[loop,d-d0,m].max()
@@ -137,9 +158,9 @@ for loop in xrange(ITERS):
             #llh_variances[d-d0, m] = values.var()
 
 additional = {}
-if ITERS > 0:
+if ITERS > 1:
     additional['all_iterations_mean'] = means
     additional['all_iterations_var'] = variances
     additional['all_iterations_samples'] = samples # TODO: Does this change?
              
-np.savez(output_file, prior_mean=means[-1], prior_var=variances[-1], samples=samples[-1], meta=settings, **additional)
+np.savez(output_file, prior_mean=means[-1], prior_var=variances[-1], samples=samples[-1], meta=meta, **additional)

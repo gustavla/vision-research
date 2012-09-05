@@ -4,6 +4,12 @@ import numpy as np
 import matplotlib.pylab as plt
 import sys
 
+def add_prior(var, levels, shape, eta, rho, b0, samp):
+    lmb0 = ag.util.DisplacementFieldWavelet.make_lambdas(shape, levels, eta=eta, rho=rho)
+    print samp.shape, var.shape, lmb0.shape
+    return (b0 + samp*var/2) / (b0 * lmb0 + samp/2)
+    
+
 def surplus(costs, correct_label):
     """Metric for how close the correct score is from the current minimum score. Positive value is good."""
     mcost = costs[0][0]
@@ -103,9 +109,7 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
     
                 # Calculate the posterior variance
                 if b0 and eta and rho and samples is not None:
-                    lmb0 = ag.util.DisplacementFieldWavelet.make_lambdas(shape, levels, eta=eta, rho=rho)
-                    new_var = (b0 + samp*var/2) / (b0 * lmb0 + samp/2)
-                    var = new_var
+                    var = add_prior(var, shape, eta, rho, b0, samp)
 
                 if deformation == 'edges':
                     F = all_templates[digit, mix_component]
