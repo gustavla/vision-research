@@ -8,8 +8,9 @@ parser.add_argument('features', metavar='<training features file>', type=argpars
 parser.add_argument('mixtures', metavar='<mixtures file>', type=argparse.FileType('rb'), help='Filename of mixtures')
 parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output')
 parser.add_argument('-p', '--plot', action='store_true', help='Plot in real-time using pygame')
-parser.add_argument('-i', dest='inspect', nargs=1, default=[None], metavar='INDEX', type=int, help='Inspect a single element')
-parser.add_argument('-d', dest='digit', nargs=1, metavar='DIGIT', type=int, help='Process only one digit')
+parser.add_argument('-i', dest='inspect', default=None, metavar='INDEX', type=int, help='Inspect a single element')
+parser.add_argument('-d', '--deform', dest='deform', default='edges', type=str, choices=('edges', 'intensity'), help='What kind of features to perform the deformations on.')
+parser.add_argument('--digit', dest='digit', nargs=1, metavar='DIGIT', type=int, help='Process only one digit')
 parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), type=int, default=(0, sys.maxint), help='Range of frames, FROM (incl) and TO (excl)')
 parser.add_argument('-l', dest='eta', nargs=1, default=[100000.0], type=float, help='Penalty coefficient eta')
 parser.add_argument('--rho', dest='rho', nargs=1, default=[2.0], type=float, help='Penalty exponent rho')
@@ -22,12 +23,14 @@ mixtures_file = args.mixtures
 output_file = args.output
 PLOT = args.plot
 digits = args.digit
-inspect = args.inspect[0]
+inspect = args.inspect
+deform_type = args.deform
+print deform_type
 eta = args.eta[0]
 rho = args.rho[0]
 b0 = args.b[0]
 n0, n1 = args.range
-ITERS = args.iterations[0] + 1
+ITERS = args.iterations[0]
 
 import amitgroup as ag
 import numpy as np
@@ -39,6 +42,13 @@ features_data = np.load(features_file)
 mixtures_data = np.load(mixtures_file)
 all_templates = mixtures_data['templates']
 all_affinities = mixtures_data['affinities']
+
+if deform_type == 'intensity':
+    try:
+        all_graylevels = features_data['originals']
+        all_graylevel_templates = mixtures_data['graylevel_templates']
+    except KeyError:
+            raise Exception("The feature file must be run with --save-originals, and the mixtures must be trained with this file")
 
 mixtures_meta = mixtures_data['meta'].flat[0]
 M = mixtures_meta['mixtures'] 
@@ -54,7 +64,7 @@ else:
 level_capacity = 3
 
 im_shape = mixtures_meta['shape']
-sh = (ITERS,) + shape + ag.util.DisplacementFieldWavelet.shape_for_size(im_shape, level_capacity=level_capacity)
+sh = (ITERS + 1,) + shape + ag.util.DisplacementFieldWavelet.shape_for_size(im_shape, level_capacity=level_capacity)
 
 # Storage for means, variances and how many samples were used to calculate these 
 means = np.empty(sh)
@@ -70,7 +80,8 @@ totcost = 0.0
 
 meta = {}
 
-for loop in xrange(1, ITERS):
+
+for loop in xrange(1, ITERS + 1):
     for d in digits:
         entries = [[] for i in xrange(M)]
         slices = [[] for i in xrange(M)]
@@ -86,8 +97,6 @@ for loop in xrange(1, ITERS):
             m = np.argmax(affinities)
             #F = np.rollaxis(all_templates[d,m], axis=2)
             #I = np.rollaxis(all_features[i], axis=2).astype(float)
-            F = all_templates[d,m]
-            I = all_features[i].astype(float)
 
             settings = dict(    
                 tol=0.1, 
@@ -115,20 +124,39 @@ for loop in xrange(1, ITERS):
         
           
             t1 = time.time()
-            imdef, info = ag.stats.bernoulli_deformation(F, I, debug_plot=PLOT, **settings)
+            if deform_type == 'edges':
+                F = all_templates[d,m]
+                I = all_features[i].astype(float)
+
+                imdef, info = ag.stats.bernoulli_deformation(F, I, debug_plot=PLOT, **settings)
+
+            elif deform_type == 'intensity':
+                F = all_graylevel_templates[d,m]
+                I = all_graylevels[d,i]
+
+                settings['tol'] = 0.000001
+                settings['maxiter'] = 50
+
+                imdef, info = ag.stats.image_deformation(F, I, debug_plot=PLOT, **settings) 
+
+                slices[m].append(imdef.deform(F))
+                # Save slices
+                #Fdef = np.asarray([
+                #    imdef.deform(F[j]) for j in xrange(8)
+                #])
+                #slices[m].append(Fdef - I)
+            
+            else:
+                raise Exception("Invalid deform type selection")
             t2 = time.time()
 
             if imdef is None:
                 sys.exit(0) 
 
-            print "{5}/{6} {3:.02f}% Digit: {0} Index: {1} (time = {2} s) min cost: {4}".format(d, i, t2-t1, 100*(d+(1+i-n0)/(n1-n0))/10, info['cost'], loop+1, ITERS)
+            print "{5}/{6} {3:.02f}% Digit: {0} Index: {1} (time = {2} s) min cost: {4}".format(d, i, t2-t1, 100*(d+(1+i-n0)/(n1-n0))/10, info['cost'], loop, ITERS)
             totcost += info['cost']
              
             entries[m].append(imdef.u)
-            Fdef = np.asarray([
-                imdef.deform(F[j]) for j in xrange(8)
-            ])
-            slices[m].append(Fdef - I)
         
         for m in xrange(M):
             data = np.asarray(entries[m])
@@ -141,9 +169,27 @@ for loop in xrange(1, ITERS):
             means[loop, d-d0, m] = data.mean(axis=0) 
             variances[loop, d-d0, m] = data.var(axis=0) 
 
-            # Smooth it with a prior
-            if eta is not None and rho is not None and b0 > 0: 
-                variances[loop, d-d0, m] = add_prior(variances[loop, d-d0, m], level_capacity, im_shape, eta, rho, b0, samples[loop,d-d0,m])
+            if deform_type == 'intensity':
+                # Include variance of likelihood int he variance of the prior.
+                #variances[loop, d-d0, m]
+
+                # Variance of likelihood 
+                slicesm = np.asarray(slices[m])
+                llh_var = slicesm.var(axis=0)
+                print llh_var
+                if 0:
+                    import pylab as plt
+                    plt.imshow(llh_var)
+                    plt.colorbar()
+                    plt.show()
+                    import sys; sys.exit(0)
+                variances[loop, d-d0, m] /= llh_var.mean()
+        
+                #variancesc
+            else:
+                # Smooth it with a prior
+                if eta is not None and rho is not None and b0 > 0: 
+                    variances[loop, d-d0, m] = add_prior(variances[loop, d-d0, m], level_capacity, im_shape, eta, rho, b0, samples[loop,d-d0,m])
 
             #print len(data)
             #print variances[loop,d-d0,m].min(), variances[loop,d-d0,m].max()
