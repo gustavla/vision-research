@@ -1,0 +1,55 @@
+
+########### exp.sh with b = 0.005, testing data size = 1000
+
+box 0
+Deformed: 99.90%
+Average contendors: 43.54
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 8.20%, 2.60%
+Miss rate: 7.30% (73/1000)
+
+box 1
+Deformed: 67.40%
+Average contendors: 11.55
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 5.90%, 1.00%
+Miss rate: 2.60% (26/1000)
+
+box 2
+Deformed: 56.50%
+Average contendors: 8.82
+Incorrect and undeformed: 0.10%
+Turned correct, incorrect: 5.40%, 1.50%
+Miss rate: 4.00% (40/1000)
+
+box 3
+Deformed: 58.10%
+Average contendors: 7.77
+Incorrect and undeformed: 0.20%
+Turned correct, incorrect: 6.30%, 2.00%
+Miss rate: 5.00% (50/1000)
+
+along 1
+Deformed: 92.60%
+Average contendors: 26.84
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 7.50%, 1.30%
+Miss rate: 4.20% (42/1000)
+
+along 2
+Deformed: 85.60%
+Average contendors: 21.60
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 8.30%, 1.30%
+Miss rate: 4.10% (41/1000)
+
+along 3
+Deformed: 83.10%
+Average contendors: 19.44
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 8.20%, 1.50%
+Miss rate: 4.20% (42/1000)
+
+############ exp.sh with b = 0.0005, testing data size = 5000
+
+

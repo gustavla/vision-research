@@ -36,7 +36,7 @@ if rotation is None:
         ], subplots=(M, J))
 else:
     raise NotImplementedError("Broken")
-    assert 0 <= rotation <= 8
+    assert 0 <= rotation < 8
     ag.plot.images(templates[letter,:,:,:,rotation])
 
 
