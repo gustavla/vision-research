@@ -176,14 +176,15 @@ for loop in xrange(1, ITERS + 1):
                 # Variance of likelihood 
                 slicesm = np.asarray(slices[m])
                 llh_var = slicesm.var(axis=0)
-                print llh_var
+                llh_mean_var = llh_var.mean()
+                print llh_mean_var
                 if 0:
                     import pylab as plt
                     plt.imshow(llh_var)
                     plt.colorbar()
                     plt.show()
                     import sys; sys.exit(0)
-                variances[loop, d-d0, m] /= llh_var.mean()
+                variances[loop, d-d0, m] /= llh_mean_var
         
                 #variancesc
             else:
