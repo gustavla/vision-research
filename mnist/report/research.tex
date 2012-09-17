@@ -9,6 +9,7 @@
 \usepackage{verbatim}
 \usepackage{subfig}
 \usepackage{amsthm}
+\usepackage{cleveref}
 \urlstyle{same}
 
 \newcommand{\com}[1]{
@@ -179,10 +180,98 @@ The MNIST dataset consists of images of size $28 \times 28$ with gray-level inte
 % itercoefs4.npz: python train_def_coefs.py -l 10 --rho 2.7 -n 12 -b 0.2 c/training-feat.npz c/mixtures.npz c/itercoefs4.npz
 % itercoefs5.npz: python train_def_coefs.py -l 100 --rho 1 -n 12 c/training-feat.npz c/mixtures.npz c/itercoefs5.npz
 % itercoefs6.npz: python train_def_coefs.py -l 10 --rho 2.7 -n 12 c/training-feat.npz c/mixtures.npz c/itercoefs6.npz
-% itercoefs7.npz: python train_def_coefs.py -l 100 --rho 1 -b 0.0001 -n 12 c/training-feat.npz c/mixtures.npz c/itercoefs5.npz
-% itercoefs8.npz: python train_def_coefs.py -l 10 --rho 2.7 -b 0.0001 -n 12 c/training-feat.npz c/mixtures.npz c/itercoefs6.npz
+% itercoefs7.npz: python train_def_coefs.py -l 100 --rho 1 -b 0.0001 -n 12 c/training-feat.npz c/mixtures.npz c/itercoefs7.npz
+% itercoefs8.npz: python train_def_coefs.py -l 10 --rho 2.7 -b 0.0001 -n 12 c/training-feat.npz c/mixtures.npz c/itercoefs8.npz
 
-Learning $\lambda$ values runs the risk of overfitting or getting the wrong scale since the likelihood term is underrated (because pixels are falsely assumed to be independent). In this section we investigate the effects of putting a Gamma prior over $\lambda$ in the Gaussian distribution in (\ref{eq:gaussian}). Since we have several values of $\lambda$, we will actually have a Gamma prior over each of those values. Instead of controlling the hyperparameters $a$ and $b$, we will decide a reasonable value for what the most probable value of $\lambda$ should be, and then adjust the variance by setting $b$. The relationship is given by deriving the Gamma distribution with regards to $\lambda$, setting the expression to zero. This gives
+% itercoefs9.npz: python train_def_coefs.py -l 100 --rho 1.0 -n 12 -b 0.005 c/training-feat.npz c/mixtures.npz c/itercoefs9.npz
+% itercoefs10.npz: python train_def_coefs.py -l 100 --rho 1.0 -n 12 -b 0.0005 c/training-feat.npz c/mixtures.npz c/itercoefs10.npz
+% itercoefs11.npz: python train_def_coefs.py -l 100 --rho 1.0 -n 12 -b 0.5 c/training-feat.npz c/mixtures.npz c/itercoefs11.npz
+
+% Testing different iterative trainings (through classification, not surplus)
+% python run_classifier.py -d edges -a 1.4 c/testing-feat.npz c/mixtures.npz c/itercoefs10.npz
+\begin{comment}
+Deformed: 67.40%
+Average contendors: 11.55
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 5.80%, 1.00%
+Miss rate: 2.70% (27/1000)
+\end{comment}
+
+% python run_classifier.py -d edges -a 1.4 c/testing-feat.npz c/mixtures.npz c/itercoefs9.npz
+\begin{comment}
+Deformed: 67.40%
+Average contendors: 11.55
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 5.90%, 1.00%
+Miss rate: 2.60% (26/1000)
+\end{comment}
+
+% python run_classifier.py -d edges -a 1.4 c/testing-feat.npz c/mixtures.npz c/itercoefs1.npz
+\begin{comment}
+Deformed: 67.40%
+Average contendors: 11.55
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 5.60%, 1.10%
+Miss rate: 3.00% (30/1000)
+\end{comment}
+
+% python run_classifier.py -d edges -a 1.4 c/testing-feat.npz c/mixtures.npz c/itercoefs11.npz
+\begin{comment}
+Deformed: 67.40%
+Average contendors: 11.55
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 4.80%, 1.10%
+Miss rate: 3.80% (38/1000)
+\end{comment}
+
+
+%%%%%%%%% Tests with entire dataset
+% python run_classifier.py -d edges -a 1.4 c/all-testing-feat.npz c/mixtures.npz c/itercoefs10.npz
+\begin{comment}
+Deformed: 71.06%
+Average contendors: 12.47
+Incorrect and undeformed: 0.01%
+Turned correct, incorrect: 6.96%, 1.10%
+Miss rate: 3.28% (328/9999)
+\end{comment}
+
+% python run_classifier.py -d edges -a 1.4 c/all-testing-feat.npz c/mixtures.npz c/itercoefs9.npz
+\begin{comment}
+Deformed: 71.06%
+Average contendors: 12.47
+Incorrect and undeformed: 0.01%
+Turned correct, incorrect: 6.97%, 1.19%
+Miss rate: 3.36% (336/9999)
+\end{comment}
+
+% python run_classifier.py -d edges -a 1.4 c/all-testing-feat.npz c/mixtures.npz c/itercoefs1.npz
+\begin{comment}
+Deformed: 71.06%
+Average contendors: 12.47
+Incorrect and undeformed: 0.01%
+Turned correct, incorrect: 6.76%, 0.93%
+Miss rate: 3.31% (331/9999)
+\end{comment}
+
+% python run_classifier.py -d edges -a 1.4 c/all-testing-feat.npz c/mixtures.npz c/itercoefs11.npz
+\begin{comment}
+Deformed: 71.06%
+Average contendors: 12.47
+Incorrect and undeformed: 0.01%
+Turned correct, incorrect: 6.01%, 0.95%
+Miss rate: 4.08% (408/9999)
+\end{cmmment}
+
+Learning $\lambda$ values runs the risk of overfitting or getting the wrong scale since the likelihood term is underrated (because pixels are falsely assumed to be independent). In this section we investigate the effects of putting a Gamma prior over $\lambda$ in the Gaussian distribution in (\ref{eq:gaussian}). Since we have several values of $\lambda$, we will actually have a Gamma prior over each of those values, according to the following density function
+\[
+    \text{Gam}(\lambda|a,b) = \frac{b^{a}}{\Gamma(a)}\lambda^{a-1}e^{-b x},
+\]
+with
+\[
+    \text{E}[\lambda] = \frac{a}{b}, \text{Var}[\lambda] = \frac{a}{b^2}.
+\]
+
+Instead of controlling the hyperparameters $a$ and $b$, we will decide a reasonable value for what the most probable value of $\lambda$ should be, and then adjust the variance by setting $b$. The relationship is given by deriving the Gamma distribution with regards to $\lambda$, setting the expression to zero. This gives
 \begin{equation} \label{eq:gammamax}
     \arg\max_{\lambda} \text{Gam}(\lambda|a, b) = \frac{a-1}{b}.
 \end{equation}
@@ -200,7 +289,7 @@ where $\lambda_{ML} = \sigma_{ML}^{-2}$ is the sample precision and $N$ the samp
 \newcommand{\TF}{T$_\rightarrow $F}
 
 \section{Preliminary results}
-All experiment here are on subsets of the MNIST dataset, so the number of classes is $|Y| = 10$. The number of training samples is given by $N \cdot |Y|$. The tables contain the following information:
+All experiments here are on subsets of the MNIST dataset, so the number of classes is $|Y| = 10$. The number of training samples is given by $N \cdot |Y|$. The tables contain the following information:
 \begin{itemize}
     \item[\textbf{\FT}] Denote how many classifications that were False with the mixture model alone, but turned True as a result of deformations.
     \item[\textbf{\TF}] Analogous to \FT.
@@ -234,7 +323,7 @@ Setting $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05$ and using Daubec
 \subsection{Conjugate prior}
 Tried $\eta=100, \rho=1$, which was used in Trial 1 above. Also tried $\eta=10, \rho=2.7$, which was very roughly chosen to be somewhat similar to the trained shape of the different coefficient levels, just to see how it would affect the results. Results can be seen in Figs.~\ref{fig:b0}, \ref{fig:b0zoom}, \ref{fig:rho1} and \ref{fig:rho27}.
 
-Since this a 3D search space in $\eta$, $\rho$ and $b_0$, this is a very shallow investigation so far.
+Since this a search space in $\eta$, $\rho$ and $b_0$, this is a very shallow investigation so far.
 
 \begin{figure}
     \centering
@@ -263,13 +352,57 @@ Since this a 3D search space in $\eta$, $\rho$ and $b_0$, this is a very shallow
 
 
 \subsection{Iterative training of $\mu$ and $\lambda$}
-Plugging $\mu$ and $\lambda$ back in and training, using several iterations, causes the parameters to diverge (Fig.~\ref{fig:itercoefs}).
+Plugging $\mu$ and $\lambda$ back in and training, using several iterations, causes the parameters to diverge (Fig.~\ref{fig:itercoefs}). To prevent this, we smooth with a Gamma prior, as described earlier. Using iteratively trained parameters for classification will be referred to as SelDeform+Iter.
+
+The following experiment uses $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05, \alpha=1.4$. The iterative process is repeated for 12 iterations, testing with several values of $b_0$. The convergence of the precision for several values of $b_0$ is shown in Figs.~\Cref{fig:iter1,fig:iter2,fig:iter3,fig:iter4}.
+
+\begin{table}
+    \begin{center}
+        \begin{tabular}{ | l | l | l | l | l | l | l | l | }
+            \hline
+            Method & $b_0$ & Miss rate & \FT & \TF & Deformed & \#cont. & F undef. \\
+            \hline
+            SelDeform & - & 2.90\% & 5.60\% & 1.00\% & 67.40\% & 11.55 & 0.00\% \\
+            SelDeform+Iter & 0.0005 & 2.70\% & 5.80\% & 1.00\% & 67.40\% & 11.55 & 0.00\% \\
+            SelDeform+Iter & 0.005 & 2.60\% & 5.90\% & 1.00\% & 67.40\% & 11.55 & 0.00\% \\
+            SelDeform+Iter & 0.05 & 3.00\% & 5.60\% & 1.10\% & 67.40\% & 11.55 & 0.00\% \\
+            SelDeform+Iter & 0.5 & 3.80\% & 4.80\% & 1.10\% & 67.40\% & 11.55 & 0.00\% \\
+            \hline
+        \end{tabular}
+    \end{center}
+    \caption{Results of classifying after iteratively training, smoothing with $b_0$.} \label{tab:trialb}
+\end{table}
 
 \begin{figure}
     \centering
     \includegraphics[width=0.8\textwidth]{figs/itercoefs.pdf}
     \caption{Divergence of iteratively training the precision $\lambda$.} \label{fig:itercoefs}
 \end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/p1.pdf}
+    \caption{Convergence of iteratively training the precision $\lambda$ and smoothing with $b_0 = 0.0005$.} \label{fig:iter1}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/p2.pdf}
+    \caption{Convergence of iteratively training the precision $\lambda$ and smoothing with $b_0 = 0.005$.} \label{fig:iter2}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/p3.pdf}
+    \caption{Convergence of iteratively training the precision $\lambda$ and smoothing with $b_0 = 0.05$.} \label{fig:iter3}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/p4.pdf}
+    \caption{Convergence of iteratively training the precision $\lambda$ and smoothing with $b_0 = 0.5$.} \label{fig:iter4}
+\end{figure}
+
 
 \subsection{Observations}
 The gradient $\nabla J(u)$ is not $\mathbf{0}$ at the point of convergence in the BFGS algorithm. Exact reason unknown.
