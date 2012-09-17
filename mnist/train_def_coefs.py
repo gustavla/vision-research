@@ -69,6 +69,7 @@ sh = (ITERS + 1,) + shape + ag.util.DisplacementFieldWavelet.shape_for_size(im_s
 # Storage for means, variances and how many samples were used to calculate these 
 means = np.empty(sh)
 variances = np.empty(sh)
+llh_variances = np.empty((ITERS + 1,) + shape + im_shape)
 samples = np.empty(sh)
 
 #llh_sh = shape 
@@ -114,13 +115,17 @@ for loop in xrange(1, ITERS + 1):
                 samples[0, d-d0, m] = 0 # not applicable 
                 means[0, d-d0, m] = 0.0 
                 variances[0, d-d0, m] = 1/ag.util.DisplacementFieldWavelet.make_lambdas(im_shape, level_capacity, eta=eta, rho=rho)
-    
+
                 # Save the initial settings as part of meta
                 meta = copy(settings)
                 meta['b0'] = b0
+        
+                # Leave out llh_variances (same as setting it to 1.0, initially)
             else:
                 settings['means'] = means[loop-1,d-d0,m]
                 settings['variances'] = variances[loop-1,d-d0,m]
+                if deform_type == 'intensity':
+                    settings['llh_variances'] = llh_variances[loop-1,d-d0,m]
         
           
             t1 = time.time()
@@ -176,14 +181,14 @@ for loop in xrange(1, ITERS + 1):
                 # Variance of likelihood 
                 slicesm = np.asarray(slices[m])
                 llh_var = slicesm.var(axis=0)
-                print llh_var
                 if 0:
                     import pylab as plt
                     plt.imshow(llh_var)
                     plt.colorbar()
                     plt.show()
                     import sys; sys.exit(0)
-                variances[loop, d-d0, m] /= llh_var.mean()
+                #variances[loop, d-d0, m] /= llh_var.mean()
+                llh_variances[loop, d-d0, m] = np.clip(llh_var, 0.001, np.inf)
         
                 #variancesc
             else:
