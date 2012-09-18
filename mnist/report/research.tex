@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass{report}
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{pifont}
@@ -41,6 +41,8 @@
 %\keywords{score following, real-time score alignment, automatic accompaniment}
 %\end{abstract}
 %
+\chapter{Edge features}
+
 \section{Introduction}
 MNIST is a dataset of well-posed (centered) and clean (little noise) digits of 10 classes. The task is to determine which class an image belongs to, by training several prototypes of each class and comparing an image to the prototypes. The image is converted to binary features, which are assumed to be drawn independently from Bernoulli distributions (the prototype).
 The prototypes are also allowed to deform using a wavelet basis to match the image better, to the cost of a Gaussian prior over the parameters of the deformation.
@@ -93,7 +95,13 @@ Now, the deformation and the image are assumed to be drawn from the following di
     u^{(q)}_{k} &\sim \mathcal{N}(\mu^{(q)}_{k}, (\lambda^{(q)}_{k})^{-1}), &q \in Q, k \in K, \label{eq:gaussian} \\
     X_j(x) &\sim \text{Bern}(F_j(\tilde x)), &x \in L, j \in J, \label{eq:bernoulli}
  \end{align}
-where we introduce the short-hand $\tilde x = x + U(x)$. The parameters $\mu$ and $\lambda$ are specific to the prototype $F$.
+where we introduce the short-hand $\tilde x = x + U(x)$.
+
+The parameters $\mu$ and $\lambda$ are specific to the prototype $F$.
+Notice that we then have
+\begin{equation} \label{eq:partial_tilde}
+    \frac{\partial \tilde x^{(q)}}{\partial u_k} = \psi_k.
+\end{equation}
 
 We now set a cost function to the negative posterior, ignoring any additive constants, and get (not be confused with the set $J$)
 
@@ -410,5 +418,37 @@ The gradient $\nabla J(u)$ is not $\mathbf{0}$ at the point of convergence in th
 
 \section{Code}
 GitHub repositories: \href{https://github.com/gustavla/vision-research/}{gustavla/vision-research}, \href{https://github.com/amitgroup/amitgroup}{amitgroup/amitgroup}
+
+\chapter{Gray-level intensities}
+
+\section{Introduction}
+In this chapter, we investigate a data model that uses only gray-level intensities. Most of the training and testing are identical to when we have edge features. The following sections describe the differences.
+
+\section{Data model}
+Since we draw the intensities from a normal distribution, we will have both a precision $\lambda$ for the prior, and a precision $\lambda'$ for the likelihood. The latter, $\lambda' \in \mathbb{R}^{|L|}$, is defined for each pixel in the prototype image $F$.
+
+\begin{align}
+    u^{(q)}_{k} &\sim \mathcal{N}(\mu^{(q)}_{k}, (\lambda^{(q)}_{k})^{-1}), &q \in Q, k \in K, \label{eq:gaussian} \\
+    I(x) &\sim \mathcal{N}(F(\tilde x), (\lambda'_x)^{-1}), &x \in L, j \in J, \label{eq:bernoulli}
+\end{align}
+
+The cost and its derivative follow
+
+\begin{align*}
+    J(u) =& \frac{1}{2} \sum_{q\in Q} \sum_{k\in K} \lambda^{(q)}_k (u^{(q)}_k -\mu^{(q)}_k)^2 + \frac{1}{2} \sum_{x \in L} \lambda'_x 
+            (F(\tilde x) - I(x))^2 
+\end{align*}
+Taking partial derivatives of this we get
+\begin{align*}
+    \frac{\partial J(u)}{\partial u^{(q)}_k} =& \lambda^{(q)}_k (u^{(q)}_k -\mu^{(q)}_k) + \sum_{x \in L} 
+        \lambda'_x (F(\tilde x) - I(x)) \partial_q F(\tilde x) \psi_k(x).
+\end{align*} 
+
+\section{Learning}
+Training of the parameters is almost identical, expect that now we have $\mu$, $\lambda$ and $\lambda'$. We initialize $\lambda'$ to 1 for each pixel.
+
+\section{Smoothing}
+This time, an increased $\lambda$, will likely result in an increased $\lambda'$. Since both terms will increase, we can see it as a nominal inflation of the cost value, and normalize it (HOW EXACTLY???). This will prevent the values from diverging.
+
 
 \end{document}

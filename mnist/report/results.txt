@@ -52,4 +52,23 @@ Miss rate: 4.20% (42/1000)
 
 ############ exp.sh with b = 0.0005, testing data size = 5000
 
+box1
+Deformed: 68.66%
+Average contendors: 12.21
+Incorrect and undeformed: 0.02%
+Turned correct, incorrect: 6.80%, 0.94%
+Miss rate: 3.10% (155/5000)
 
+box2
+Deformed: 57.98%
+Average contendors: 9.22
+Incorrect and undeformed: 0.02%
+Turned correct, incorrect: 6.08%, 1.48%
+Miss rate: 4.32% (216/5000)
+
+box3
+Deformed: 58.78%
+Average contendors: 8.13
+Incorrect and undeformed: 0.08%
+Turned correct, incorrect: 6.88%, 1.74%
+Miss rate: 5.28% (264/5000)

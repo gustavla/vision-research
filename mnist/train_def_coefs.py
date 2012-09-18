@@ -189,6 +189,13 @@ for loop in xrange(1, ITERS + 1):
                     import sys; sys.exit(0)
                 #variances[loop, d-d0, m] /= llh_var.mean()
                 llh_variances[loop, d-d0, m] = np.clip(llh_var, 0.001, np.inf)
+
+                # Make sure llh_variances is normalized
+                llhm = llh_variances.mean()
+
+                # Shift over nominal inflation value from likelihood to prior.
+                llh_variances[loop, d-d0, m] /= llhm
+                variances[loop, d-d0, m] *= llhm 
         
                 #variancesc
             else:
