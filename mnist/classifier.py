@@ -42,7 +42,7 @@ def surplus(costs, correct_label):
 
 
 # Classifer 
-def classify(features, all_templates, means, variances, graylevels=None, graylevel_templates=None, samples=None, deformation='edges', correct_label=None, threshold_multiple=1.2, b0=None, eta=None, rho=None, debug_plot=False):
+def classify(features, all_templates, means, variances, llh_variances=None, graylevels=None, graylevel_templates=None, samples=None, deformation='edges', correct_label=None, threshold_multiple=1.2, b0=None, eta=None, rho=None, debug_plot=False):
     # min loglikelihood
     min_cost = None
     min_which = None
@@ -95,6 +95,7 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
                         del[costs[i]]
 
             # Do the deformation
+            additional = {}
             new_costs = []
             info['deformation'] = True
             info['num_contendors'] = len(costs) 
@@ -104,25 +105,29 @@ def classify(features, all_templates, means, variances, graylevels=None, graylev
                 var = variances[digit, mix_component]
                 me = means[digit, mix_component]
                 samp = samples[digit, mix_component] 
+                if llh_variances is not None:
+                    additional['llh_variances'] = llh_variances[digit, mix_component]
                 penalty = None 
                 levels = 3
     
                 # Calculate the posterior variance
+                # TODO: Maybe remove, this is usually done when arranging the coefficient file, and not here.
                 if b0 and eta and rho and samples is not None:
+                    raise Exception("Are you sure you want to do this?")
                     var = add_prior(var, shape, eta, rho, b0, samp)
 
                 if deformation == 'edges':
                     F = all_templates[digit, mix_component]
                     I = features
                 
-                    imdef, information = ag.stats.bernoulli_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=1, last_level=levels, debug_plot=debug_plot, tol=0.1, maxiter=200)
+                    imdef, information = ag.stats.bernoulli_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=1, last_level=levels, debug_plot=debug_plot, tol=0.1, maxiter=200, **additional)
 
                 elif deformation == 'intensity':
                     #assert originals is not None, "Intensity deformation requires originals"
                     F = graylevel_templates[digit, mix_component] 
                     I = graylevels
 
-                    imdef, information = ag.stats.image_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=1, last_level=levels, debug_plot=debug_plot, tol=0.00001, maxiter=50)
+                    imdef, information = ag.stats.image_deformation(F, I, wavelet='db4', penalty=penalty, means=me, variances=var, start_level=1, last_level=levels, debug_plot=debug_plot, tol=0.00001, maxiter=50, **additional)
 
                 # Kill if cancelled
                 imdef or sys.exit(0)

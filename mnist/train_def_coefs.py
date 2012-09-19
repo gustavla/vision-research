@@ -8,7 +8,8 @@ parser.add_argument('features', metavar='<training features file>', type=argpars
 parser.add_argument('mixtures', metavar='<mixtures file>', type=argparse.FileType('rb'), help='Filename of mixtures')
 parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output')
 parser.add_argument('-p', '--plot', action='store_true', help='Plot in real-time using pygame')
-parser.add_argument('-i', dest='inspect', default=None, metavar='INDEX', type=int, help='Inspect a single element')
+parser.add_argument('--inspect', dest='inspect', default=None, metavar='INDEX', type=int, help='Inspect a single element')
+parser.add_argument('-i', '--index', nargs=2, metavar=('DIGIT', 'MIXTURE'), default=(None, None), type=int, help='Run on only the given index, with choice of DIGIT and MIXTURE.')
 parser.add_argument('-d', '--deform', dest='deform', default='edges', type=str, choices=('edges', 'intensity'), help='What kind of features to perform the deformations on.')
 parser.add_argument('--digit', dest='digit', nargs=1, metavar='DIGIT', type=int, help='Process only one digit')
 parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), type=int, default=(0, sys.maxint), help='Range of frames, FROM (incl) and TO (excl)')
@@ -31,6 +32,7 @@ rho = args.rho[0]
 b0 = args.b[0]
 n0, n1 = args.range
 ITERS = args.iterations[0]
+digit, mixture = args.index
 
 import amitgroup as ag
 import numpy as np
@@ -53,13 +55,18 @@ if deform_type == 'intensity':
 mixtures_meta = mixtures_data['meta'].flat[0]
 M = mixtures_meta['mixtures'] 
 
-if digits is not None:
-    shape = (1, M)
-    d0 = digits[0]
-else:
-    digits = range(10)
+if digit is not None:
+    digits = [digit]
     shape = (10, M)
     d0 = 0
+else:
+    if digits is not None:
+        shape = (1, M)
+        d0 = digits[0]
+    else:
+        digits = range(10)
+        shape = (10, M)
+        d0 = 0
 
 level_capacity = 3
 
@@ -96,6 +103,9 @@ for loop in xrange(1, ITERS + 1):
         for i in xrange(n0, n1):
             affinities = all_affinities[d,i]
             m = np.argmax(affinities)
+
+            if mixture is not None and m != mixture:
+                continue
             #F = np.rollaxis(all_templates[d,m], axis=2)
             #I = np.rollaxis(all_features[i], axis=2).astype(float)
 
@@ -164,6 +174,9 @@ for loop in xrange(1, ITERS + 1):
             entries[m].append(imdef.u)
         
         for m in xrange(M):
+            if mixture is not None and m != mixture:
+                continue
+            
             data = np.asarray(entries[m])
             assert len(data) >= 2 #, "Need more data! (some mixture components had not a single data point" 
 
@@ -191,7 +204,7 @@ for loop in xrange(1, ITERS + 1):
                 llh_variances[loop, d-d0, m] = np.clip(llh_var, 0.05, np.inf)
 
                 # Make sure llh_variances is normalized
-                llhm = llh_variances.mean()
+                #llhm = llh_variances.mean()
 
                 # Shift over nominal inflation value from likelihood to prior.
                 #llh_variances[loop, d-d0, m] /= llhm
