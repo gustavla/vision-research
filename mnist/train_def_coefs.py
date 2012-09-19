@@ -188,14 +188,14 @@ for loop in xrange(1, ITERS + 1):
                     plt.show()
                     import sys; sys.exit(0)
                 #variances[loop, d-d0, m] /= llh_var.mean()
-                llh_variances[loop, d-d0, m] = np.clip(llh_var, 0.001, np.inf)
+                llh_variances[loop, d-d0, m] = np.clip(llh_var, 0.05, np.inf)
 
                 # Make sure llh_variances is normalized
                 llhm = llh_variances.mean()
 
                 # Shift over nominal inflation value from likelihood to prior.
-                llh_variances[loop, d-d0, m] /= llhm
-                variances[loop, d-d0, m] *= llhm 
+                #llh_variances[loop, d-d0, m] /= llhm
+                #variances[loop, d-d0, m] *= llhm 
         
                 #variancesc
             else:
@@ -221,5 +221,10 @@ if ITERS > 1:
     additional['all_iterations_mean'] = means
     additional['all_iterations_var'] = variances
     additional['all_iterations_samples'] = samples # TODO: Does this change?
+
+if deform_type == 'intensity':
+    if ITERS > 1:
+        additional['all_llh_var'] = llh_variances
+    additional['llh_var'] = llh_variances[-1]
              
 np.savez(output_file, prior_mean=means[-1], prior_var=variances[-1], samples=samples[-1], meta=meta, **additional)

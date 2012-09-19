@@ -66,6 +66,8 @@ if (n0, n1) != (0, sys.maxint):
 means = coefs['prior_mean']
 variances = coefs['prior_var']
 samples = coefs['samples']
+if deform_type == 'intensity':
+    llh_variances = coefs['llh_var']
 
 if bN:
     #all_templates = np.clip(all_templates, eps, 1.0 - eps)
@@ -125,6 +127,10 @@ else:
         additional = {}
         additional['graylevels'] = all_graylevels[i]
         additional['graylevel_templates'] = all_graylevel_templates
+
+        if deform_type == 'intensity':
+            # Add llh_variances too
+            additional['llh_variances'] = llh_variances
 
         label, info = classify(features, all_templates, means, variances, samples=samples, deformation=deform_type, correct_label=all_labels[i], debug_plot=PLOT, threshold_multiple=alpha, **additional)
         correct = label == all_labels[i]

@@ -7,9 +7,10 @@
 \usepackage[pdftex]{graphicx}
 \usepackage[pdftex]{hyperref}
 \usepackage{verbatim}
-\usepackage{subfig}
 \usepackage{amsthm}
 \usepackage{cleveref}
+\usepackage{caption}
+\usepackage{subcaption}
 \urlstyle{same}
 
 \newcommand{\com}[1]{
@@ -308,7 +309,7 @@ All experiments here are on subsets of the MNIST dataset, so the number of class
 \end{itemize}
 
 \subsection{Preliminary results 1 and influence of $\alpha$}
-Setting $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05$ and using Daubechies D8 wavelets for $\Psi$. This trial was tested on 1000 samples from the training set (disjoint from the subset used for training). We tried several values of $\alpha$. Results in Tab.~\ref{tab:trial1}.
+Setting $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05$ and using Daubechies D8 wavelets for $\Psi$. This trial was tested on 1000 samples from the training set (disjoint from the subset used for training). We tried several values of $\alpha$. Results in tab.~\ref{tab:trial1}.
 
 \begin{table}
     \begin{center}
@@ -330,7 +331,7 @@ Setting $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05$ and using Daubec
 \end{table}
 
 \subsection{Conjugate prior}
-Tried $\eta=100, \rho=1$, which was used in Trial 1 above. Also tried $\eta=10, \rho=2.7$, which was very roughly chosen to be somewhat similar to the trained shape of the different coefficient levels, just to see how it would affect the results. Results can be seen in Figs.~\ref{fig:b0}, \ref{fig:b0zoom}, \ref{fig:rho1} and \ref{fig:rho27}.
+Tried $\eta=100, \rho=1$, which was used in Trial 1 above. Also tried $\eta=10, \rho=2.7$, which was very roughly chosen to be somewhat similar to the trained shape of the different coefficient levels, just to see how it would affect the results. Results can be seen in figs.~\ref{fig:b0}, \ref{fig:b0zoom}, \ref{fig:rho1} and \ref{fig:rho27}.
 
 Since this a search space in $\eta$, $\rho$ and $b_0$, this is a very shallow investigation so far.
 
@@ -343,7 +344,7 @@ Since this a search space in $\eta$, $\rho$ and $b_0$, this is a very shallow in
 \begin{figure}
     \centering
     \includegraphics[width=0.8\textwidth]{figs/surplus45.pdf}
-    \caption{Same as Fig.~\ref{fig:b0}, except zoomed in.} \label{fig:b0zoom}
+    \caption{Same as fig.~\ref{fig:b0}, except zoomed in.} \label{fig:b0zoom}
 \end{figure}
 
 
@@ -361,9 +362,9 @@ Since this a search space in $\eta$, $\rho$ and $b_0$, this is a very shallow in
 
 
 \subsection{Iterative training of $\mu$ and $\lambda$}
-Plugging $\mu$ and $\lambda$ back in and training, using several iterations, causes the parameters to diverge (Fig.~\ref{fig:itercoefs}). To prevent this, we smooth with a Gamma prior, as described earlier. Using iteratively trained parameters for classification will be referred to as SelDeform+Iter.
+Plugging $\mu$ and $\lambda$ back in and training, using several iterations, causes the parameters to diverge (fig.~\ref{fig:itercoefs}). To prevent this, we smooth with a Gamma prior, as described earlier. Using iteratively trained parameters for classification will be referred to as SelDeform+Iter.
 
-The following experiment uses $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05, \alpha=1.4$. The iterative process is repeated for 12 iterations, testing with several values of $b_0$. The convergence of the precision for several values of $b_0$ is shown in Figs.~\Cref{fig:iter1,fig:iter2,fig:iter3,fig:iter4}.
+The following experiment uses $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05, \alpha=1.4$. The iterative process is repeated for 12 iterations, testing with several values of $b_0$. The convergence of the precision for several values of $b_0$ is shown in figs.~\Cref{fig:iter1,fig:iter2,fig:iter3,fig:iter4}.
 
 \begin{table}
     \begin{center}
@@ -450,5 +451,82 @@ Training of the parameters is almost identical, expect that now we have $\mu$, $
 \section{Smoothing}
 This time, an increased $\lambda$, will likely result in an increased $\lambda'$. Since both terms will increase, we can see it as a nominal inflation of the cost value, and normalize it (HOW EXACTLY???). This will prevent the values from diverging.
 
+\chapter{Feature inflation}
+
+\section{Introduction}
+In the first chapter, we inflated the number of edge features, by spreading a feature to its 8 neighbors. If we see this as the result of convolving with a $3\times 3$ inflation kernel of all ones, we can try a few more things. It was implemented by regular convolution and disallowing values to be greater than 1. 
+
+The kernels used are seen in fig.~\ref{fig:kernels}. The kernels "along" are displayed for edges going NE and SW, and are rotated so that they follow {\em along} with the edge.
+
+\section{Experiment and results}
+Employing SelDeform+Iter with $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05, \alpha=1.4, b_0 = 0.0005$. In all experiments, the specified kernel was used for both training and testing. The experiments were tested on 5000 samples from the training set. The results are seen in tab.~\ref{tab:kernels}.
+
+\begin{table}
+    \begin{center}
+        \begin{tabular}{ | l | l | l | l | l | l | l | l | }
+            \hline
+            Kernel & Method & Miss rate & \FT & \TF & Deformed & \#cont. & F undef. \\
+            \hline
+            box0 & SelDeform+Iter & 9.06\% & 8.68\% & 3.02\% & 99.92\% & 43.87 & 0.00\% \\
+            \hline
+            box1 & SelDeform+Iter & {\bf 3.10\%} & 6.80\% & 0.94\% & 68.66\% & 12.21 & 0.02\% \\
+            \hline
+            box2 & SelDeform+Iter & 4.32\% & 6.08\% & 1.48\% & 57.98\% & 9.22 & 0.02\% \\
+            \hline
+            box3 & SelDeform+Iter & 5.28\% & 6.88\% & 1.74\% & 58.78\% & 8.13 & 0.08\% \\
+            \hline
+            along1 & SelDeform+Iter & 4.68\% & 8.58\% & 1.50\% & 93.00\% & 27.68 & 0.00\% \\
+            \hline
+            along2 & SelDeform+Iter & 4.40\% & 8.76\% & 1.46\% & 87.50\% & 21.88 & 0.00\% \\
+            \hline
+            along3 & SelDeform+Iter & 4.52\% & 8.30\% & 1.36\% & 84.88\% & 19.81 & 0.00\% \\
+            \hline
+            \hline
+            box0 & NoDeform+Iter & 14.72\% & - & - & - & - & - \\  
+            \hline
+            box1 & NoDeform+Iter & 8.96\% & - & - & - & - & - \\  
+            \hline
+            box2 & NoDeform+Iter & {\bf 8.92} \% & - & - & - & - & - \\  
+            \hline
+            box3 & NoDeform+Iter & {\bf 8.92} \% & - & - & - & - & - \\  
+            \hline
+            along1 & NoDeform+Iter & 11.76\% & - & - & - & - & - \\  
+            \hline
+            along2 & NoDeform+Iter & 11.70\% & - & - & - & - & - \\  
+            \hline 
+            along3 & NoDeform+Iter & 11.46\% & - & - & - & - & - \\  
+            \hline
+        \end{tabular}
+    \end{center}
+    \caption{Results from using different kernels. Top half shows with deformations and bottom half with the mixture model alone.} \label{tab:kernels}
+\end{table}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/kernels.pdf}
+    \caption{Kernels used to inflate binary edge features with direction NE and SW.} \label{fig:kernels}
+\end{figure}
+
+
+\begin{figure}
+        \begin{subfigure}[b]{0.45\textwidth}
+                \centering
+                \includegraphics[width=\textwidth]{figs/mixtures9-box1}
+                \caption{box1}
+                \label{fig:mix9box1}
+        \end{subfigure}%
+        \qquad %add desired spacing between images, e. g. ~, \quad, \qquad etc. 
+          %(or a blank line to force the subfigure onto a new line)
+        \begin{subfigure}[b]{0.45\textwidth}
+                \centering
+                \includegraphics[width=\textwidth]{figs/mixtures9-along1}
+                \caption{along1}
+                \label{fig:mix9along1}
+        \end{subfigure}
+        \caption{Gray-level average of mixture components of 9 for two different inflation kernels.}\label{fig:kernelmix}
+\end{figure}
+
+\section{Conclusion}
+The box1 turned out to give the best results all along. However, it is worth pointing out that the method was built around box1, so some of the parameters of the model could favor this over the other choices.
 
 \end{document}

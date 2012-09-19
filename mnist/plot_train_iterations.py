@@ -22,14 +22,17 @@ import os.path
 
 data = np.load(coef_file)
 
+
 try:
     variances = data['all_iterations_var']
     means = data['all_iterations_mean']
     samples = data['samples']
     meta = data['meta'].flat[0]
     b0 = meta['b0']
+    simple_plot = False
 except KeyError:
-    raise ValueError("Coefficient file must be run trained with several iterations for this plot")
+    simple_plot = True
+    #raise ValueError("Coefficient file must be run trained with several iterations for this plot")
 
 iterations = min(len(means), N)
 

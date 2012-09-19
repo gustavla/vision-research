@@ -52,6 +52,13 @@ Miss rate: 4.20% (42/1000)
 
 ############ exp.sh with b = 0.0005, testing data size = 5000
 
+box0
+Deformed: 99.92%
+Average contendors: 43.87
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 8.68%, 3.02%
+Miss rate: 9.06% (453/5000)
+
 box1
 Deformed: 68.66%
 Average contendors: 12.21
@@ -72,3 +79,78 @@ Average contendors: 8.13
 Incorrect and undeformed: 0.08%
 Turned correct, incorrect: 6.88%, 1.74%
 Miss rate: 5.28% (264/5000)
+
+along1
+Deformed: 93.00%
+Average contendors: 27.68
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 8.58%, 1.50%
+Miss rate: 4.68% (234/5000)
+
+along2
+Deformed: 87.50%
+Average contendors: 21.88
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 8.76%, 1.46%
+Miss rate: 4.40% (220/5000)
+
+along3
+Deformed: 84.88%
+Average contendors: 19.81
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 8.30%, 1.36%
+Miss rate: 4.52% (226/5000)
+
+# All the above, but without deformations!
+
+box0
+Deformed: 0.00%
+Incorrect and undeformed: 14.72%
+Turned correct, incorrect: 0.00%, 0.00%
+Miss rate: 14.72% (736/5000)
+
+box1
+Deformed: 0.00%
+Incorrect and undeformed: 8.96%
+Turned correct, incorrect: 0.00%, 0.00%
+Miss rate: 8.96% (448/5000)
+
+box2
+Deformed: 0.00%
+Incorrect and undeformed: 8.92%
+Turned correct, incorrect: 0.00%, 0.00%
+Miss rate: 8.92% (446/5000)
+
+box3
+Deformed: 0.00%
+Incorrect and undeformed: 8.92%
+Turned correct, incorrect: 0.00%, 0.00%
+Miss rate: 8.92% (446/5000)
+
+along1
+Deformed: 0.00%
+Incorrect and undeformed: 11.76%
+Turned correct, incorrect: 0.00%, 0.00%
+Miss rate: 11.76% (588/5000)
+
+along2
+Deformed: 0.00%
+Incorrect and undeformed: 11.70%
+Turned correct, incorrect: 0.00%, 0.00%
+Miss rate: 11.70% (585/5000)
+
+along3
+Deformed: 0.00%
+Incorrect and undeformed: 11.46%
+Turned correct, incorrect: 0.00%, 0.00%
+Miss rate: 11.46% (573/5000)
+
+
+############# INTENSITY ONLY STUFF
+
+python train_def_coefs.py -d intensity -l 1 --rho 1 -n 1 d-box-1/training-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs1.npz
+python run_classifier.py -d intensity -a 1.4 -l 1 --rho 1 d-box-1/testing-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs1.npz -r 0 1000
+
+python train_def_coefs.py -d intensity -l 1 --rho 1 -n 5 d-box-1/training-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs2.npz
+python run_classifier.py -d intensity -a 1.4 -l 1 --rho 1 d-box-1/testing-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs2.npz -r 0 2000
+
