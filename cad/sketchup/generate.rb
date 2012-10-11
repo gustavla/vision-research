@@ -15,13 +15,13 @@ UI.menu("Plugins").add_item("Generate data") {
   if style.instance_of?(Sketchup::Style) then
     styles.selected_style = style
   else
-    styles.add_style "/Users/slimgee/git/vision-research/gustav.style", true
+    styles.add_style "/Users/slimgee/git/vision-research/cad/sketchup/gustav.style", true
   end
 
-  si = 64 
+  si = 256 
   model = Sketchup.active_model
   view = model.active_view
-  N = 100 
+  N = 40 
 
   range = (0..N).map { |i| -1 + 2.0 * i/N.to_f } 
   # step(0.1) does not work in SketchUp's Ruby version
@@ -30,19 +30,19 @@ UI.menu("Plugins").add_item("Generate data") {
     range.each do |x2|
       both = x1**2 + x2**2
       if 1.0 - both >= 0.0 then 
-        puts "processing #{x1} and #{x2}"
+        #puts "processing #{x1} and #{x2}"
         #angle = 2.0 * Math::PI * x / N 
         #eye = [700 * Math.sin(angle), 700 * Math.cos(angle), 150]
         c = Math.sqrt(1.0 - both)
-        puts "="*30,x1, x2
-        x = 400 * 2 * x1 * c
-        y = 400 * 2 * x2 * c 
-        z = 400 * (1 - 2 * both)
+        #puts "="*30,x1, x2
+        x = 140 * 2 * x1 * c
+        y = 140 * 2 * x2 * c 
+        z = 140 * (1 - 2 * both)
         if z >= 0 then
           eye = [x, y, z]
           target = [0, 0, 0]
           up= [0, 0, 1]
-          filename = "/Users/slimgee/git/data/car#{i}.png"
+          filename = "/Users/slimgee/git/data/bike/bicycle1_#{i}.png"
           if x != 0 or y != 0 then
             if not File.exists? filename then
               camera = Sketchup::Camera.new eye, target, up
@@ -63,6 +63,6 @@ UI.menu("Plugins").add_item("Generate data") {
       end
     end
   end 
-  UI.messagebox("Data saved!")
+  UI.messagebox("Data saved! (#{i})")
 }
 

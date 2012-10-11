@@ -1,0 +1,32 @@
+<annotation>
+    <folder>VOC2007</folder>
+    <filename>{filename}</filename>
+    <source>
+        <database>CAD Project Generation</database>
+        <annotation>CAD Project</annotation>
+        <image>generated</image>
+        <flickrid>?</flickrid>
+    </source>
+    <owner>
+        <flickrid>?</flickrid>
+        <name>?</name>
+    </owner>
+    <size>
+        <width>{width}</width>
+        <height>{height}</height>
+        <depth>3</depth>
+    </size>
+    <segmented>0</segmented>
+    <object>
+        <name>bicycle</name>
+        <pose></pose>
+        <truncated>0</truncated>
+        <difficult>0</difficult>
+        <bndbox>
+            <xmin>{xmin}</xmin>
+            <ymin>{ymin}</ymin>
+            <xmax>{xmax}</xmax>
+            <ymax>{ymax}</ymax>
+        </bndbox>
+    </object>
+</annotation>

@@ -149,8 +149,14 @@ Miss rate: 11.46% (573/5000)
 ############# INTENSITY ONLY STUFF
 
 python train_def_coefs.py -d intensity -l 1 --rho 1 -n 1 d-box-1/training-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs1.npz
-python run_classifier.py -d intensity -a 1.4 -l 1 --rho 1 d-box-1/testing-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs1.npz -r 0 1000
+python run_classifier.py -d intensity -a 1.4 d-box-1/testing-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs1.npz -r 0 1000
+
+Deformed: 67.40%
+Average contendors: 11.55
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 4.40%, 1.00%
+Miss rate: 4.10% (41/1000)
 
 python train_def_coefs.py -d intensity -l 1 --rho 1 -n 5 d-box-1/training-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs2.npz
-python run_classifier.py -d intensity -a 1.4 -l 1 --rho 1 d-box-1/testing-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs2.npz -r 0 2000
+python run_classifier.py -d intensity -a 1.4 d-box-1/testing-feat.npz d-box-1/mixtures.npz d-box-1/intensitycoefs2.npz -r 0 2000
 

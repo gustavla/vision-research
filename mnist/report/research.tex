@@ -28,7 +28,7 @@
     
 \begin{document}
 
-\title{Bernoulli model with deformations}
+\title{Image classification with deformations}
 
 \author{Gustav Larsson}
 
@@ -56,7 +56,7 @@ The prototypes are also allowed to deform using a wavelet basis to match the ima
 %Each original image, before feature extraction, is $28 \times 28$ with intensities in $[0, 1]$. The image is padded with zeros to $32 \times 32$ to play nicer with the wavelet transforms. 
  %4 for the cardinal and 4 for the di %1 indicating an edge, and 0 not. 
 
-\subsection{Definitions}
+\subsection{Definitions} \label{sec:defs}
 
 This document largely follows the same notation as in Yali Amit's book (Chapter~5). Here is a condensed form: 
 
@@ -331,7 +331,7 @@ Setting $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05$ and using Daubec
 \end{table}
 
 \subsection{Conjugate prior}
-Tried $\eta=100, \rho=1$, which was used in Trial 1 above. Also tried $\eta=10, \rho=2.7$, which was very roughly chosen to be somewhat similar to the trained shape of the different coefficient levels, just to see how it would affect the results. Results can be seen in figs.~\ref{fig:b0}, \ref{fig:b0zoom}, \ref{fig:rho1} and \ref{fig:rho27}.
+Tried $\eta=100, \rho=1$, which was used in Trial 1 above. Also tried $\eta=10, \rho=2.7$, which was very roughly chosen to be somewhat similar to the trained shape of the different coefficient levels, just to see how it would affect the results. Results can be seen in \cref{fig:b0,fig:b0zoom,fig:rho1,fig:rho27}.
 
 Since this a search space in $\eta$, $\rho$ and $b_0$, this is a very shallow investigation so far.
 
@@ -364,7 +364,7 @@ Since this a search space in $\eta$, $\rho$ and $b_0$, this is a very shallow in
 \subsection{Iterative training of $\mu$ and $\lambda$}
 Plugging $\mu$ and $\lambda$ back in and training, using several iterations, causes the parameters to diverge (fig.~\ref{fig:itercoefs}). To prevent this, we smooth with a Gamma prior, as described earlier. Using iteratively trained parameters for classification will be referred to as SelDeform+Iter.
 
-The following experiment uses $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05, \alpha=1.4$. The iterative process is repeated for 12 iterations, testing with several values of $b_0$. The convergence of the precision for several values of $b_0$ is shown in figs.~\Cref{fig:iter1,fig:iter2,fig:iter3,fig:iter4}.
+The following experiment uses $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05, \alpha=1.4$. The iterative process is repeated for 12 iterations, testing with several values of $b_0$. The convergence of the precision for several values of $b_0$ is shown in \cref{fig:iter1,fig:iter2,fig:iter3,fig:iter4}. Notice that in each of these figures, most of the parameters tend to the green line, which is the limit value dictated by our smoothing parameters.
 
 \begin{table}
     \begin{center}
@@ -425,16 +425,25 @@ GitHub repositories: \href{https://github.com/gustavla/vision-research/}{gustavl
 \section{Introduction}
 In this chapter, we investigate a data model that uses only gray-level intensities. Most of the training and testing are identical to when we have edge features. The following sections describe the differences.
 
+\subsection{Definitions}
+
+We follow the same definitions as in section \ref{sec:defs}, with the following changes:
+
+\begin{mydef}
+Let the family of prototypes be $\mathcal{F} = \{ F \mid F : Z \rightarrow [0, 1]\}$, where the function value represents the intensity value of a pixel.
+\end{mydef}
+
+\begin{mydef}
+Let the family of images be $\mathcal{I} = \{ I \mid I : L \rightarrow [0, 1]\}$, where the function value represents the intensity value of a pixel. 
+\end{mydef}
+
 \section{Data model}
 Since we draw the intensities from a normal distribution, we will have both a precision $\lambda$ for the prior, and a precision $\lambda'$ for the likelihood. The latter, $\lambda' \in \mathbb{R}^{|L|}$, is defined for each pixel in the prototype image $F$.
-
 \begin{align}
     u^{(q)}_{k} &\sim \mathcal{N}(\mu^{(q)}_{k}, (\lambda^{(q)}_{k})^{-1}), &q \in Q, k \in K, \label{eq:gaussian} \\
     I(x) &\sim \mathcal{N}(F(\tilde x), (\lambda'_x)^{-1}), &x \in L, j \in J, \label{eq:bernoulli}
 \end{align}
-
 The cost and its derivative follow
-
 \begin{align*}
     J(u) =& \frac{1}{2} \sum_{q\in Q} \sum_{k\in K} \lambda^{(q)}_k (u^{(q)}_k -\mu^{(q)}_k)^2 + \frac{1}{2} \sum_{x \in L} \lambda'_x 
             (F(\tilde x) - I(x))^2 
@@ -445,11 +454,45 @@ Taking partial derivatives of this we get
         \lambda'_x (F(\tilde x) - I(x)) \partial_q F(\tilde x) \psi_k(x).
 \end{align*} 
 
+
 \section{Learning}
+In these experiments the prototypes, $F$, were formed by taking the graylevel means of the mixture models computed using edge features. In this way, the method is not entirely built on graylevel intensities.
+
 Training of the parameters is almost identical, expect that now we have $\mu$, $\lambda$ and $\lambda'$. We initialize $\lambda'$ to 1 for each pixel.
 
+Pixels that are background in every sample, will get a 0 variance. To avoid instability, we set the minimum value to $\epsilon$, making the maximum $\lambda'_x$ to $\epsilon^{-1}$. 
+
 \section{Smoothing}
-This time, an increased $\lambda$, will likely result in an increased $\lambda'$. Since both terms will increase, we can see it as a nominal inflation of the cost value, and normalize it (HOW EXACTLY???). This will prevent the values from diverging.
+%This time, an increased $\lambda$, will likely result in an increased $\lambda'$. Since both terms will increase, we can see it as a nominal inflation of the cost value, and normalize it (HOW EXACTLY???). This will prevent the values from diverging.
+A few attempts of training the parameters iteratively were done, but none with success. We could smooth with a prior as before, although we would need one over both $\lambda$ and $\lambda'$. Since this did not achieve much robustness for edge features, and this would increase the complexity, this was not attempted.
+
+\section{Experiment and results}
+Employing a method we will call SelDeform (Intensities) with $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=0.05, \alpha=1.4, \epsilon=0.05$. Again, we test on the 1000 samples from the training set, same as before. Results are seen in tab.~\ref{tab:intensity-results}. An example of the parameters are seen in fig.~\ref{fig:intensity-params}.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1.0\textwidth]{figs/intensity1.pdf}
+    \caption{Intensity parameters after one iteration one trainig. Notice that since $\epsilon=0.05$, we have $\lambda' \le 20$.} \label{fig:intensity-params}
+\end{figure}
+
+
+\begin{table}
+    \begin{center}
+        \begin{tabular}{ | l | l | l | l | l | l | l | }
+            \hline
+            Method & Miss rate & \FT & \TF & Deformed & \#cont. & F undef. \\
+            \hline
+            SelDeform (Intensities) & 4.10\% & 4.40\% & 1.00\% & 67.40\% & 11.55 & 0.00\% \\
+            \hline
+            SelDeform (Edge-features) & 2.90\% & 5.60\% & 1.00\% & 67.40\% & 11.55 & 0.00\% \\
+            \hline
+        \end{tabular}
+    \end{center}
+    \caption{Results for SelDeform (Intensities), compared to its edge-based version.} \label{tab:intensity-results}
+\end{table}
+
+\section{Conclusion}
+Running the experiments with intensities, as opposed to edge features, gives comparable results (testing set still too small to state enough for sure). Because we set $\epsilon=0.05$, we got a range of $\lambda'$ that spanned less than a factor 2. This suggests that we are likely get similar results if we use a single value for $\lambda'$. However, without $\epsilon$, or with a much smaller $\epsilon$, the precision of the likelihood would change drastically, and so could the results.
 
 \chapter{Feature inflation}
 
@@ -482,19 +525,19 @@ Employing SelDeform+Iter with $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=
             along3 & SelDeform+Iter & 4.52\% & 8.30\% & 1.36\% & 84.88\% & 19.81 & 0.00\% \\
             \hline
             \hline
-            box0 & NoDeform+Iter & 14.72\% & - & - & - & - & - \\  
+            box0 & NoDeform & 14.72\% & - & - & - & - & - \\  
             \hline
-            box1 & NoDeform+Iter & 8.96\% & - & - & - & - & - \\  
+            box1 & NoDeform & 8.96\% & - & - & - & - & - \\  
             \hline
-            box2 & NoDeform+Iter & {\bf 8.92} \% & - & - & - & - & - \\  
+            box2 & NoDeform & {\bf 8.92} \% & - & - & - & - & - \\  
             \hline
-            box3 & NoDeform+Iter & {\bf 8.92} \% & - & - & - & - & - \\  
+            box3 & NoDeform & {\bf 8.92} \% & - & - & - & - & - \\  
             \hline
-            along1 & NoDeform+Iter & 11.76\% & - & - & - & - & - \\  
+            along1 & NoDeform & 11.76\% & - & - & - & - & - \\  
             \hline
-            along2 & NoDeform+Iter & 11.70\% & - & - & - & - & - \\  
+            along2 & NoDeform & 11.70\% & - & - & - & - & - \\  
             \hline 
-            along3 & NoDeform+Iter & 11.46\% & - & - & - & - & - \\  
+            along3 & NoDeform & 11.46\% & - & - & - & - & - \\  
             \hline
         \end{tabular}
     \end{center}

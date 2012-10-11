@@ -27,10 +27,11 @@ def plot(coefs_files, digit=0, mixture=0, axis=0):
         plt.legend(loc=0)
         plt.xlabel('Coefficient')
         plt.ylabel('Precision $\lambda$')
+        plt.xlim((0, 63))
 
         plt.subplot(122)
-        plt.imshow(1/llh_var[digit,mixture])
-        plt.xlabel('likelihood precision')
+        plt.imshow(1/llh_var[digit,mixture], interpolation='nearest')
+        plt.xlabel("Likelihood precision $\lambda'$")
         plt.colorbar()
     plt.show()
 
