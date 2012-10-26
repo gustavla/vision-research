@@ -3,10 +3,9 @@ import os.path
 def rel(x):
     return os.path.join(os.path.abspath(os.path.dirname(__file__)), x)
 
-
 if 1:
     SETTINGS = dict( 
-        src_dir='/var/tmp/matlab/bike',
+        src_dir='/var/tmp/matlab/bike2',
         dst_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
         img_output_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
         anno_output_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/Annotations',
@@ -15,7 +14,7 @@ if 1:
     )
 else: 
     SETTINGS = dict( 
-        src_dir='/Users/slimgee/git/data/bike',
+        src_dir='/Users/slimgee/git/data/bike2',
         dst_dir='/Users/slimgee/git/data/afew',
         img_output_dir='/Users/slimgee/git/data/output/images',
         anno_output_dir='/Users/slimgee/git/data/output/annotations',

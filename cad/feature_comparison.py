@@ -12,9 +12,9 @@ files = glob.glob(os.path.join(SETTINGS['src_dir'], '*.png'))
 im = plt.imread(files[32])
 imgrey = im[...,:3].mean(axis=2).astype(np.float64)
 
-edges = ag.features.bedges(imgrey, radius=0)
+edges = ag.features.bedges(imgrey, radius=1)
 
-edges2 = ag.features.bedges_from_image(im.astype(np.float64), radius=0)
+edges2 = ag.features.bedges_from_image(im.astype(np.float64), radius=1)
 
 num_edges, num_edges2 = edges.sum(), edges2.sum()
 print "Edges (grayscale):", num_edges 
