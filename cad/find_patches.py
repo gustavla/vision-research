@@ -16,8 +16,9 @@ import amitgroup.features
 
 patch_data = np.load(patch_file)
 patches = patch_data['patches']
+info = patch_data['info'].flat[0]
 
-edges, img = ag.features.bedges_from_image(image_file, k=5, radius=1, minimum_contrast=0.05, return_original=True, lastaxis=True)
+edges, img = ag.features.bedges_from_image(image_file, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True, lastaxis=True)
 
 # Now, pre-process the log parts
 log_parts = np.log(patches)
@@ -32,20 +33,30 @@ print log_parts.shape
 #print ret3.shape
 
 ret = ag.features.code_parts(edges, log_parts, log_invparts, threshold)
+ret2 = ret.argmax(axis=2)
+
+print "ret:", ret.shape
+print "ret2:", ret2.shape
+
+K = info['K'] 
+spread = ag.features.spread_patches(ret2, 3, 3, K)
+
+print "spread:", spread.shape
 
 #print ret.shape
 
 #print ret[32, 32]
 #print ret[0, 0]
 
-ret2 = ret.argmax(axis=2)
+import pdb; pdb.set_trace()
 
 #print ret2, ret2.min(), ret2.max()
 
-plt.subplot(121)
-plt.imshow(img, interpolation='nearest')
-plt.subplot(122)
-plt.imshow(ret2, interpolation='nearest')
-plt.colorbar()
-plt.show()
+if 0:
+    plt.subplot(121)
+    plt.imshow(img, interpolation='nearest')
+    plt.subplot(122)
+    plt.imshow(ret2, interpolation='nearest')
+    plt.colorbar()
+    plt.show()
 #plt.imshow(

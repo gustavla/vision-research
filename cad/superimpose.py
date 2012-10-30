@@ -32,6 +32,13 @@ for d, name in [(src, 'Source'), (dst, 'Destination'), (img_output_dir, 'Image o
 src_filenames = glob.glob(os.path.join(src, '*.png'))
 dst_filenames = glob.glob(os.path.join(dst, '*'))
 
+print "Training mixture model"
+from mixture import mixture_from_files
+mixture, images, originals = mixture_from_files(src_filenames, 6)
+
+#lists = mixture.indices_lists()
+mix_comps = mixture.mixture_components()
+
 # We need more background files than foreground files
 # Check if len(src_files) <= len(dst_files) ?
 
@@ -106,7 +113,7 @@ def find_bounding_box(im):
             bounding_box[3] = max(y, bounding_box[3])
     return tuple(bounding_box)
 
-size = (256, 256)
+size = (128, 128)
 gen = patch_generator(dst_filenames, size)
 xml_template = open(SETTINGS['xml_template']).read()
 idcodes = []
@@ -121,10 +128,12 @@ for i, fn in enumerate(src_filenames):
     # Find the bounding box in the src image
     bnd_box = find_bounding_box(src_im)
     print bnd_box
+
+    index = i + mix_comps[i] * 1000
     
     pos = ((size[0]-src_im.size[0])//2, (size[1]-src_im.size[1])//2)
     alpha_composite(src_im, dst_im, pos)
-    idcode = '{0:06}'.format(100000+i)
+    idcode = '{0:06}'.format(100000+index)
     fn = '{0}.jpg'.format(idcode)
     dst_im.save(os.path.join(img_output_dir, fn))
 
