@@ -14,6 +14,7 @@ if 0:
     )
 else: 
     SETTINGS = dict( 
+        patches_dir='/Users/slimgee/Desktop/stuff/VOC2007/VOCdevkit/VOC2007/JPEGImages',
         src_dir='/Users/slimgee/git/data/newbike',
         dst_dir='/Users/slimgee/git/data/afew',
         posed_dir='/Users/slimgee/git/data/posed_bikes',
