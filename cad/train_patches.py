@@ -67,8 +67,7 @@ if __name__ == '__main__':
     mixture = ag.stats.BernoulliMixture(K, raw_patches, init_seed=0)
     mixture.run_EM(1e-4, min_probability=0.01, debug_plot=False)
     ag.info("Done.")
-    import pdb; pdb.set_trace()
-
+    
     # Store the stuff in the instance
     patches = mixture.templates
 

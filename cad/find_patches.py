@@ -4,7 +4,7 @@ import matplotlib.pylab as plt
 import amitgroup as ag
 import amitgroup.features
 
-def find_patches(patches, image_file):
+def find_patch_logprobs(patches, image_file):
     #info = patch_data['info'].flat[0]
 
     edges, img = ag.features.bedges_from_image(image_file, k=5, radius=0, minimum_contrast=0.05, contrast_insensitive=True, return_original=True, lastaxis=True)
@@ -16,6 +16,15 @@ def find_patches(patches, image_file):
     threshold = 4 
 
     ret = ag.features.code_parts(edges, log_parts, log_invparts, threshold)
+    
+    #K = 100#info['K'] 
+    #spread = ag.features.spread_patches(ret2, 3, 3, K)
+
+    #print "spread:", spread.shape
+    return ret, img
+
+def find_patches(patches, image_file):
+    ret, img = find_patch_logprobs(patches, image_file)
     ret2 = ret.argmax(axis=2)
 
     K = 100#info['K'] 

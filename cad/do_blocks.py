@@ -1,6 +1,6 @@
-
+from __future__ import division
 import numpy as np
-from find_patches import find_patches
+from find_patches import find_patches, find_patch_logprobs
 
 
 def make_block_matrix(data):
@@ -37,7 +37,52 @@ if __name__ == '__main__':
 
     patch_data = np.load(patch_file)
     patches = patch_data['patches']
-    ret2, spread, img = find_patches(patches, image_file)
+    #ret2, spread, img = find_patches(patches, image_file)
+    ret, img = find_patch_logprobs(patches, image_file)
+    ret2 = ret.argmax(axis=-1).flatten()
+    num_non_background = np.prod(ret2[ret2 != 0].size)
+    
+    # Display a single patch
+    print ret.shape
+    import pylab as plt
+    
+    # Find the most ubiquitous patch class
+    maxes = ret.argmax(axis=-1).flatten()
+    best = np.bincount(maxes)
+    most_common = np.argmax(best[1:])+1
+    num_most_common = ret2[ret2 == most_common].size
+    print "Most common patch: {0} ({1:.2f}% prevalence of non-background)".format(most_common, 100*num_most_common/num_non_background)
+    
+    
+    plt.hist(maxes, 200)
+    plt.show()
+
+    
+    # Calculate the mean log probs for each probability, and then plot that as a histogram
+    K = 200
+    means = np.zeros(K)
+    for i in xrange(1, K+1):
+        x = ret[...,i].flatten()
+        x = x[x != -np.inf]
+        means[i-1] = x.mean()
+        
+    plt.hist(means, 30)
+    plt.title("Mean log probabilities of all patches in bikes.png")
+    plt.show()
+    
+    if 1:
+        for i in xrange(9):
+            plt.subplot(3, 3, 1+i)
+            x = ret[...,85+i].flatten()
+            x = x[x != -np.inf]
+            plt.hist(x, 30)
+            plt.title("Patch {0}".format(85+i))
+        
+    plt.show()
+    
+    import sys; sys.exit(0)
+    
+    ret2 = ret.argmax(axis=-1)
     #print ret2.shape
 
     import matplotlib.pylab as plt
@@ -63,8 +108,8 @@ if __name__ == '__main__':
     vispatch = patch_data['vispatches']
 
     # Filter some
-    from train_patches import filter_patches
-    patches, vispatches = filter_patches(90, cors, patches, vispatches)
+    #from train_patches import filter_patches
+    #patches, vispatches = filter_patches(90, cors, patches, vispatches)
 
 
     if 0:
