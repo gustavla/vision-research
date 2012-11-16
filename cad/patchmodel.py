@@ -10,7 +10,6 @@ class PatchModel:
         self.patch_size = patch_size
         self.big_patch_frame = 1
         self.K = K
-        self.side = 
 
     def _gen_patches(self, img, edges, patch_size):
         for x in xrange(img.shape[0]-patch_size[0]+1):
@@ -28,7 +27,7 @@ class PatchModel:
         # Now, train the model
         self.train_model(filenames)
 
-    def train_patches_from_image_files(self, filenames):
+    def train_patches_from_image_files(self, filenames, samples_per_image=1000):
         random.seed(0)
         filenames_copy = filenames[:]
         random.shuffle(filenames_copy)
@@ -38,10 +37,8 @@ class PatchModel:
 
         fr = self.big_patch_frame
     
-        N = 10
-
-        for f in filenames_copy[:N]:
-            ag.info("File", f)
+        for file_i, f in enumerate(filenames_copy):
+            ag.info(file_i, "File", f)
             edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True, lastaxis=True)
             # Make grayscale
             imggray = img[...,:3].mean(axis=2)
@@ -66,6 +63,8 @@ class PatchModel:
             'patch_size': self.patch_size,
             'big_patch_frame': self.big_patch_frame,
         }
+
+        return self.patches
 
     def features_from_image(self, image):
         edges, img = ag.features.bedges_from_image(image, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True, lastaxis=True)
@@ -93,3 +92,72 @@ class PatchModel:
     def load(self, fn):
         pass
 
+
+def _gen_patches(self, img, edges, patch_size):
+    for x in xrange(img.shape[0]-patch_size[0]+1):
+        for y in xrange(img.shape[1]-patch_size[1]+1):
+            selection = [slice(x, x+patch_size[0]), slice(y, y+patch_size[1])]
+            # Return grayscale patch and edges patch
+            yield img[selection], edges[selection]
+
+
+def random_patches(filenames, patch_size, seed=0, samples_per_image=None):
+    random.seed(seed)
+    filenames_copy = filenames[:]
+    random.shuffle(filenames_copy)
+
+    raw_patches = []
+    raw_originals = [] 
+
+    fr = 1 
+
+    num_edges = []
+
+    for f in filenames_copy:
+        ag.info("File", f)
+        edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.1, contrast_insensitive=False, return_original=True, lastaxis=True)
+        edges_nospread = ag.features.bedges_from_image(f, k=5, radius=0, minimum_contrast=0.1, contrast_insensitive=True, lastaxis=True)
+
+        # How many patches could we extract?
+        w, h = [edges.shape[i]-patch_size[i]+1 for i in xrange(2)]
+        #if samples_per_image is None:
+            ## Get all of them
+            #indices = range(w * h)
+        #else:
+            ## Get samples from this
+            #indices = random.sample(xrange(w * h), samples_per_image) 
+
+        #indices = range(w * h)
+        #random.shuffle(indices)
+
+        #positions = map(lambda index: (index%w, index/w), indices)
+
+        #ag.plot.images([img])
+
+        #for x, y in positions:
+        for sample in xrange(samples_per_image):
+            for tries in xrange(20):
+                x, y = random.randint(0, w-1), random.randint(0, h-1)
+                selection = [slice(x, x+patch_size[0]), slice(y, y+patch_size[1])]
+                # Return grayscale patch and edges patch
+                edgepatch = edges[selection]
+                edgepatch_nospread = edges_nospread[selection]
+                num = edgepatch[fr:-fr,fr:-fr].sum()
+                num_edges.append(num)
+                if num >= 4: 
+                    raw_patches.append(edgepatch)
+        
+                    vispatch = img[selection]
+                    vispatch = vispatch[...,:3].mean(axis=vispatch.ndim-1)
+
+                    span = vispatch.min(), vispatch.max() 
+                    if span[1] - span[0] > 0:
+                        vispatch = (vispatch-span[0])/(span[1]-span[0])
+                    raw_originals.append(vispatch)
+                    break
+                
+    raw_patches = np.asarray(raw_patches)
+    raw_originals = np.asarray(raw_originals)
+    num_edges = np.asarray(num_edges)
+    
+    return raw_patches, raw_originals, num_edges
