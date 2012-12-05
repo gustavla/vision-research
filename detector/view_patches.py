@@ -16,11 +16,13 @@ import matplotlib.pylab as plt
 import amitgroup as ag
 import amitgroup.features
 import sys
+import gv
 
-patch_data = np.load(patch_file)
 
-originals = patch_data['vispatches']
-patches = patch_data['patches']
+patch_dictionary = gv.PatchDictionary.load(patch_file)
+
+originals = patch_dictionary.vispatches
+patches = patch_dictionary.patches
 
 if inspect_component is not None:
     if inspect_component == 0:
