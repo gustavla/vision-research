@@ -54,7 +54,7 @@ if 0:
         random.shuffle(files)
         for f in files[:N]:
             print "File", f
-            edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True, lastaxis=True)
+            edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=False, return_original=True, lastaxis=True)
             # Make grayscale
             imggray = img[...,:3].mean(axis=2)
             for impatch, edgepatch in gen_patches(imggray, edges, patch_size):

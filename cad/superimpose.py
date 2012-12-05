@@ -19,6 +19,7 @@ import numpy as np
 import os.path
 import glob
 import itertools
+import amitgroup as ag
 from PIL import Image, ExifTags
 
 for d, name in [(src, 'Source'), (dst, 'Destination'), (img_output_dir, 'Image output'), (anno_output_dir, 'Annotation output')]:
@@ -34,10 +35,13 @@ dst_filenames = glob.glob(os.path.join(dst, '*'))
 
 print "Training mixture model"
 from mixture import mixture_from_files
-mixture, images, originals = mixture_from_files(src_filenames, 6)
+mixture, images, originals = mixture_from_files(src_filenames, 4)
 
 #lists = mixture.indices_lists()
 mix_comps = mixture.mixture_components()
+
+#templates = mixture.remix(originals)
+#ag.plot.images(templates)
 
 # We need more background files than foreground files
 # Check if len(src_files) <= len(dst_files) ?
@@ -111,6 +115,9 @@ def find_bounding_box(im):
             bounding_box[1] = min(y, bounding_box[1])
             bounding_box[2] = max(x, bounding_box[2])
             bounding_box[3] = max(y, bounding_box[3])
+    # Make a bit bigger
+    bounding_box = (bounding_box[0]-1, bounding_box[1]-1, bounding_box[2]+1, bounding_box[3]+1)
+        
     return tuple(bounding_box)
 
 size = (128, 128)
