@@ -3,9 +3,10 @@ import os.path
 def rel(x):
     return os.path.join(os.path.abspath(os.path.dirname(__file__)), x)
 
-if 0:
+if 1:
     SETTINGS = dict( 
-        src_dir='/var/tmp/matlab/bike2',
+        patches_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
+        src_dir='/var/tmp/matlab/newbike',
         dst_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
         img_output_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
         anno_output_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/Annotations',

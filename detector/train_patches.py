@@ -19,6 +19,7 @@ from config import SETTINGS
 ag.set_verbose(True)
 
 files = glob.glob(os.path.join(SETTINGS['patches_dir'], "*.jpg"))
+print files[:10]
 random.seed(0)
 random.shuffle(files)
 

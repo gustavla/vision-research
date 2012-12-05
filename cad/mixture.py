@@ -22,7 +22,7 @@ def mixture_from_files(files, K):
 
     print originals.shape
 
-    mixture = ag.stats.BernoulliMixture(K, images)
+    mixture = ag.stats.BernoulliMixture(K, images, init_seed=0)
     mixture.run_EM(1e-4)
 
     return mixture, images, originals 

@@ -1,6 +1,7 @@
 
-if 0:
+if 1:
     SETTINGS = dict( 
+        patches_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
         src_dir='/var/tmp/matlab/bike2',
         dst_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
         img_output_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',

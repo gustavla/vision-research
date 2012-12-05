@@ -40,9 +40,8 @@ class Detector(object):
         #self.modelclass = output 
         #return output
     
-    @classmethod
-    def load(self, path, partsdict):
+    #@classmethod
+    #def load(self, path, partsdict):
         
-
-    def save(self, path):
-        np.savez(path, settings=settings
+    #def save(self, path):
+    #    np.savez(path, settings=settings
