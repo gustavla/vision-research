@@ -39,11 +39,11 @@ class Detector(Saveable):
             print 'small.shape', small.shape
 
             if shape is None:
-                shape = parts_list.shape
-                output = np.empty((len(images),) + parts_list.shape)
+                shape = small.shape
+                output = np.empty((len(images),) + small.shape)
                 
-            assert parts_list.shape == shape, "Images must all be of the same size"
-            output[i] = parts_list
+            assert small.shape == shape, "Images must all be of the same size"
+            output[i] = small 
             #all_slices.append(parts_list)
             #size = tuple([max(size[i], parts_list.shape[i]) for i in xrange(2)])
 
@@ -79,8 +79,8 @@ class Detector(Saveable):
         try:
             num_mixtures = d['num_mixtures']
             patch_dict = PatchDictionary.load_from_dict(d['patch_dictionary'])
-            obj = cls.__class__(num_mixtures, patch_dict)
-            obj.mixture = BernoulliMixture.load_from_dict(d['mixture'])
+            obj = cls(num_mixtures, patch_dict)
+            obj.mixture = ag.stats.BernoulliMixture.load_from_dict(d['mixture'])
             obj.settings = d['settings']
             return obj
         except KeyError, e:
