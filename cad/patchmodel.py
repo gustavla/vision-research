@@ -39,7 +39,7 @@ class PatchModel:
     
         for file_i, f in enumerate(filenames_copy):
             ag.info(file_i, "File", f)
-            edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True, lastaxis=True)
+            edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True)
             # Make grayscale
             imggray = img[...,:3].mean(axis=2)
             for impatch, edgepatch in self._gen_patches(imggray, edges, self.patch_size):
@@ -67,14 +67,14 @@ class PatchModel:
         return self.patches
 
     def features_from_image(self, image):
-        edges, img = ag.features.bedges_from_image(image, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True, lastaxis=True)
+        edges, img = ag.features.bedges_from_image(image, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True)
         return edges, img
         
     def train_model(self, filenames):
         data = []
         for f in filenames[:50]:
             ag.info("Preparing", f)
-            #edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True, lastaxis=True)
+            #edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, return_original=True)
             edges, img = self.features_from_image(f)
             print "edges.shape =", edges.shape
             data.append(edges)
@@ -106,8 +106,8 @@ def get_patches(args):
     the_patches = []
     the_originals = []
     ag.info("File", f)
-    edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=False, return_original=True, lastaxis=True)
-    edges_nospread = ag.features.bedges_from_image(f, k=5, radius=0, minimum_contrast=0.05, contrast_insensitive=False, lastaxis=True)
+    edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=False, return_original=True)
+    edges_nospread = ag.features.bedges_from_image(f, k=5, radius=0, minimum_contrast=0.05, contrast_insensitive=False)
 
     # How many patches could we extract?
     w, h = [edges.shape[i]-patch_size[i]+1 for i in xrange(2)]

@@ -2,11 +2,12 @@ import random
 import copy
 import amitgroup as ag
 import numpy as np
+from saveable import Saveable
 
-class PatchDictionary(object):
-    def __init__(self, patch_size, K, settings={}):
+class PatchDictionary(Saveable):
+    def __init__(self, patch_size, num_patches, settings={}):
         self.patch_size = patch_size
-        self.K = K
+        self.num_patches = num_patches 
 
         self.patches = None
         self.vispatches = None
@@ -97,7 +98,7 @@ class PatchDictionary(object):
     def train_from_images(self, filenames):
         raw_patches, raw_originals = self.random_patches_from_images(filenames)
 
-        mixture = ag.stats.BernoulliMixture(self.K, raw_patches, init_seed=0)
+        mixture = ag.stats.BernoulliMixture(self.num_patches, raw_patches, init_seed=0)
         # Also store these in "settings"
         mixture.run_EM(1e-8, min_probability=0.05)
         ag.info("Done.")
@@ -117,25 +118,21 @@ class PatchDictionary(object):
         s0, s1 = self.settings['spread_0_dim'], self.settings['spread_1_dim']
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
                                            self.settings['threshold'], self.settings['patch_frame'])
-        parts = partprobs.argmax(axis=0)
-        spread_parts = ag.features.spread_patches(parts, s0, s1, self.K)
+        parts = partprobs.argmax(axis=-1)
+        spread_parts = ag.features.spread_patches(parts, s0, s1, self.num_patches)
         return spread_parts 
 
     @classmethod
-    def load(cls, path):
-        data = np.load(path)
-        patch_size = data['patch_size'].flat[0]
-        K = data['K'].flat[0]
-        obj = cls.__class__(patch_size, K)
-        obj.patches = data['patches']
-        obj.vispatches = data['vispatches']
-        obj.settings = data['settings'].flat[0]
+    def load_from_dict(cls, d):
+        patch_size = d['patch_size']
+        num_patches = d['num_patches']
+        obj = cls(patch_size, num_patches)
+        obj.patches = d['patches']
+        obj.vispatches = d['vispatches']
+        obj.settings = d['settings']
         obj._preload_logs()
-        return
-        
-    def save(self, path):
-        if self.patches is None:
-            raise Exception("PartsDictionary not trained yet")
+        return obj
 
-        np.savez(path, K=self.K, patch_size=self.patch_size, patches=self.patches, vispatches=self.vispatches, settings=self.settings)
+    def save_to_dict(self):
+        return dict(num_patches=self.num_patches, patch_size=self.patch_size, patches=self.patches, vispatches=self.vispatches, settings=self.settings)
 

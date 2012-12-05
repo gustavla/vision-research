@@ -34,7 +34,7 @@ digits, labels = ag.io.load_mnist(dataset, selection=slice(n0, n1))
 #digits_padded[:,2:-2,2:-2] = digits
 digits_padded = ag.util.zeropad(digits, (0, 2, 2))
 
-features = ag.features.bedges(digits_padded, k=k, inflate=inflation_type, radius=inflation_radius)
+features = ag.features.bedges(digits_padded, k=k, inflate=inflation_type, radius=inflation_radius, first_axis=True)
 digit_features["features"] = features
 digit_features["labels"] = labels
 

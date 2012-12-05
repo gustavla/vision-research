@@ -9,7 +9,7 @@ import math
 def find_patch_logprobs(patches, image_file):
     #info = patch_data['info'].flat[0]
 
-    edges, img = ag.features.bedges_from_image(image_file, k=5, radius=0, minimum_contrast=0.1, contrast_insensitive=False, return_original=True, lastaxis=True)
+    edges, img = ag.features.bedges_from_image(image_file, k=5, radius=0, minimum_contrast=0.1, contrast_insensitive=False, return_original=True)
 
     # Now, pre-process the log parts
     log_parts = np.log(patches)

@@ -48,7 +48,7 @@ for d in range(10):
     min_index = min(min_index, indices[0])
     max_index = max(max_index, indices[-1])
 
-    features = ag.features.bedges(digits, k=k, inflate=inflation_type, radius=inflation_radius)
+    features = ag.features.bedges(digits, k=k, inflate=inflation_type, radius=inflation_radius, first_axis=True)
 
     #digit_features[str(d)] = features
     all_features[d] = features 

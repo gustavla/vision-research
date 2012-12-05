@@ -62,7 +62,7 @@ def main():
         digits = ag.util.zeropad(digits, (0, 2, 2))
         digit, correct_label = digits[inspect_component], labels[inspect_component]
         
-        features = ag.features.bedges(digit, inflate=inflate, k=bedges_k)
+        features = ag.features.bedges(digit, inflate=inflate, k=bedges_k, first_axis=True)
 
         label, comp = classify(features, all_templates)
 
@@ -74,7 +74,7 @@ def main():
         if QUICK:
             testing_digits = testing_digits[:100]
         testing_digits = ag.util.zeropad(testing_digits, (0, 2, 2))
-        testing_edges = ag.features.bedges(testing_digits, inflate=inflate, k=bedges_k)
+        testing_edges = ag.features.bedges(testing_digits, inflate=inflate, k=bedges_k, first_axis=True)
 
         N = len(testing_edges)
         c = 0
