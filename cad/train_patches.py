@@ -53,7 +53,7 @@ if __name__ == '__main__':
     random.seed(0)
     random.shuffle(files)
     validate_files = files[-50:]
-    raw_patches, raw_originals, num_edges = random_patches(files[:20], patch_size, samples_per_image=500)
+    raw_patches, raw_originals = random_patches(files[:50], patch_size, samples_per_image=500)
 
     #import matplotlib.pylab as plt
     #plt.hist(num_edges, 30)
@@ -107,7 +107,7 @@ if __name__ == '__main__':
         #for patch in patches:
             #if 
 
-    ag.plot.images(vispatches)
-
-    np.savez(output_file, patches=patches, vispatches=vispatches, info=info)
+    # Temporary
+    #ag.plot.images(vispatches)
+    #np.savez(output_file, patches=patches, vispatches=vispatches, affinities=mixture.affinities, weights=mixture.weights, info=info)
 

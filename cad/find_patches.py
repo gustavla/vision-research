@@ -7,7 +7,7 @@ import amitgroup.features
 def find_patch_logprobs(patches, image_file):
     #info = patch_data['info'].flat[0]
 
-    edges, img = ag.features.bedges_from_image(image_file, k=5, radius=0, minimum_contrast=0.05, contrast_insensitive=True, return_original=True, lastaxis=True)
+    edges, img = ag.features.bedges_from_image(image_file, k=5, radius=0, minimum_contrast=0.05, contrast_insensitive=False, return_original=True, lastaxis=True)
 
     # Now, pre-process the log parts
     log_parts = np.log(patches)
@@ -15,7 +15,7 @@ def find_patch_logprobs(patches, image_file):
 
     threshold = 4 
 
-    ret = ag.features.code_parts(edges, log_parts, log_invparts, threshold)
+    ret = ag.features.code_parts(edges, log_parts, log_invparts, threshold, 1)
     
     #K = 100#info['K'] 
     #spread = ag.features.spread_patches(ret2, 3, 3, K)

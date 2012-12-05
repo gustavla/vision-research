@@ -58,11 +58,11 @@ class PatchModel:
         self.vispatches = mixture.remix(raw_originals)
         self.vispatches /= self.vispatches.max()
 
-        self.info = {
-            'K': self.K,
-            'patch_size': self.patch_size,
-            'big_patch_frame': self.big_patch_frame,
-        }
+        #self.info = {
+        #    'K': self.K,
+        #    'patch_size': self.patch_size,
+        #    'big_patch_frame': self.big_patch_frame,
+        #}
 
         return self.patches
 
@@ -101,6 +101,56 @@ def _gen_patches(self, img, edges, patch_size):
             yield img[selection], edges[selection]
 
 
+def get_patches(args):
+    f, patch_size, samples_per_image, fr = args
+    the_patches = []
+    the_originals = []
+    ag.info("File", f)
+    edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=False, return_original=True, lastaxis=True)
+    edges_nospread = ag.features.bedges_from_image(f, k=5, radius=0, minimum_contrast=0.05, contrast_insensitive=False, lastaxis=True)
+
+    # How many patches could we extract?
+    w, h = [edges.shape[i]-patch_size[i]+1 for i in xrange(2)]
+    #if samples_per_image is None:
+        ## Get all of them
+        #indices = range(w * h)
+    #else:
+        ## Get samples from this
+        #indices = random.sample(xrange(w * h), samples_per_image) 
+
+    #indices = range(w * h)
+    #random.shuffle(indices)
+
+    #positions = map(lambda index: (index%w, index/w), indices)
+
+    #ag.plot.images([img])
+
+    #for x, y in positions:
+    for sample in xrange(samples_per_image):
+        for tries in xrange(20):
+            x, y = random.randint(0, w-1), random.randint(0, h-1)
+            selection = [slice(x, x+patch_size[0]), slice(y, y+patch_size[1])]
+            # Return grayscale patch and edges patch
+            edgepatch = edges[selection]
+            edgepatch_nospread = edges_nospread[selection]
+            num = edgepatch[fr:-fr,fr:-fr].sum()
+            #num_edges.append(num)
+            if num >= 4: 
+                the_patches.append(edgepatch_nospread)
+    
+                vispatch = img[selection]
+                vispatch = vispatch[...,:3].mean(axis=vispatch.ndim-1)
+
+                span = vispatch.min(), vispatch.max() 
+                if span[1] - span[0] > 0:
+                    vispatch = (vispatch-span[0])/(span[1]-span[0])
+                the_originals.append(vispatch)
+                break
+
+    return the_patches, the_originals
+
+from multiprocessing import Pool
+
 def random_patches(filenames, patch_size, seed=0, samples_per_image=None):
     random.seed(seed)
     filenames_copy = filenames[:]
@@ -110,54 +160,14 @@ def random_patches(filenames, patch_size, seed=0, samples_per_image=None):
     raw_originals = [] 
 
     fr = 1 
+    p = Pool(8)
+    ret = p.map(get_patches, [(f, patch_size, samples_per_image, fr) for f in filenames_copy])
 
-    num_edges = []
+    for patches, originals in ret:
+        raw_patches.extend(patches)
+        raw_originals.extend(originals) 
 
-    for f in filenames_copy:
-        ag.info("File", f)
-        edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.1, contrast_insensitive=False, return_original=True, lastaxis=True)
-        edges_nospread = ag.features.bedges_from_image(f, k=5, radius=0, minimum_contrast=0.1, contrast_insensitive=True, lastaxis=True)
-
-        # How many patches could we extract?
-        w, h = [edges.shape[i]-patch_size[i]+1 for i in xrange(2)]
-        #if samples_per_image is None:
-            ## Get all of them
-            #indices = range(w * h)
-        #else:
-            ## Get samples from this
-            #indices = random.sample(xrange(w * h), samples_per_image) 
-
-        #indices = range(w * h)
-        #random.shuffle(indices)
-
-        #positions = map(lambda index: (index%w, index/w), indices)
-
-        #ag.plot.images([img])
-
-        #for x, y in positions:
-        for sample in xrange(samples_per_image):
-            for tries in xrange(20):
-                x, y = random.randint(0, w-1), random.randint(0, h-1)
-                selection = [slice(x, x+patch_size[0]), slice(y, y+patch_size[1])]
-                # Return grayscale patch and edges patch
-                edgepatch = edges[selection]
-                edgepatch_nospread = edges_nospread[selection]
-                num = edgepatch[fr:-fr,fr:-fr].sum()
-                num_edges.append(num)
-                if num >= 4: 
-                    raw_patches.append(edgepatch)
-        
-                    vispatch = img[selection]
-                    vispatch = vispatch[...,:3].mean(axis=vispatch.ndim-1)
-
-                    span = vispatch.min(), vispatch.max() 
-                    if span[1] - span[0] > 0:
-                        vispatch = (vispatch-span[0])/(span[1]-span[0])
-                    raw_originals.append(vispatch)
-                    break
-                
     raw_patches = np.asarray(raw_patches)
     raw_originals = np.asarray(raw_originals)
-    num_edges = np.asarray(num_edges)
     
-    return raw_patches, raw_originals, num_edges
+    return raw_patches, raw_originals

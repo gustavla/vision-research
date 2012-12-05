@@ -7,6 +7,11 @@ parser.add_argument('side', type=int, help="All images will be arranged to this 
 args = parser.parse_args()
 side = args.side
 
+x = [1,2,3]
+
+import ipdb; ipdb.set_trace()
+
+
 from config import SETTINGS
 import glob
 import os.path

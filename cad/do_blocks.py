@@ -53,11 +53,9 @@ if __name__ == '__main__':
     num_most_common = ret2[ret2 == most_common].size
     print "Most common patch: {0} ({1:.2f}% prevalence of non-background)".format(most_common, 100*num_most_common/num_non_background)
     
-    
     plt.hist(maxes, 200)
     plt.show()
 
-    
     # Calculate the mean log probs for each probability, and then plot that as a histogram
     K = 200
     means = np.zeros(K)
@@ -79,8 +77,6 @@ if __name__ == '__main__':
             plt.title("Patch {0}".format(85+i))
         
     plt.show()
-    
-    import sys; sys.exit(0)
     
     ret2 = ret.argmax(axis=-1)
     #print ret2.shape
@@ -111,13 +107,11 @@ if __name__ == '__main__':
     #from train_patches import filter_patches
     #patches, vispatches = filter_patches(90, cors, patches, vispatches)
 
-
     if 0:
         for c, mi in cors[:10]:
             print mi, c
             ag.plot.images([vispatch[mi[0]]] + list(np.rollaxis(patches[mi[0]], axis=2)) + [vispatch[mi[1]]] + list(np.rollaxis(patches[mi[1]], axis=2)))
             import sys; sys.exit(0)
-
 
     u, s, v = np.linalg.svd(mat)
     plt.plot(s)
@@ -125,6 +119,8 @@ if __name__ == '__main__':
     plt.imshow(u)
     plt.colorbar()
     plt.show()
+
+    import ipdb; ipdb.set_trace()
 
     if 1:
         plt.imshow(mat, interpolation='nearest')

@@ -114,19 +114,12 @@ class PatchDictionary(object):
         self._log_invparts = np.log(1-self.patches)
 
     def extract_parts(self, edges):
-        arr = []
-        
         s0, s1 = self.settings['spread_0_dim'], self.settings['spread_1_dim']
-
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
                                            self.settings['threshold'], self.settings['patch_frame'])
         parts = partprobs.argmax(axis=0)
-        
         spread_parts = ag.features.spread_patches(parts, s0, s1, self.K)
-        arr.append(spread_parts)  
-
-        return arr 
-           
+        return spread_parts 
 
     @classmethod
     def load(cls, path):

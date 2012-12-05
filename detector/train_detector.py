@@ -6,9 +6,10 @@ parser.add_argument('patches', metavar='<patches file>', type=argparse.FileType(
 parser.add_argument('model', metavar='<output model file>', type=argparse.FileType('wb'), help='Filename of the output models file')
 
 args = parser.parse_args()
-output_file = args.output
+patches_file = args.output
+model_file = args.model
 
 import gv
 
+patch_dict = gv.PatchDictionary.load(patches_file)
 
-patch_dict = 
