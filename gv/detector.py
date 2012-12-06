@@ -2,6 +2,7 @@
 from patch_dictionary import PatchDictionary
 import amitgroup as ag
 import numpy as np
+import scipy.signal
 from saveable import Saveable
 
 def max_pooling(data, size):
@@ -63,14 +64,20 @@ class Detector(Saveable):
 
     def response_map(self, image):
         """Retrieves log-likelihood response on 'image' (no scaling done)"""
+        edges = ag.features.bedges_from_image(image, **self.patch_dict.bedges_settings())
+        parts = self.patch_dict.extract_parts(edges)
+        small = max_pooling(parts, (8, 8)) 
+        
         res = None
-        for e in xrange(image.shape[-1]):
-            r1 = scipy.signal.convolve2d(image[...,e], self.mixture.log_templates[...,e])
-            r2 = scipy.signal.convolve2d(1-image[...,e], self.mixture.log_invtemplates[...,e])
-            if res is None:
-                res = r1 + r2
-            else:
-                res += r1 + r2
+        for k in xrange(self.num_mixtures):
+            for f in xrange(small.shape[-1]):
+                print small.shape, self.mixture.log_templates.shape
+                r1 = scipy.signal.convolve2d(small[...,f], self.mixture.log_templates[k,...,f])
+                r2 = scipy.signal.convolve2d(1-small[...,f], self.mixture.log_invtemplates[k,...,f])
+                if res is None:
+                    res = r1 + r2
+                else:
+                    res += r1 + r2
 
         return res
         

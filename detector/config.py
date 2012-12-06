@@ -1,8 +1,9 @@
 
-if 0:
+if 1:
     SETTINGS = dict( 
         patches_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
-        src_dir='/var/tmp/matlab/bike2',
+        #src_dir='/var/tmp/matlab/bike2',
+        src_dir='/home/larsson/git/data/newbike',
         dst_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
         img_output_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/JPEGImages',
         anno_output_dir='/var/tmp/matlab/VOC2007/VOCdevkit/VOC2007/Annotations',
