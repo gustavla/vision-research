@@ -4,6 +4,28 @@ import amitgroup as ag
 import numpy as np
 from saveable import Saveable
 
+# TODO: Move
+def max_pooling(data, size):
+    steps = tuple([data.shape[i]//size[i] for i in xrange(2)])
+    if data.ndim == 3:
+        output = np.zeros(steps + (data.shape[-1],))
+    else:
+        output = np.zeros(steps)
+
+    print 'output', output.shape
+
+    for i in xrange(steps[0]):
+        for j in xrange(steps[1]):
+            if data.ndim == 3: 
+                output[i,j] = data[i*size[0]:(i+1)*size[0], j*size[1]:(j+1)*size[1]].max(axis=0).max(axis=0)
+                #output[i,j] = data[i*size[0]:(i+1)*size[0], j*size[1]:(j+1)*size[1]].mean(axis=0).mean(axis=0)
+                output[i,j] = data[i*size[0],j*size[1]]
+            else:
+                ##output[i,j] = data[i*size[0]:(i+1)*size[0], j*size[1]:(j+1)*size[1]].max()
+                #output[i,j] = data[i*size[0]:(i+1)*size[0], j*size[1]:(j+1)*size[1]].mean()
+                output[i,j] = data[i*size[0],j*size[1]]
+    return output
+
 class PatchDictionary(Saveable):
     def __init__(self, patch_size, num_patches, settings={}):
         self.patch_size = patch_size
@@ -19,6 +41,7 @@ class PatchDictionary(Saveable):
         self.settings['samples_per_image'] = 500 
         self.settings['spread_0_dim'] = 3 
         self.settings['spread_1_dim'] = 3 
+        self.settings['pooling_size'] = (8, 8)
 
         # Or maybe just do defaults?
         # self.settings['bedges'] = {}
@@ -114,13 +137,35 @@ class PatchDictionary(Saveable):
         self._log_parts = np.log(self.patches)
         self._log_invparts = np.log(1-self.patches)
 
-    def extract_parts(self, edges):
+    def extract_parts_from_image(self, image, spread=True, return_original=False):
+        if return_original:
+            edges, img = ag.features.bedges_from_image(image, return_original=True, **self.bedges_settings()) 
+            return self.extract_parts(edges, spread), img       
+        else: 
+            edges = ag.features.bedges_from_image(image, **self.bedges_settings()) 
+            return self.extract_parts(edges, spread)
+    
+    def extract_parts(self, edges, spread=True):
         s0, s1 = self.settings['spread_0_dim'], self.settings['spread_1_dim']
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
                                            self.settings['threshold'], self.settings['patch_frame'])
         parts = partprobs.argmax(axis=-1)
-        spread_parts = ag.features.spread_patches(parts, s0, s1, self.num_patches)
-        return spread_parts 
+        
+        if spread:
+            spread_parts = ag.features.spread_patches(parts, s0, s1, self.num_patches)
+            return spread_parts 
+        else:
+            # TODO: Maybe not this way.
+            #spread_parts = ag.features.spread_patches(parts, 0, 0, self.num_patches)
+            #return spread_parts 
+            return parts
+
+    def max_pooling(self, parts):
+        return max_pooling(parts, self.settings['pooling_size'])
+
+    def extract_pooled_parts(self, edges):
+        spread_parts = self.extract_parts(edges)
+        return max_pooling(spread_parts, self.settings['pooling_size'])
 
     @classmethod
     def load_from_dict(cls, d):

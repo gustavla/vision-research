@@ -45,7 +45,7 @@ UI.menu("Plugins").add_item("Generate data") {
       eye = [x, y, z]
       target = [0, 0, 0]
       up= [0, 0, 1]
-      filename = "/Users/slimgee/git/data/newbike/#{outputname}_#{i}.png"
+      filename = "/Users/slimgee/git/data/newbike2/#{outputname}_#{i}.png"
       if x != 0 or y != 0 then
         if not File.exists? filename then
           camera = Sketchup::Camera.new eye, target, up
