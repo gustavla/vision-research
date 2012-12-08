@@ -4,7 +4,7 @@ import amitgroup as ag
 import numpy as np
 from saveable import Saveable
 
-# TODO: Move
+# TODO: Eventually migrate 
 def max_pooling(data, size):
     steps = tuple([data.shape[i]//size[i] for i in xrange(2)])
     offset = tuple([data.shape[i]%size[i]//2 for i in xrange(2)])
@@ -12,8 +12,6 @@ def max_pooling(data, size):
         output = np.zeros(steps + (data.shape[-1],))
     else:
         output = np.zeros(steps)
-
-    print 'output', output.shape
 
     for i in xrange(steps[0]):
         for j in xrange(steps[1]):
@@ -45,9 +43,9 @@ class PatchDictionary(Saveable):
         self.settings['threshold'] = 4 
         self.settings['threaded'] = False 
         self.settings['samples_per_image'] = 500 
-        self.settings['spread_0_dim'] = 3 
-        self.settings['spread_1_dim'] = 3 
+        self.settings['spread_radii'] = (3, 3)
         self.settings['pooling_size'] = (8, 8)
+        self.settings['min_probability'] = 0.05
 
         # Or maybe just do defaults?
         # self.settings['bedges'] = {}
@@ -129,16 +127,16 @@ class PatchDictionary(Saveable):
 
         mixture = ag.stats.BernoulliMixture(self.num_patches, raw_patches, init_seed=0)
         # Also store these in "settings"
-        mixture.run_EM(1e-8, min_probability=0.05)
+        mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
         ag.info("Done.")
         
         # Store the stuff in the instance
         self.patches = mixture.templates
         self.vispatches = mixture.remix(raw_originals)
 
-        self._preload_logs()
+        self._preprocess_logs()
 
-    def _preload_logs(self):
+    def _preprocess_logs(self):
         """Pre-loads log values for easy extraction of parts from edge maps"""
         self._log_parts = np.log(self.patches)
         self._log_invparts = np.log(1-self.patches)
@@ -152,7 +150,7 @@ class PatchDictionary(Saveable):
             return self.extract_parts(edges, spread)
     
     def extract_parts(self, edges, spread=True):
-        s0, s1 = self.settings['spread_0_dim'], self.settings['spread_1_dim']
+        s0, s1 = self.settings['spread_radii']
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
                                            self.settings['threshold'], self.settings['patch_frame'])
         parts = partprobs.argmax(axis=-1)
@@ -160,7 +158,7 @@ class PatchDictionary(Saveable):
         # Pad with background (TODO: maybe incorporate as an option to code_parts?)
         # This just makes things a lot easier, and we don't have to match for instance the
         # support which will be bigger if we don't do this.
-        parts = ag.util.zeropad(parts, (self.settings['spread_0_dim'] - 1, self.settings['spread_1_dim'] - 1))
+        parts = ag.util.zeropad(parts, (self.settings['spread_radii'][0] - 1, self.settings['spread_radii'][1] - 1))
         
         if spread:
             spread_parts = ag.features.spread_patches(parts, s0, s1, self.num_patches)
@@ -186,7 +184,7 @@ class PatchDictionary(Saveable):
         obj.patches = d['patches']
         obj.vispatches = d['vispatches']
         obj.settings = d['settings']
-        obj._preload_logs()
+        obj._preprocess_logs()
         return obj
 
     def save_to_dict(self):

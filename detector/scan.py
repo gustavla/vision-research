@@ -23,13 +23,13 @@ x, small = detector.response_map(img)
 ix, iy = np.unravel_index(x.argmax(), x.shape)
 ix *= detector.patch_dict.settings['pooling_size'][0]
 iy *= detector.patch_dict.settings['pooling_size'][1]
-print ix, iy
+#print ix, iy
 
 import matplotlib.pylab as plt
 
-print '---'
-print x.shape
-print small.shape
+#print '---'
+#print x.shape
+#print small.shape
 
 plt.subplot(221)
 plt.title('Input image')
@@ -41,9 +41,9 @@ plt.imshow(img)
 supp_size = detector.support[2].shape
 bb = detector.get_support_box_for_mix_comp(2)
 
-print 'bb info'
-print supp_size
-print bb
+#print 'bb info'
+#print supp_size
+#print bb
 
 #plt.gca().add_patch(plt.Rectangle((iy-h, ix-w), 2*h, 2*w, facecolor='none'))
 plt.gca().add_patch(plt.Rectangle((iy-supp_size[0]//2+bb[0][0], ix-supp_size[1]//2+bb[0][1]), bb[1][0]-bb[0][0], bb[1][1]-bb[0][1], facecolor='none', edgecolor='cyan', linewidth=2.0))
@@ -67,7 +67,7 @@ if 0:
     plt.colorbar()
 else:
     plt.title('Kernel Bernoulli probability averages')
-    plt.imshow(detector.mixture.templates[2].mean(axis=-1), interpolation='nearest', cmap=plt.cm.RdBu, vmin=0, vmax=1)
+    plt.imshow(detector.kernels[2].mean(axis=-1), interpolation='nearest', cmap=plt.cm.RdBu, vmin=0, vmax=1)
     plt.colorbar()
 
 

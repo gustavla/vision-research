@@ -1,5 +1,14 @@
 *.py[co]
 .*.swp
+*.np[zy]
+.DS_Store
+.project
+.pydevproject
+detector/config.py
+*.c
+*.so
+.*.sw[o]
+*~.skp
 
 # Packages
 *.egg
