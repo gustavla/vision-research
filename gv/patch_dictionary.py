@@ -7,6 +7,7 @@ from saveable import Saveable
 # TODO: Move
 def max_pooling(data, size):
     steps = tuple([data.shape[i]//size[i] for i in xrange(2)])
+    offset = tuple([data.shape[i]%size[i]//2 for i in xrange(2)])
     if data.ndim == 3:
         output = np.zeros(steps + (data.shape[-1],))
     else:
@@ -17,13 +18,18 @@ def max_pooling(data, size):
     for i in xrange(steps[0]):
         for j in xrange(steps[1]):
             if data.ndim == 3: 
-                output[i,j] = data[i*size[0]:(i+1)*size[0], j*size[1]:(j+1)*size[1]].max(axis=0).max(axis=0)
-                #output[i,j] = data[i*size[0]:(i+1)*size[0], j*size[1]:(j+1)*size[1]].mean(axis=0).mean(axis=0)
-                output[i,j] = data[i*size[0],j*size[1]]
+                output[i,j] = data[
+                    offset[0]+i*size[0]:offset[0]+(i+1)*size[0], 
+                    offset[1]+j*size[1]:offset[1]+(j+1)*size[1]
+                ].max(axis=0).max(axis=0)
+                #output[i,j] = data[offset[0]+i*size[0]:offset[1]+(i+1)*size[0], offset[1]+j*size[1]:offset[1]+(j+1)*size[1]].mean(axis=0).mean(axis=0)
+                #output[i,j] = data[i*size[0],j*size[1]]
             else:
-                ##output[i,j] = data[i*size[0]:(i+1)*size[0], j*size[1]:(j+1)*size[1]].max()
-                #output[i,j] = data[i*size[0]:(i+1)*size[0], j*size[1]:(j+1)*size[1]].mean()
-                output[i,j] = data[i*size[0],j*size[1]]
+                output[i,j] = data[
+                    offset[0]+i*size[0]:offset[0]+(i+1)*size[0], 
+                    offset[1]+j*size[1]:offset[1]+(j+1)*size[1]].max()
+                #output[i,j] = data[offset[0]+i*size[0]:offset[0]+(i+1)*size[0], offset[1]+j*size[1]:offset[1]+(j+1)*size[1]].mean()
+                #output[i,j] = data[offset[0]+i*size[0],offset[1]+j*size[1]]
     return output
 
 class PatchDictionary(Saveable):
@@ -150,6 +156,11 @@ class PatchDictionary(Saveable):
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
                                            self.settings['threshold'], self.settings['patch_frame'])
         parts = partprobs.argmax(axis=-1)
+
+        # Pad with background (TODO: maybe incorporate as an option to code_parts?)
+        # This just makes things a lot easier, and we don't have to match for instance the
+        # support which will be bigger if we don't do this.
+        parts = ag.util.zeropad(parts, (self.settings['spread_0_dim'] - 1, self.settings['spread_1_dim'] - 1))
         
         if spread:
             spread_parts = ag.features.spread_patches(parts, s0, s1, self.num_patches)

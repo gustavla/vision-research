@@ -87,10 +87,13 @@ class Detector(Saveable):
         print 'templates shape', self.mixture.templates.shape
 
         num_mix = self.mixture.num_mix
-        if 0:
+        if 1:
             self.small_support = None
             for k in xrange(num_mix):
-                p = self.patch_dict.max_pooling(self.support[k])
+                #p = self.patch_dict.max_pooling(self.support[k])
+                p = mean_pooling(self.support[k], self.patch_dict.settings['pooling_size'])
+                import pylab as plt
+                plt.imshow(p, interpolation='nearest'); plt.colorbar(); plt.show()
                 if self.small_support is None:
                     self.small_support = np.zeros((num_mix,) + p.shape)
                 self.small_support[k] = p
@@ -102,7 +105,8 @@ class Detector(Saveable):
 
         smallest = self.mixture.templates.min()
         for f in xrange(self.mixture.templates.shape[-1]):
-            alpha = np.clip(self.small_support[:,:-1,:-1], 2*smallest, 1.0)
+            
+            alpha = np.clip(self.small_support, 2*smallest, 1.0)
             self.mixture.templates[...,f] = self.mixture.templates[...,f] / alpha# + 0.5 * (1 - alpha)
             
         self.mixture.templates = np.clip(self.mixture.templates, smallest, 1-smallest)
@@ -111,7 +115,7 @@ class Detector(Saveable):
         self.mixture.log_templates = np.log(self.mixture.templates)
         self.mixture.log_invtemplates = np.log(1.0-self.mixture.templates)
 
-        if 0:
+        if 1:
             import matplotlib.pylab as plt
             fig = plt.figure()
             ax = fig.add_subplot(111)
