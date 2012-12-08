@@ -68,20 +68,13 @@ class Detector(Saveable):
 
         # Train mixture model OR SVM
         mixture = ag.stats.BernoulliMixture(self.num_mixtures, output)
-        mixture.run_EM(1e-6)
+        mixture.run_EM(1e-8)
         
         #self.templates = mixture.templates
         self.mixture = mixture
 
         # Pick out the support, by remixing the alpha channel
         self.support = self.mixture.remix(alpha_maps)
-        ss = (self.support > 0.2).astype(int)
-        obj.small_support = None
-        for k in xrange(num_mixtures):
-            p = obj.patch_dict.max_pooling(ss[k])
-            if obj.small_support is None:
-                obj.small_support = np.zeros((num_mixtures,) + p.shape)
-            obj.small_support[k] = p
 
         # TODO: How to store the mixture model the best way?
 
