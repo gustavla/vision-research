@@ -13,7 +13,7 @@ from libc.stdlib cimport rand, srand
 real_p = np.float64
 ctypedef np.float64_t real
 
-def masked_convolve(data_, kernel_, kernel_mask_):
+def masked_convolve(np.ndarray[real,ndim=3] data_, np.ndarray[real,ndim=3] kernel_):
     assert data_.shape[0] > kernel_.shape[0]
     assert data_.shape[1] > kernel_.shape[1]
     cdef:
@@ -31,18 +31,14 @@ def masked_convolve(data_, kernel_, kernel_mask_):
 
         real[:,:,:] data = data_
         real[:,:,:] kernel = kernel_
-        np.int8_t[:,:] kernel_mask = kernel_mask_
         real[:,:] response = response_
-
-    print 'data:', data_.shape
-    print 'kernel:', kernel_.shape
-    print 'num_feat', num_feat
+    
+        int i, j, sx, sy, f
 
     for i in range(steps_x):
         for j in range(steps_y):
             for sx in range(kernel_d0):
                 for sy in range(kernel_d1):
-                    #if kernel_mask[sx,sy] == 1:
                     for f in range(num_feat):
                         response[i,j] += data[i+sx,j+sy,f] * kernel[sx,sy,f]
 

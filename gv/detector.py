@@ -5,6 +5,15 @@ import amitgroup as ag
 import numpy as np
 import scipy.signal
 from saveable import Saveable
+from collections import namedtuple
+
+DetectionBB = namedtuple('DetectionBB', ['score', 'box'])
+
+# TODO: REFACTOR
+def resize(im, factor):
+    new_size = tuple([int(round(im.shape[i] * factor)) for i in xrange(2)])
+    # TODO: Change to something much more suited for this.
+    return scipy.misc.imresize((im*255).astype(np.uint8), new_size).astype(np.float64)/255.0
 
 # TODO: Eventually migrate
 # TODO: Also, does it need to be general for ndim=3?
@@ -25,7 +34,9 @@ def mean_pooling(data, size):
 
 class Detector(Saveable):
     """
-    Detector
+    An object detector representing a single class (although mutliple mixtures of that class).
+        
+    It uses the PatchDictionary as features, and then runs a mixture model on top of that.
     """
     def __init__(self, num_mixtures, patch_dict, settings={}):
         assert isinstance(patch_dict, PatchDictionary)
@@ -121,7 +132,7 @@ class Detector(Saveable):
         self.log_kernels = np.log(self.kernels)
         self.log_invkernels = np.log(1.0-self.kernels)
 
-    def response_map(self, image):
+    def response_map(self, image, mixcomp):
         """Retrieves log-likelihood response on 'image' (no scaling done)"""
 
         # Convert image to our feature space representation
@@ -129,25 +140,30 @@ class Detector(Saveable):
         small = self.patch_dict.extract_pooled_parts(edges)
 
         res = None
-        for k in [2]:#xrange(self.num_mixtures):
-        #for k in xrange(num_mix):
-            if 0:
-                #kernel_mask = np.ones(self.small_support[k].shape, dtype=np.int8)
-                #kernel_mask = self.small_support[k].astype(np.int8)
-                kernel_mask = np.ones(self.mixture.templates.shape[1:-1], dtype=np.int8)
+        for k in [mixcomp]:#xrange(self.num_mixtures):
+        #for k in xrange(self.mixture.num_mix):
+            if 1:
+                # TODO: Place outside of forloop (k) !
+                sh = self.kernels.shape
+                bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
                 from masked_convolve import masked_convolve
-
-                r1 = masked_convolve(small, self.log_kernels[k], kernel_mask)
-                r2 = masked_convolve(1-small, self.log_invkernels[k], kernel_mask)
-                res = r1 + r2
+                r1 = masked_convolve(bigger, self.log_kernels[k])
+                r2 = masked_convolve(1-bigger, self.log_invkernels[k])
+                #res += r1 + r2
+                if res is None:
+                    res = r1 + r2
+                else:
+                    res += r1 + r2
             else:
                 for f in xrange(small.shape[-1]):
                     # Pad the incoming image, so that the result will be the same size (this
                     # also allows us to detect objects partly cropped, even though it will be
                     # difficult - TODO: It might help if they get a score boost)
+                    # TODO: Place outside of forloop (k) !
                     smallf = small[...,f]
                     sh = self.kernels.shape
                     bigger = ag.util.zeropad(smallf, (sh[1]//2, sh[2]//2))
+                    # can also use fftconvolve
                     r1 = scipy.signal.convolve2d(bigger, self.log_kernels[k,::-1,::-1,f], mode='valid')
                     r2 = scipy.signal.convolve2d(1-bigger, self.log_invkernels[k,::-1,::-1,f], mode='valid')
                     if res is None:
@@ -157,20 +173,96 @@ class Detector(Saveable):
 
         return res, small
 
-    def get_support_box_for_mix_comp(self, k):
+    def resize_and_detect(self, img, mixcomp, factor=1.0):
+        img_resized = resize(img, factor)
+        x, img_feat = self.response_map(img_resized, mixcomp)
+        return x, img_feat, img_resized
+
+    def detect_coarse_unfiltered_at_scale(self, img, factor, mixcomp):
+        x, small, img_resized = self.resize_and_detect(img, mixcomp, factor)
+
+        # Frst pick 
+        th = -37000#-35400 
+        #th = -36000
+        th = -35400 + 70
+        #th = -36040 - 1
+
+        bbs = []
+
+        for i in xrange(x.shape[0]):
+            for j in xrange(x.shape[1]):
+                if x[i,j] > th:
+                    pooling_size = self.patch_dict.settings['pooling_size']
+                    ix = i * pooling_size[0]
+                    iy = j * pooling_size[1]
+                    bb = self.bounding_box_at_pos((ix, iy), mixcomp)
+                    # TODO: The above function should probably return in this coordinates
+                    bb = tuple([bb[k] / factor for k in xrange(4)])
+                    dbb = DetectionBB(score=x[i,j], box=bb)
+                    bbs.append(dbb)
+
+        return bbs
+
+    def detect_coarse(self, img, mixcomp):
+        df = 0.05
+        factors = np.arange(0.3, 1.0+0.01, df)
+
+        bbs = []
+        for factor in factors:
+            print "Running factor", factor
+            bbs += self.detect_coarse_unfiltered_at_scale(img, factor, mixcomp)
+    
+        # Do NMS here
+        bbs.sort(reverse=True)
+
+        def bb_overlap(bb1, bb2):
+            return (max(bb1[0], bb2[0]), max(bb1[1], bb2[1]),
+                    min(bb1[2], bb2[2]), min(bb1[3], bb2[3]))
+
+        def bb_area(bb):
+            return (bb[2] - bb[0]) * (bb[3] - bb[1])
+        
+        overlap_threshold = 0.5
+
+        print 'bbs length', len(bbs)
+        i = 1
+        while i < len(bbs):
+            # TODO: This can be vastly improved performance-wise
+            for j in xrange(0, i):
+                #print bb_area(bb_overlap(bbs[i].box, bbs[j].box))/bb_area(bbs[j].box)
+                if bb_area(bb_overlap(bbs[i].box, bbs[j].box))/bb_area(bbs[j].box) > overlap_threshold: 
+                    del bbs[i]
+                    i -= 1
+                    break
+
+            i += 1
+        print 'bbs length', len(bbs)
+        return bbs
+
+    def bounding_box_for_mix_comp(self, k):
         """This returns a bounding box of the support for a given component"""
         # Take the bounding box of the support, with a certain threshold.
         supp = self.support[k] 
-        supp_axs = [supp.max(axis=i) for i in xrange(2)]
+        supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
 
         # TODO: Make into a setting
         th = self.settings['bounding_box_opacity_threshold'] # threshold
         # Check first and last value of that threshold
-        bb = [tuple(np.where(supp_axs[i] > th)[0][[0,-1]]) for i in xrange(2)]
+        bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
 
-        # This bb looks like [(x0, x1), (y0, y1)], when we want
-        # it like [(x0, y0), (x1, y1)]. The following takes care of that
-        return zip(*bb)
+        # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, x2)
+        return (bb[0][0], bb[1][0], bb[0][1], bb[1][1])
+
+    def bounding_box_at_pos(self, pos, mixcomp):
+        supp_size = self.support[mixcomp].shape
+        bb = self.bounding_box_for_mix_comp(mixcomp)
+
+        pos0 = [pos[i]-supp_size[i]//2 for i in xrange(2)]
+        return (pos0[0]+bb[0],   
+                pos0[1]+bb[1], 
+                pos0[0]+bb[2], 
+                pos0[1]+bb[3])
+
 
     def _preprocess(self):
         """Pre-processes things"""
