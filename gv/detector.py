@@ -5,9 +5,7 @@ import amitgroup as ag
 import numpy as np
 import scipy.signal
 from saveable import Saveable
-from collections import namedtuple
-
-DetectionBB = namedtuple('DetectionBB', ['score', 'box'])
+import gv
 
 # TODO: REFACTOR
 def resize(im, factor):
@@ -121,9 +119,13 @@ class Detector(Saveable):
             # only after this step.
             alpha = self.small_support
             m = self.kernels[...,f].copy()
+    
+            # Or stretch them out?
             m[m == m0] = 0.0
             m[m == m1] = 1.0
-            self.kernels[...,f] = 0.5 * (1-alpha) + m#self.mixture.templates[...,f]# / alpha
+            #self.kernels[...,f] = 0.5 * (1-alpha) + m#self.mixture.templates[...,f]# / alpha
+
+        self.kernels *= 1 
             
         eps = self.settings['min_probability']
         self.kernels = np.clip(self.kernels, eps, 1-eps)
@@ -131,6 +133,7 @@ class Detector(Saveable):
         #self.mixture.templates = np.clip(self.mixture.templates, 0.5, 1.0)
         self.log_kernels = np.log(self.kernels)
         self.log_invkernels = np.log(1.0-self.kernels)
+        self.log_kernel_ratios = np.log(self.kernels / (1.0 - self.kernels))
 
     def response_map(self, image, mixcomp):
         """Retrieves log-likelihood response on 'image' (no scaling done)"""
@@ -139,21 +142,38 @@ class Detector(Saveable):
         edges = ag.features.bedges_from_image(image, **self.patch_dict.bedges_settings())
         small = self.patch_dict.extract_pooled_parts(edges)
 
+        # Figure out background probabilities of this image
+        self.back = np.zeros(self.log_kernels.shape[1:]) 
+        for f in xrange(small.shape[-1]):
+            self.back[...,f] = small[...,f].sum() / np.prod(small.shape[:2])
+
+        self.back = np.clip(self.back, 0.05, 0.95)
+        print self.back.shape
+        print self.back
+        self.log_back = np.log(self.back)
+        self.log_invback = np.log(1.0 - self.back)
+
         res = None
         for k in [mixcomp]:#xrange(self.num_mixtures):
         #for k in xrange(self.mixture.num_mix):
             if 1:
                 # TODO: Place outside of forloop (k) !
                 sh = self.kernels.shape
-                bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
+                #bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
+                bigger = ag.util.zeropad(small, (sh[1], sh[2], 0))
                 from masked_convolve import masked_convolve
+                # TODO: Missing constant now
+                #r1 = masked_convolve(bigger, self.log_kernel_ratios[k])
+                #r2 = 0.0
                 r1 = masked_convolve(bigger, self.log_kernels[k])
                 r2 = masked_convolve(1-bigger, self.log_invkernels[k])
+                r3 = masked_convolve(1-bigger, -self.log_invback)
+                r4 = masked_convolve(bigger, -self.log_back)
                 #res += r1 + r2
                 if res is None:
-                    res = r1 + r2
+                    res = r1 + r2 + r3 + r4
                 else:
-                    res += r1 + r2
+                    res += r1 + r2 + r3 + r4
             else:
                 for f in xrange(small.shape[-1]):
                     # Pad the incoming image, so that the result will be the same size (this
@@ -166,10 +186,16 @@ class Detector(Saveable):
                     # can also use fftconvolve
                     r1 = scipy.signal.convolve2d(bigger, self.log_kernels[k,::-1,::-1,f], mode='valid')
                     r2 = scipy.signal.convolve2d(1-bigger, self.log_invkernels[k,::-1,::-1,f], mode='valid')
+
+                    #r3 = bigger.sum() * np.log(1-self.back[f])
+                    #r4 = (1-bigger).sum() * np.log(self.back[f])
+            
+                    print r3, r4
+
                     if res is None:
-                        res = r1 + r2
+                        res = r1 + r2 + r3 + r4
                     else:
-                        res += r1 + r2
+                        res += r1 + r2 + r3 + r4
 
         return res, small
 
@@ -181,64 +207,86 @@ class Detector(Saveable):
     def detect_coarse_unfiltered_at_scale(self, img, factor, mixcomp):
         x, small, img_resized = self.resize_and_detect(img, mixcomp, factor)
 
+        #import ipdb; ipdb.set_trace()
+
         # Frst pick 
         th = -37000#-35400 
         #th = -36000
-        th = -35400 + 70
+        th = -35400 + 70 - 2500
         #th = -36040 - 1
+        #th = 2.3#15
+        th = 2.0 
 
         bbs = []
+        
+        xx = (x - x.mean()) / x.std()
+
+        if 0:
+            import pylab as plt
+            plt.hist(xx.flatten(), 50)
+            plt.show()
+
+        print 'x max', x.max()
+
+        edges = (0.0, 0.0, img.shape[0], img.shape[1])
 
         for i in xrange(x.shape[0]):
             for j in xrange(x.shape[1]):
-                if x[i,j] > th:
+                if xx[i,j] > th:
+                    #print factor, xx[i,j]
                     pooling_size = self.patch_dict.settings['pooling_size']
                     ix = i * pooling_size[0]
                     iy = j * pooling_size[1]
                     bb = self.bounding_box_at_pos((ix, iy), mixcomp)
                     # TODO: The above function should probably return in this coordinates
                     bb = tuple([bb[k] / factor for k in xrange(4)])
-                    dbb = DetectionBB(score=x[i,j], box=bb)
+                    # Clip to edges
+                    bb = gv.bb.intersection(bb, edges)
+                    score = xx[i,j]
+                    dbb = gv.bb.DetectionBB(score=score, box=bb, confidence=np.clip((score-th)/2.0, 0, 1))
                     bbs.append(dbb)
 
-        return bbs
+        return bbs, x, small
 
-    def detect_coarse(self, img, mixcomp):
+    def detect_coarse(self, img, mixcomp, fileobj=None):
         df = 0.05
+        #df = 0.1
         factors = np.arange(0.3, 1.0+0.01, df)
 
         bbs = []
         for factor in factors:
             print "Running factor", factor
-            bbs += self.detect_coarse_unfiltered_at_scale(img, factor, mixcomp)
+            bbsthis, _, _ = self.detect_coarse_unfiltered_at_scale(img, factor, mixcomp)
+            bbs += bbsthis
     
         # Do NMS here
-        bbs.sort(reverse=True)
+        final_bbs = self.nonmaximal_suppression(bbs)
 
-        def bb_overlap(bb1, bb2):
-            return (max(bb1[0], bb2[0]), max(bb1[1], bb2[1]),
-                    min(bb1[2], bb2[2]), min(bb1[3], bb2[3]))
+        # Mark corrects here
+        if fileobj is not None:
+            self.label_corrects(final_bbs, fileobj)
+        return final_bbs
 
-        def bb_area(bb):
-            return (bb[2] - bb[0]) * (bb[3] - bb[1])
-        
+    def nonmaximal_suppression(self, bbs):
+        bbs_sorted = sorted(bbs, reverse=True)
+
         overlap_threshold = 0.5
 
-        print 'bbs length', len(bbs)
+        print 'bbs length', len(bbs_sorted)
         i = 1
-        while i < len(bbs):
+        while i < len(bbs_sorted):
             # TODO: This can be vastly improved performance-wise
             for j in xrange(0, i):
                 #print bb_area(bb_overlap(bbs[i].box, bbs[j].box))/bb_area(bbs[j].box)
-                if bb_area(bb_overlap(bbs[i].box, bbs[j].box))/bb_area(bbs[j].box) > overlap_threshold: 
-                    del bbs[i]
+                if gv.bb.area(gv.bb.intersection(bbs_sorted[i].box, bbs_sorted[j].box))/gv.bb.area(bbs_sorted[j].box) > overlap_threshold: 
+                    del bbs_sorted[i]
                     i -= 1
                     break
 
             i += 1
-        print 'bbs length', len(bbs)
-        return bbs
-
+        print 'bbs length', len(bbs_sorted)
+        return bbs_sorted
+    
     def bounding_box_for_mix_comp(self, k):
         """This returns a bounding box of the support for a given component"""
         # Take the bounding box of the support, with a certain threshold.
@@ -250,7 +298,7 @@ class Detector(Saveable):
         # Check first and last value of that threshold
         bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
 
-        # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, x2)
+        # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
         return (bb[0][0], bb[1][0], bb[0][1], bb[1][1])
 
     def bounding_box_at_pos(self, pos, mixcomp):
@@ -263,6 +311,32 @@ class Detector(Saveable):
                 pos0[0]+bb[2], 
                 pos0[1]+bb[3])
 
+
+    def label_corrects(self, bbs, fileobj):
+        used_bb = set([])
+        tot = 0
+        for bb2obj in bbs:
+            bb2 = bb2obj.box
+            best_score = None
+            best_bbobj = None
+            best_bb = None
+            for bb1obj in fileobj.boxes: 
+                bb1 = bb1obj.box
+                if bb1 not in used_bb:
+                    #print('union_area', gv.bb.union_area(bb1, bb2))
+                    #print('intersection_area', gv.bb.area(gv.bb.intersection(bb1, bb2)))
+                    #print('here', gv.bb.fraction_metric(bb1, bb2))
+                    score = gv.bb.fraction_metric(bb1, bb2)
+                    if score >= 0.5:
+                        if best_score is None or score > best_score:
+                            best_score = score
+                            best_bbobj = bb2obj 
+                            best_bb = bb1
+
+            if best_bbobj is not None:
+                best_bbobj.correct = True
+                tot += 1
+                used_bb.add(best_bb)
 
     def _preprocess(self):
         """Pre-processes things"""
