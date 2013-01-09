@@ -21,11 +21,15 @@ detector = gv.Detector.load(model_file)
 fig = plt.figure(figsize=(14,6))
 ax = fig.add_subplot(111)
 
-plt.subplot(121)
+plt.subplot(131)
 l2 = plt.imshow(detector.patch_dict.vispatches[0], vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
 
-plt.subplot(122)
+plt.subplot(132)
 l = plt.imshow(detector.kernels[mixcomp,...,0], vmin=0, vmax=1, cmap=plt.cm.RdBu, interpolation='nearest')
+plt.colorbar()
+
+plt.subplot(133)
+l3 = plt.imshow(detector.support[mixcomp], vmin=0, vmax=1, cmap=plt.cm.RdBu, interpolation='nearest')
 plt.colorbar()
 
 axindex = plt.axes([0.1, 0.01, 0.8, 0.03], axisbg='lightgoldenrodyellow')

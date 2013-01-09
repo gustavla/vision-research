@@ -12,7 +12,7 @@ import os.path
 
 def load_image(path):
     im = np.array(Image.open(path))
-    return im
+    return im.astype(np.float64)/255.0
     #_, ext = os.path.splitext(path)
     #if ext.lower() in ['.jpg', '.jpeg']:
         #return im#[::-1]

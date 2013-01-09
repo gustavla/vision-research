@@ -7,12 +7,6 @@ import scipy.signal
 from saveable import Saveable
 import gv
 
-# TODO: REFACTOR
-def resize(im, factor):
-    new_size = tuple([int(round(im.shape[i] * factor)) for i in xrange(2)])
-    # TODO: Change to something much more suited for this.
-    return scipy.misc.imresize((im*255).astype(np.uint8), new_size).astype(np.float64)/255.0
-
 # TODO: Eventually migrate
 # TODO: Also, does it need to be general for ndim=3?
 def mean_pooling(data, size):
@@ -125,8 +119,9 @@ class Detector(Saveable):
             m[m == m1] = 1.0
             #self.kernels[...,f] = 0.5 * (1-alpha) + m#self.mixture.templates[...,f]# / alpha
 
+        # TODO: Putting *3 here makes it stop favor background. UNDERSTAND!
         self.kernels *= 1 
-            
+
         eps = self.settings['min_probability']
         self.kernels = np.clip(self.kernels, eps, 1-eps)
 
@@ -148,25 +143,30 @@ class Detector(Saveable):
             self.back[...,f] = small[...,f].sum() / np.prod(small.shape[:2])
 
         self.back = np.clip(self.back, 0.05, 0.95)
-        print self.back.shape
-        print self.back
+        #print self.back.shape
+        #print self.back
         self.log_back = np.log(self.back)
         self.log_invback = np.log(1.0 - self.back)
+
+        # Create kernels just for this case
+        kernels = self.kernels.copy()
+        for f in xrange(small.shape[-1]):
+            kernels[...,f] = np.clip(self.kernels[...,f], self.back[0,0,f], 1.0-self.back[0,0,f])
 
         res = None
         for k in [mixcomp]:#xrange(self.num_mixtures):
         #for k in xrange(self.mixture.num_mix):
             if 1:
                 # TODO: Place outside of forloop (k) !
-                sh = self.kernels.shape
-                #bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
-                bigger = ag.util.zeropad(small, (sh[1], sh[2], 0))
+                sh = kernels.shape
+                bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
+                #bigger = ag.util.zeropad(small, (sh[1], sh[2], 0))
                 from masked_convolve import masked_convolve
                 # TODO: Missing constant now
                 #r1 = masked_convolve(bigger, self.log_kernel_ratios[k])
                 #r2 = 0.0
-                r1 = masked_convolve(bigger, self.log_kernels[k])
-                r2 = masked_convolve(1-bigger, self.log_invkernels[k])
+                r1 = masked_convolve(bigger, np.log(kernels[k]))
+                r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
                 r3 = masked_convolve(1-bigger, -self.log_invback)
                 r4 = masked_convolve(bigger, -self.log_back)
                 #res += r1 + r2
@@ -200,7 +200,7 @@ class Detector(Saveable):
         return res, small
 
     def resize_and_detect(self, img, mixcomp, factor=1.0):
-        img_resized = resize(img, factor)
+        img_resized = gv.img.resize(img, factor)
         x, img_feat = self.response_map(img_resized, mixcomp)
         return x, img_feat, img_resized
 
@@ -216,10 +216,12 @@ class Detector(Saveable):
         #th = -36040 - 1
         #th = 2.3#15
         th = 2.0 
+        th = 800.0
 
         bbs = []
         
-        xx = (x - x.mean()) / x.std()
+        xx = x
+        #xx = (x - x.mean()) / x.std()
 
         if 0:
             import pylab as plt
@@ -257,6 +259,7 @@ class Detector(Saveable):
         for factor in factors:
             print "Running factor", factor
             bbsthis, _, _ = self.detect_coarse_unfiltered_at_scale(img, factor, mixcomp)
+            print "found {0} bounding boxes".format(len(bbsthis))
             bbs += bbsthis
     
         # Do NMS here

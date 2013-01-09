@@ -32,35 +32,42 @@ UI.menu("Plugins").add_item("Generate data") {
   # step(0.1) does not work in SketchUp's Ruby version
   i = 0
 
-
   (0..2).each do |elevation_index|
     elevation = (90 - elevation_index * 20.0) * Math::PI / 180.0
     # Do only half
-    (0..18).each do |azimuth_index|
+    (0...36).each do |azimuth_index|
       azimuth = azimuth_index * 10.0 * Math::PI / 180.0
       x = 140 * Math.sin(elevation) * Math.cos(azimuth)
-      z = 140 * Math.cos(elevation) 
       y = 140 * Math.sin(elevation) * Math.sin(azimuth) 
+      z = 140 * Math.cos(elevation) 
 
-      eye = [x, y, z]
-      target = [0, 0, 0]
-      up= [0, 0, 1]
-      filename = "/Users/slimgee/git/data/newbike2/#{outputname}_#{i}.png"
-      if x != 0 or y != 0 then
-        if not File.exists? filename then
-          camera = Sketchup::Camera.new eye, target, up
-          view.camera=camera
-          keys = {
-            :filename => filename,
-            :width => si,
-            :height => si,
-            :antialias => true,
-            :compression => 0.9,
-            :transparent => true,
-          }
-          status = view.write_image keys 
+      (-1..1).each do |outofplane_index|
+        rotation = outofplane_index * 10.0 * Math::PI / 180.0
+
+        eye = [x, y, z]
+        target = [0, 0, 0]
+        up= [
+          Math.sin(rotation) * Math.cos(azimuth + Math::PI / 2.0), 
+          Math.sin(rotation) * Math.sin(azimuth + Math::PI / 2.0), 
+          Math.cos(rotation)
+        ]
+        filename = "/Users/slimgee/git/data/newbike3/#{outputname}_#{i}.png"
+        if x != 0 or y != 0 then
+          if not File.exists? filename then
+            camera = Sketchup::Camera.new eye, target, up
+            view.camera=camera
+            keys = {
+              :filename => filename,
+              :width => si,
+              :height => si,
+              :antialias => true,
+              :compression => 0.9,
+              :transparent => true,
+            }
+            status = view.write_image keys 
+          end
+          i += 1
         end
-        i += 1
       end
     end
   end 

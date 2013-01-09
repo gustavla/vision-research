@@ -29,7 +29,8 @@ def load_training_file(VOCSETTINGS, class_name, img_id, load_boxes=True, dataset
                 truncated = bool(int(_get_text(obj.getElementsByTagName('truncated')[0].childNodes)))
                 difficult = bool(int(_get_text(obj.getElementsByTagName('difficult')[0].childNodes)))
                 bndbox_obj = obj.getElementsByTagName('bndbox')[0] 
-                bb = tuple([int(_get_text(bndbox_obj.getElementsByTagName(s)[0].childNodes)) 
+                # Note: -1 is taken because they use 1-base indexing
+                bb = tuple([int(_get_text(bndbox_obj.getElementsByTagName(s)[0].childNodes)) - 1 
                         for s in 'ymin', 'xmin', 'ymax', 'xmax'])
                 bbobj = gv.bb.DetectionBB(box=bb, difficult=difficult)
                 bbs.append(bbobj)
