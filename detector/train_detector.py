@@ -4,10 +4,12 @@ import argparse
 parser = argparse.ArgumentParser(description='Train mixture model on edge data')
 parser.add_argument('patches', metavar='<patches file>', type=argparse.FileType('rb'), help='Filename of patches file')
 parser.add_argument('model', metavar='<output model file>', type=argparse.FileType('wb'), help='Filename of the output models file')
+parser.add_argument('mixtures', metavar='<number mixtures>', type=int, help='Number of mixture components')
 
 args = parser.parse_args()
 patches_file = args.patches
 model_file = args.model
+num_mixtures = args.mixtures
 
 import gv
 from config import SETTINGS
@@ -18,7 +20,7 @@ import amitgroup as ag
 ag.set_verbose(True)
 
 patch_dict = gv.PatchDictionary.load(patches_file)
-detector = gv.Detector(3, patch_dict)
+detector = gv.Detector(num_mixtures, patch_dict)
 
 files = glob.glob(os.path.join(SETTINGS['src_dir'], "*.png"))
 
