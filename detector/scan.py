@@ -49,11 +49,10 @@ if factor is not None:
 else:
     bbs = detector.detect_coarse(img, mixcomp, fileobj=fileobj) 
     print(bbs)
-    print('max score: ', bbs[0].score)
-
-    tot = sum([bb.correct for bb in bbs])
-
-    print("Total: ", tot)
+    if len(bbs) > 0:
+        print('max score: ', bbs[0].score)
+        tot = sum([bb.correct for bb in bbs])
+        print("Total: ", tot)
     plot_results(detector, img, None, None, mixcomp, bbs)
 
 print('kernel sum', np.fabs(detector.kernels[mixcomp] - 0.5).sum())

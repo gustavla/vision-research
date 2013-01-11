@@ -84,7 +84,7 @@ l4 = plt.imshow(np.ones((1, 1)), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation
 plt.title("Edge visualization")
 
 plt.subplot(234)
-l2 = plt.imshow(np.ones((1, 1)), vmin=0, vmax=100, cmap=plt.cm.RdBu, interpolation='nearest')
+l2 = plt.imshow(np.ones((1, 1)), vmin=0, vmax=1, cmap=plt.cm.RdBu, interpolation='nearest')
 plt.colorbar()
 plt.title("Kernel")
 
@@ -94,10 +94,30 @@ plt.title("Contribution")
 plt.colorbar()
 
 kernels = detector.kernels.copy()
+#for f in xrange(small.shape[-1]):
+    #kernels[...,f] = np.clip(kernels[...,f], back[0,0,f], 1.0-self.back[0,0,f])
 
+bk = (detector.small_support < 0.1).astype(float)
+ss = detector.small_support.copy()
+ss *= 5 
+ss = np.clip(ss, 0, 1)
 for f in xrange(small.shape[-1]):
-    kernels[...,f] = np.clip(kernels[...,f], back[f], 1.0-back[f])
+    #kernels[...,f] = np.clip(kernels[...,f], back[f], 1.0-back[f])
+    #kernels[...,f] = bk * np.clip(kernels[...,f], back[f], 1.0-back[f]) + (1.0-bk) * kernels[...,f]
+    kernels[...,f] /= np.clip(detector.small_support, 0.3, 1.0)
+    #kernels[...,f] = (1-ss) * np.clip(kernels[...,f], back[f], 1.0-back[f]) + ss * kernels[...,f]
+    kernels[...,f] = np.clip((1-ss) * back[f] + ss * kernels[...,f], 0.05, 0.95)
 
+
+# What is the score if this kernel is convolved with complete background?
+score = (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)).sum()
+#for index in xrange(small.shape[-1]):
+    #data = \
+        #np.log(1.0 - kernels[mixcomp,...,index]) - \
+        ##np.log(1.0 - back[index])
+    #score += data.sum()
+print "Back avarage:", back.mean()
+print "Back score:", score
 
 contribution_map = np.zeros(sh) 
 for index in xrange(small.shape[-1]):
@@ -124,7 +144,7 @@ slider = Slider(axindex, 'Index', 0, detector.patch_dict.num_patches-1, valfmt='
 def update(val):
     index = int(val)
     l1.set_data(window[...,index])
-    l2.set_data(kernels[mixcomp,...,index]/back[index])
+    l2.set_data(kernels[mixcomp,...,index])
     data = \
         window[...,index] * np.log(kernels[mixcomp,...,index]) + \
         (1.0-window[...,index]) * np.log(1.0 - kernels[mixcomp,...,index]) + \
@@ -133,7 +153,7 @@ def update(val):
     l3.set_data(data)
     l4.set_data(detector.patch_dict.vispatches[index])
 
-    print '({0}) Contribution: {1}'.format(index, data.sum())
+    print '({0}) Contribution: {1} (back: {2})'.format(index, data.sum(), back[index])
     plt.draw()
 slider.on_changed(update)
 

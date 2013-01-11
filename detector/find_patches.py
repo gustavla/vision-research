@@ -39,35 +39,56 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Find and visualize patches in an image')
-    parser.add_argument('patches', metavar='<patches file>', type=argparse.FileType('rb'), help='Filename of patches file')
-    parser.add_argument('image', metavar='<image file>', type=argparse.FileType('rb'), help='Filename of image file to detect in')
+    parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
+    parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
+    parser.add_argument('--single-part', dest='part', nargs=1, default=[None], metavar='PART', type=float, help='Plot a single part')
 
     args = parser.parse_args()
-    patch_file = args.patches
-    image_file = args.image
+    model_file = args.model
+    img_id = args.img_id
+    part_id = args.part[0]
 
-    patch_dictionary = gv.PatchDictionary.load(patch_file)
-    parts, img = patch_dictionary.extract_parts_from_image(image_file, spread=False, return_original=True)
+    from config import VOCSETTINGS
 
-    orientations = patch_orientations(patch_dictionary.patches)
+    fileobj = gv.voc.load_training_file(VOCSETTINGS, 'bicycle', img_id)
+    img = gv.img.load_image(fileobj.path)
+
+    detector = gv.Detector.load(model_file)
+    parts = detector.extract_features(img)
+    #parts#= patch_dictionary.extract_parts_from_image(img, spread=False, return_original=True)
+
+    #orientations = patch_orientations(detector.patch_dictionary.patches)
     #plt.hist(orientations, 30)
     #plt.show()
 
     #print orientations.shape
     #print orientations
     #sys.exit(0)
+    
+    if part_id is not None:
+        #print parts.shape
+        #plt.imshow(parts[...,part_id], interpolation='nearest')
+        #plt.show()
 
-    if 1:
-        ors = np.empty(parts.shape)
-        for i in xrange(ors.shape[0]):
-            for j in xrange(ors.shape[1]):
-                ors[i,j] = orientations[parts[i,j]-1]#%np.pi
-
-    if 1:
-        plt.subplot(121)
-        plt.imshow(img, interpolation='nearest')
-        plt.subplot(122)
-        #plt.imshow(parts, interpolation='nearest', cmap=plt.cm.hsv)
-        plt.imshow(ors, interpolation='nearest', cmap=plt.cm.hsv)
-        plt.colorbar()
+        levels = parts.sum(axis=0).sum(axis=0) / np.prod(parts.shape[:2])
+        print levels.mean()
+        print parts.shape
+        print levels.shape
+        plt.plot(levels)
         plt.show()
+
+    else:
+        if 1:
+            ors = np.empty(parts.shape)
+            for i in xrange(ors.shape[0]):
+                for j in xrange(ors.shape[1]):
+                    ors[i,j] = orientations[parts[i,j]-1]#%np.pi
+
+        if 1:
+            plt.subplot(121)
+            plt.imshow(img, interpolation='nearest')
+            plt.subplot(122)
+            #plt.imshow(parts, interpolation='nearest', cmap=plt.cm.hsv)
+            plt.imshow(ors, interpolation='nearest', cmap=plt.cm.hsv)
+            plt.colorbar()
+            plt.show()
