@@ -7,6 +7,22 @@ import scipy.signal
 from saveable import Saveable
 import gv
 
+def probpad(data, padwidth, prob):
+    data = np.asarray(data)
+    shape = data.shape
+    if isinstance(padwidth, int):
+        padwidth = (padwidth,)*len(shape) 
+        
+    padded_shape = map(lambda ix: ix[1]+padwidth[ix[0]]*2, enumerate(shape))
+    #new_data = np.ones(padded_shape, dtype=data.dtype) * (np.random.rand() < prob)
+    new_data = np.random.random(padded_shape)
+    for f in xrange(data.shape[-1]):
+        new_data[...,f] = (new_data[...,f] < prob[f]).astype(data.dtype)
+    #new_data = (np.random.random(padded_shape) < prob).astype(data.dtype)
+    new_data[ [slice(w, -w) if w > 0 else slice(None) for w in padwidth] ] = data 
+    return new_data
+
+
 # TODO: Eventually migrate
 # TODO: Also, does it need to be general for ndim=3?
 def mean_pooling(data, size):
@@ -67,7 +83,7 @@ class Detector(Saveable):
 
         # Train mixture model OR SVM
         mixture = ag.stats.BernoulliMixture(self.num_mixtures, output)
-        mixture.run_EM(1e-8, self.settings['min_probability'])
+        mixture.run_EM(1e-6, self.settings['min_probability'])
         
         #self.templates = mixture.templates
         self.mixture = mixture
@@ -139,75 +155,95 @@ class Detector(Saveable):
         small = self.patch_dict.extract_pooled_parts(edges)
         return small
 
-    def response_map(self, image, mixcomp):
-        """Retrieves log-likelihood response on 'image' (no scaling done)"""
-
+    def prepare_kernels(self, image, mixcomp):
         # Convert image to our feature space representation
         edges = ag.features.bedges_from_image(image, **self.patch_dict.bedges_settings())
         small = self.patch_dict.extract_pooled_parts(edges)
 
         # Figure out background probabilities of this image
-        self.back = np.zeros(self.log_kernels.shape[1:]) 
+        back = np.zeros(self.log_kernels.shape[1:]) 
         for f in xrange(small.shape[-1]):
-            self.back[...,f] = small[...,f].sum() / np.prod(small.shape[:2])
+            back[...,f] = small[...,f].sum() / np.prod(small.shape[:2])
 
-        print "Backs: {0} (std: {1}) [{2}, {3}]".format(self.back.mean(), self.back.std(), self.back.min(), self.back.max())
+        print "Backs: {0} (std: {1}) [{2}, {3}]".format(back.mean(), back.std(), back.min(), back.max())
 
-        print "Most ubiiquitous:", np.argmax(self.back)
+        print "Most ubiquitous:", np.argmax(back)
 
-        self.back = np.clip(self.back, 0.01, 0.99)
+        back[...] = 0.05
+
+        back = np.clip(back, 0.01, 0.99)
 
 
     
-        #print self.back.shape
-        #print self.back
-        self.log_back = np.log(self.back)
-        self.log_invback = np.log(1.0 - self.back)
+        #print back.shape
+        #print back
+        #self.log_back = np.log(back)
+        #self.log_invback = np.log(1.0 - back)
 
         # Create kernels just for this case
         kernels = self.kernels.copy()
-
-        bk = (self.small_support < 0.1).astype(float)
 
         ss = self.small_support[mixcomp].copy()
         ss *= 5 
         ss = np.clip(ss, 0, 1)
     
         for f in xrange(small.shape[-1]):
-            #kernels[...,f] = np.clip(self.kernels[...,f], self.back[0,0,f], 1.0-self.back[0,0,f])
-            #kernels[...,f] = bk * np.clip(self.kernels[...,f], self.back[0,0,f], 1.0-self.back[0,0,f]) + (1.0-bk) * self.kernels[...,f]
+            pass
+            #kernels[...,f] = np.clip(self.kernels[...,f], back[0,0,f], 1.0)
+            #kernels[...,f] = bk * np.clip(self.kernels[...,f], back[0,0,f], 1.0-back[0,0,f]) + (1.0-bk) * self.kernels[...,f]
             #print kernels[...,f].shape
+
+            #kernels[mixcomp,...,f] /= kernels[mixcomp,...,f].sum()
+
             #print self.small_support.shape
             #kernels[...,f] = (kernels[...,f] - 0.05) / np.clip(self.small_support, 0.2, 1.0)
-            kernels[mixcomp,...,f] *= 1 
-            #kernels[...,f] = (1-ss) * np.clip(kernels[...,f], self.back[0,0,f], 1.0-self.back[0,0,f]) + ss * kernels[...,f]
-            kernels[mixcomp,...,f] = np.clip((1-ss) * self.back[0,0,f] + ss * kernels[mixcomp,...,f], 0.05, 0.95)
+            #kernels[mixcomp,...,f] *= 1.08 
+            #kernels[...,f] = (1-ss) * np.clip(kernels[...,f], back[0,0,f], 1.0-back[0,0,f]) + ss * kernels[...,f]
+            kernels[mixcomp,...,f] = np.clip((1-ss) * back[0,0,f] + ss * kernels[mixcomp,...,f], 0.05, 0.95)
+            #kernels[mixcomp,...,f] = np.clip(kernels[mixcomp,...,f], back[0,0,f], 1.0)#1.0-back[0,0,f]) 
+
+        #for x in xrange(kernels.shape[1]):
+            #for y in xrange(kernels.shape[2]):
+                #kernels[mixcomp,x,y] = kernels[mixcomp,x,y] / kernels[mixcomp,x,y].sum()
+
+        #score = (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)).sum()
+        #score2 = (np.log(kernels[mixcomp]) - np.log(back)).sum()
+        #print "Back score", score
+        #print "Front score", score2
+   
+        return back, kernels, small
+
+    def response_map(self, image, mixcomp):
+        """Retrieves log-likelihood response on 'image' (no scaling done)"""
+
+        back, kernels, small = self.prepare_kernels(image, mixcomp)
+
+        sh = kernels.shape
+        bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
+        #bigger = probpad(small, (sh[1]//2, sh[2]//2, 0), back[0,0])
 
         res = None
         for k in [mixcomp]:#xrange(self.num_mixtures):
         #for k in xrange(self.mixture.num_mix):
             if 1:
                 # TODO: Place outside of forloop (k) !
-                sh = kernels.shape
-                #bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
-                bigger = ag.util.zeropad(small, (sh[1], sh[2], 0))
+                #bigger = ag.util.zeropad(small, (sh[1], sh[2], 0))
                 from masked_convolve import masked_convolve
                 # TODO: Missing constant now
                 #r1 = masked_convolve(bigger, self.log_kernel_ratios[k])
                 #r2 = 0.0
-                print 'k', k
                 r1 = masked_convolve(bigger, np.log(kernels[k]))
                 r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
-                r3 = masked_convolve(1-bigger, -self.log_invback)
-                r4 = masked_convolve(bigger, -self.log_back)
-                print r1.sum(), r2.sum(), r3.sum(), r4.sum()
+                r3 = masked_convolve(1-bigger, -np.log(1.0 - back))
+                r4 = masked_convolve(bigger, -np.log(back))
+                print 'TOP-LEFTS', r1[0,0], r2[0,0], r3[0,0], r4[0,0]
+                #print r1.sum(), r2.sum(), r3.sum(), r4.sum()
                 #res += r1 + r2
                 if res is None:
                     res = r1 + r2 + r3 + r4
                 else:
                     res += r1 + r2 + r3 + r4
 
-                print res
             else:
                 for f in xrange(small.shape[-1]):
                     # Pad the incoming image, so that the result will be the same size (this
@@ -221,8 +257,8 @@ class Detector(Saveable):
                     r1 = scipy.signal.convolve2d(bigger, self.log_kernels[k,::-1,::-1,f], mode='valid')
                     r2 = scipy.signal.convolve2d(1-bigger, self.log_invkernels[k,::-1,::-1,f], mode='valid')
 
-                    #r3 = bigger.sum() * np.log(1-self.back[f])
-                    #r4 = (1-bigger).sum() * np.log(self.back[f])
+                    r3 = bigger.sum() * np.log(1-self.back[f])
+                    r4 = (1-bigger).sum() * np.log(self.back[f])
             
                     print r3, r4
 
@@ -230,6 +266,43 @@ class Detector(Saveable):
                         res = r1 + r2 + r3 + r4
                     else:
                         res += r1 + r2 + r3 + r4
+
+        ksh = sh[1:3]
+
+        score_lower = (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)).sum()
+        score_upper = (np.log(kernels[mixcomp]) - np.log(back)).sum()
+        print "Back score", score_lower
+        print "Front score", score_upper
+
+        # Normalize
+        print 'ksh', ksh
+        print sh[1:]
+        print 'res', res.shape
+        print 'small', small.shape
+        print 'bigger', bigger.shape
+        densities = np.empty(res.shape)
+
+        ss = self.small_support[mixcomp].copy()
+        ss *= 5 
+        ss = np.clip(ss, 0, 1)
+
+        print "Top-left (pre-normalization):", res[0,0]
+
+        for x in xrange(res.shape[0]):
+            for y in xrange(res.shape[1]):
+                density = (ss.reshape(ss.shape + (1,)) * bigger[x:x + ksh[0], y:y + ksh[1]]).sum() / (ss.sum() * sh[-1]) #np.prod(sh[1:])
+                #print density
+                #res[x,y] = (res[x,y] + 0.001) / max(density, 0.0000000000000000001)
+                res[x,y] = (res[x,y] - score_lower) - density * (score_upper - score_lower)
+                densities[x,y] = density
+
+        print 'TOP', np.unravel_index(res.argmax(), res.shape)
+
+        if 0:
+            import pylab as plt
+            plt.imshow(densities, interpolation='nearest')
+            plt.colorbar()
+            plt.show()
 
         print "Top-left:", res[0,0]
         return res, small
@@ -252,7 +325,7 @@ class Detector(Saveable):
         th = 0.0#15
         #th = -10002.0 
         #th = 800.0
-        th = 3.0
+        th = 750.0
         GET_ONE = True#False 
         if GET_ONE:
             th = -10000000000
@@ -260,7 +333,7 @@ class Detector(Saveable):
         bbs = []
         
         xx = x
-        xx = (x - x.mean()) / x.std()
+        #xx = (x - x.mean()) / x.std()
 
         if 0:
             import pylab as plt
@@ -296,7 +369,25 @@ class Detector(Saveable):
     
         return bbs, xx, small
 
-    def detect_coarse(self, img, mixcomp, fileobj=None):
+    def detect_coarse(self, img, fileobj=None):
+        bbs = []
+        df = 0.05
+        #df = 0.1
+        factors = np.arange(0.3, 1.0+0.01, df)
+        for factor in factors:
+            for mixcomp in xrange(self.num_mixtures):
+                bbsthis, _, _ = self.detect_coarse_unfiltered_at_scale(img, factor, mixcomp)
+                bbs += bbsthis
+
+        # Do NMS here
+        final_bbs = self.nonmaximal_suppression(bbs)
+        
+        # Mark corrects here
+        if fileobj is not None:
+            self.label_corrects(final_bbs, fileobj)
+        return final_bbs
+
+    def detect_coarse_single_component(self, img, mixcomp, fileobj=None):
         df = 0.05
         #df = 0.1
         factors = np.arange(0.3, 1.0+0.01, df)
@@ -351,7 +442,7 @@ class Detector(Saveable):
         return (bb[0][0], bb[1][0], bb[0][1], bb[1][1])
 
     def bounding_box_at_pos(self, pos, mixcomp):
-        supp_size = self.support[mixcomp].shape
+        supp_size = self.support.shape[1:]
         bb = self.bounding_box_for_mix_comp(mixcomp)
 
         pos0 = [pos[i]-supp_size[i]//2 for i in xrange(2)]

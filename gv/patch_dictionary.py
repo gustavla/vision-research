@@ -49,7 +49,7 @@ class PatchDictionary(Saveable):
 
         # Or maybe just do defaults?
         # self.settings['bedges'] = {}
-        self.settings['bedges'] = dict(k=5, radius=0, minimum_contrast=0.05, contrast_insensitive=False)
+        self.settings['bedges'] = dict(k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True)
         for k, v in settings.items():
             self.settings[k] = v
 

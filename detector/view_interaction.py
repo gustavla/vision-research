@@ -4,7 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='View mixture components')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
-parser.add_argument('imgname', metavar='<image name>', type=int, help='Name of image in VOC repository')
+parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
 parser.add_argument('mixcomp', metavar='<mixture component>', type=int, help='mix comp')
 parser.add_argument('scale', metavar='<scale>', type=float, help='Scale factor')
 parser.add_argument('x', metavar='<x>', type=int, help='X offset')
@@ -12,7 +12,7 @@ parser.add_argument('y', metavar='<y>', type=int, help='Y offset')
 
 args = parser.parse_args()
 model_file = args.model
-imagename = args.imgname
+img_id = args.img_id
 mixcomp = args.mixcomp
 factor = args.scale
 offset = args.x, args.y
@@ -29,13 +29,15 @@ import amitgroup as ag
 detector = gv.Detector.load(model_file)
 
 # Load image
-fileobj = gv.voc.load_training_file(VOCSETTINGS, 'bicycle', imagename)
+fileobj = gv.voc.load_training_file(VOCSETTINGS, 'bicycle', img_id)
 img = gv.img.load_image(fileobj.path)
 
 # Size of the kernel
 sh = detector.kernels.shape[1:3]
 
 # Run detection (mostly to get resized image)
+back, kernels, _ = detector.prepare_kernels(img, mixcomp)
+
 x, small, img_resized = detector.resize_and_detect(img, mixcomp, factor)
 
 pooling_size = detector.patch_dict.settings['pooling_size']
@@ -52,24 +54,11 @@ print img.shape
 print img_resized.shape
 print img_padded.shape
 
-edges = ag.features.bedges_from_image(img_resized, **detector.patch_dict.bedges_settings())
-small = detector.patch_dict.extract_pooled_parts(edges)
-print edges.shape
-print small.shape
-#img_kernel = img_padded[sh[0] + offset[0] : sh[0] + offset[0] + sh[0], sh[1] + offset[1] : sh[1] + offset[1] + sh[1]]
-
 small_padded = ag.util.zeropad(small, (sh[0], sh[1], 0))
 
 window = small_padded[sh[0] + offset[0] : sh[0] + offset[0] + sh[0], sh[1] + offset[1] : sh[1] + offset[1] + sh[1]]
 
 print window.shape
-
-# Get background
-back = np.zeros(small.shape[-1])
-for f in xrange(small.shape[-1]):
-    back[f] = small[...,f].sum() / np.prod(small.shape[:2])
-
-back = np.clip(back, 0.01, 0.99)
 
 plt.subplot(231)
 plt.imshow(img)
@@ -93,39 +82,13 @@ l3 = plt.imshow(np.ones((1,1)), vmin=-4, vmax=4, cmap=plt.cm.RdBu, interpolation
 plt.title("Contribution")
 plt.colorbar()
 
-kernels = detector.kernels.copy()
-#for f in xrange(small.shape[-1]):
-    #kernels[...,f] = np.clip(kernels[...,f], back[0,0,f], 1.0-self.back[0,0,f])
-
-bk = (detector.small_support < 0.1).astype(float)
-ss = detector.small_support.copy()
-ss *= 5 
-ss = np.clip(ss, 0, 1)
-for f in xrange(small.shape[-1]):
-    #kernels[...,f] = np.clip(kernels[...,f], back[f], 1.0-back[f])
-    #kernels[...,f] = bk * np.clip(kernels[...,f], back[f], 1.0-back[f]) + (1.0-bk) * kernels[...,f]
-    kernels[...,f] /= np.clip(detector.small_support, 0.3, 1.0)
-    #kernels[...,f] = (1-ss) * np.clip(kernels[...,f], back[f], 1.0-back[f]) + ss * kernels[...,f]
-    kernels[...,f] = np.clip((1-ss) * back[f] + ss * kernels[...,f], 0.05, 0.95)
-
-
-# What is the score if this kernel is convolved with complete background?
-score = (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)).sum()
-#for index in xrange(small.shape[-1]):
-    #data = \
-        #np.log(1.0 - kernels[mixcomp,...,index]) - \
-        ##np.log(1.0 - back[index])
-    #score += data.sum()
-print "Back avarage:", back.mean()
-print "Back score:", score
-
 contribution_map = np.zeros(sh) 
 for index in xrange(small.shape[-1]):
     data = \
         window[...,index] * np.log(kernels[mixcomp,...,index]) + \
         (1.0-window[...,index]) * np.log(1.0 - kernels[mixcomp,...,index]) + \
-        (-1) * (1.0-window[...,index]) * np.log(1.0 - back[index]) + \
-        (-1) * window[...,index] * np.log(back[index])
+        (-1) * (1.0-window[...,index]) * np.log(1.0 - back[0,0,index]) + \
+        (-1) * window[...,index] * np.log(back[0,0,index])
 
     contribution_map += data
 
@@ -148,12 +111,12 @@ def update(val):
     data = \
         window[...,index] * np.log(kernels[mixcomp,...,index]) + \
         (1.0-window[...,index]) * np.log(1.0 - kernels[mixcomp,...,index]) + \
-        (-1) * (1.0-window[...,index]) * np.log(1.0 - back[index]) + \
-        (-1) * window[...,index] * np.log(back[index])
+        (-1) * (1.0-window[...,index]) * np.log(1.0 - back[0,0,index]) + \
+        (-1) * window[...,index] * np.log(back[0,0,index])
     l3.set_data(data)
     l4.set_data(detector.patch_dict.vispatches[index])
 
-    print '({0}) Contribution: {1} (back: {2})'.format(index, data.sum(), back[index])
+    print '({0}) Contribution: {1} (back: {2})'.format(index, data.sum(), back[0,0,index])
     plt.draw()
 slider.on_changed(update)
 

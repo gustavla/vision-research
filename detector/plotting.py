@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pylab as plt
 
-def plot_results(detector, img_resized, x, small, mixcomp, bounding_boxes=[]):
+def plot_results(detector, img_resized, x, small, mixcomp=None, bounding_boxes=[]):
     # Get max peak
     #print ix, iy
 
@@ -40,8 +40,9 @@ def plot_results(detector, img_resized, x, small, mixcomp, bounding_boxes=[]):
         plt.imshow(x / np.clip(small.sum(axis=-1), 5, np.inf), interpolation='nearest')
         plt.colorbar()
     else:
-        plt.title('Kernel Bernoulli probability averages')
-        plt.imshow(detector.kernels[mixcomp].mean(axis=-1), interpolation='nearest', cmap=plt.cm.RdBu, vmin=0, vmax=1)
+        if mixcomp is not None:
+            plt.title('Kernel Bernoulli probability averages')
+            plt.imshow(detector.kernels[mixcomp].mean(axis=-1), interpolation='nearest', cmap=plt.cm.RdBu, vmin=0, vmax=1)
         plt.colorbar()
 
 def plot_box(bb, color='lightgreen'):

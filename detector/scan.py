@@ -8,7 +8,7 @@ parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image 
 parser.add_argument('--single-scale', dest='factor', nargs=1, default=[None], metavar='FACTOR', type=float, help='Run single scale factor')
 
 # TODO: Remove
-parser.add_argument('mixcomp', metavar='<mixture component>', type=int, help='mix comp')
+parser.add_argument('mixcomp', metavar='<mixture component>', nargs='?', type=int, help='mix comp')
 
 args = parser.parse_args()
 model_file = args.model
@@ -28,10 +28,11 @@ from plotting import plot_results
 detector = gv.Detector.load(model_file)
 
 fileobj = gv.voc.load_training_file(VOCSETTINGS, 'bicycle', img_id)
-img = gv.img.load_image(fileobj.path)
 if fileobj is None:
     print("Could not find image", file=sys.stderr)
     sys.exit(0)
+img = gv.img.load_image(fileobj.path)
+#img = np.random.random(img.shape)
 
 #print(fileobj)
 #sys.exit(0)
@@ -39,6 +40,7 @@ if fileobj is None:
 #img = np.array(Image.open(image_file)).astype(np.float64) / 255.0
 
 if factor is not None:
+    assert mixcomp is not None
     bbs, x, small = detector.detect_coarse_unfiltered_at_scale(img, factor, mixcomp) 
     bbs = detector.nonmaximal_suppression(bbs)
 
@@ -47,7 +49,10 @@ if factor is not None:
     print('max response', x.max())
     print('max response (xx)', xx.max())
 else:
-    bbs = detector.detect_coarse(img, mixcomp, fileobj=fileobj) 
+    if mixcomp is None:
+        bbs = detector.detect_coarse(img, fileobj=fileobj)
+    else:
+        bbs = detector.detect_coarse_single_component(img, mixcomp, fileobj=fileobj) 
     print(bbs)
     if len(bbs) > 0:
         print('max score: ', bbs[0].score)
