@@ -169,9 +169,9 @@ class Detector(Saveable):
 
         print "Most ubiquitous:", np.argmax(back)
 
-        back[...] = 0.05
+        #back[...] = 0.05
 
-        back = np.clip(back, 0.01, 0.99)
+        back = np.clip(back, 0.05, 0.95)
 
 
     
@@ -184,33 +184,72 @@ class Detector(Saveable):
         kernels = self.kernels.copy()
 
         ss = self.small_support[mixcomp].copy()
-        ss *= 5 
+        ss *= 2 
         ss = np.clip(ss, 0, 1)
+        #kernels[mixcomp] *= 1.67
+        #kernels[mixcomp] *= 1.10
+        #kernels[mixcomp] *= 1.38
+        print 'max kernels', kernels[mixcomp].max()
     
+        #total = (kernels[mixcomp] - back).sum()
+        #print 'TOTAL', total
+
+        score_lower = (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)).sum()
+        score = np.inf
+
+        lower = 0.0001
+        higher = 10.0
+        middle = 1.0 
+    
+        limit = 0
+        while np.fabs(score_lower - score) > 10.0 and limit < 30:
+            limit += 1
+            middle = (lower + higher) / 2.0
+            kerny = kernels[mixcomp].copy()
+            kerny *= middle
+            for f in xrange(small.shape[-1]):
+                kerny[...,f] = np.clip((1-ss) * back[0,0,f] + ss * kerny[...,f], 0.05, 0.95)
+
+
+            score_lower = (np.log(1.0 - kerny) - np.log(1.0 - back)).sum()
+            score = (back * (np.log(kerny) - np.log(back)) + \
+                     (1-back) * (np.log(1.0 - kerny) - np.log(1.0 - back))).sum()
+
+            print lower, higher, score_lower, score
+
+            if score < score_lower:
+                lower = middle
+            else:
+                higher = middle
+
+        kernels *= middle
+        print 'middle', middle
         for f in xrange(small.shape[-1]):
-            pass
-            #kernels[...,f] = np.clip(self.kernels[...,f], back[0,0,f], 1.0)
-            #kernels[...,f] = bk * np.clip(self.kernels[...,f], back[0,0,f], 1.0-back[0,0,f]) + (1.0-bk) * self.kernels[...,f]
-            #print kernels[...,f].shape
-
-            #kernels[mixcomp,...,f] /= kernels[mixcomp,...,f].sum()
-
-            #print self.small_support.shape
-            #kernels[...,f] = (kernels[...,f] - 0.05) / np.clip(self.small_support, 0.2, 1.0)
-            #kernels[mixcomp,...,f] *= 1.08 
-            #kernels[...,f] = (1-ss) * np.clip(kernels[...,f], back[0,0,f], 1.0-back[0,0,f]) + ss * kernels[...,f]
             kernels[mixcomp,...,f] = np.clip((1-ss) * back[0,0,f] + ss * kernels[mixcomp,...,f], 0.05, 0.95)
-            #kernels[mixcomp,...,f] = np.clip(kernels[mixcomp,...,f], back[0,0,f], 1.0)#1.0-back[0,0,f]) 
-
+        
+        print "MAX KERNELS", kernels[mixcomp].max()
+        
+            
         #for x in xrange(kernels.shape[1]):
             #for y in xrange(kernels.shape[2]):
                 #kernels[mixcomp,x,y] = kernels[mixcomp,x,y] / kernels[mixcomp,x,y].sum()
 
-        #score = (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)).sum()
-        #score2 = (np.log(kernels[mixcomp]) - np.log(back)).sum()
-        #print "Back score", score
-        #print "Front score", score2
+        print '----'
+        #print np.prod(k/(1-k))
+        #print np.prod(kernels[mixcomp].sum()
+
+        score2 = (np.log(kernels[mixcomp]) - np.log(back)).sum()
+        score3 = (back * (np.log(kernels[mixcomp]) - np.log(back)) + \
+                  (1-back) * (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)))
+        print 'shape', score3.shape
+        score3 = score3.sum()
+
+        print "Back score", score_lower
+        print "Front score", score2
+        print "Middle score", score3
    
+    
+
         return back, kernels, small
 
     def response_map(self, image, mixcomp):
@@ -220,6 +259,7 @@ class Detector(Saveable):
 
         sh = kernels.shape
         bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
+        #bigger = ag.util.zeropad(small, (sh[1], sh[2], 0))
         #bigger = probpad(small, (sh[1]//2, sh[2]//2, 0), back[0,0])
 
         res = None
@@ -283,7 +323,7 @@ class Detector(Saveable):
         densities = np.empty(res.shape)
 
         ss = self.small_support[mixcomp].copy()
-        ss *= 5 
+        ss *= 2 
         ss = np.clip(ss, 0, 1)
 
         print "Top-left (pre-normalization):", res[0,0]
@@ -293,7 +333,8 @@ class Detector(Saveable):
                 density = (ss.reshape(ss.shape + (1,)) * bigger[x:x + ksh[0], y:y + ksh[1]]).sum() / (ss.sum() * sh[-1]) #np.prod(sh[1:])
                 #print density
                 #res[x,y] = (res[x,y] + 0.001) / max(density, 0.0000000000000000001)
-                res[x,y] = (res[x,y] - score_lower) - density * (score_upper - score_lower)
+                #res[x,y] = (res[x,y] - score_lower) - density * (score_upper - score_lower)
+                res[x,y] -= score_lower
                 densities[x,y] = density
 
         print 'TOP', np.unravel_index(res.argmax(), res.shape)
@@ -333,7 +374,7 @@ class Detector(Saveable):
         bbs = []
         
         xx = x
-        #xx = (x - x.mean()) / x.std()
+        xx = (x - x.mean()) / x.std()
 
         if 0:
             import pylab as plt
