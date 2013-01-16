@@ -334,6 +334,7 @@ class Detector(Saveable):
                 #print density
                 #res[x,y] = (res[x,y] + 0.001) / max(density, 0.0000000000000000001)
                 #res[x,y] = (res[x,y] - score_lower) - density * (score_upper - score_lower)
+                # Doesn't matter if standardizing
                 res[x,y] -= score_lower
                 densities[x,y] = density
 

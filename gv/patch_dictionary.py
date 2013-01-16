@@ -79,7 +79,7 @@ class PatchDictionary(Saveable):
                 # Return grayscale patch and edges patch
                 edgepatch = edges[selection]
                 edgepatch_nospread = edges_nospread[selection]
-                num = edgepatch_nospread[fr:-fr,fr:-fr].sum()
+                num = edgepatch[fr:-fr,fr:-fr].sum()
                 if num >= self.settings['threshold']: 
                     the_patches.append(edgepatch_nospread)
         
