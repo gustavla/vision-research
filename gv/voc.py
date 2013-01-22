@@ -1,10 +1,11 @@
+from __future__ import division
 import os.path
 import numpy as np
 from xml.dom.minidom import parse
 from collections import namedtuple
 import gv
 
-ImgFile = namedtuple('ImgFile', ['path', 'boxes'])
+ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
 
 def _get_text(nodelist):
     rc = []
@@ -13,7 +14,18 @@ def _get_text(nodelist):
             rc.append(node.data)
     return ''.join(rc)
 
-def load_training_file(VOCSETTINGS, class_name, img_id, load_boxes=True, dataset='test'):
+def image_from_bounding_box(im, bb):
+    if isinstance(bb, gv.bb.DetectionBB):
+        bb = bb.box
+
+    #if gv.bb.box_sticks_out(bb, (0, 0)+im.shape[:2]):
+        # 
+
+    #else:
+    return im[bb[0]:bb[2], bb[1]:bb[3]]
+
+
+def load_training_file(VOCSETTINGS, class_name, img_id, load_boxes=True):
     img_path = os.path.join(VOCSETTINGS['path'], 'JPEGImages', '{0:06}.jpg'.format(img_id))
     bbs = []
     if load_boxes: 
@@ -32,28 +44,98 @@ def load_training_file(VOCSETTINGS, class_name, img_id, load_boxes=True, dataset
                 # Note: -1 is taken because they use 1-base indexing
                 bb = tuple([int(_get_text(bndbox_obj.getElementsByTagName(s)[0].childNodes)) - 1 
                         for s in 'ymin', 'xmin', 'ymax', 'xmax'])
-                bbobj = gv.bb.DetectionBB(box=bb, difficult=difficult)
+                bbobj = gv.bb.DetectionBB(box=bb, difficult=difficult, truncated=truncated)
                 bbs.append(bbobj)
 
-    fileobj = ImgFile(path=img_path, boxes=bbs)
+    fileobj = ImgFile(path=img_path, boxes=bbs, img_id=img_id)
     return fileobj
 
-def load_training_files(VOCSETTINGS, class_name, dataset='test'):
-    path = os.path.join(VOCSETTINGS['path'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))
-
-    f = np.genfromtxt(path, dtype='i') 
-    N = f.shape[0]
+def load_specific_files(VOCSETTINGS, class_name, img_ids, has_objects=None, padding=0):
+    """img_ids and has_objects should be lists of equal length"""
+    N = len(img_ids) 
 
     files = [] 
+    hasobject = 1 
     for i in xrange(N):
-        img_id, hasobject = f[i]
-        fileobj = load_training_file(VOCSETTINGS, class_name, img_id, load_boxes=(hasobject == 1), dataset=dataset)
+        img_id = img_ids[i]
+        if has_objects is not None:
+            hasobject = has_objects[i] 
+        fileobj = load_training_file(VOCSETTINGS, class_name, img_id, load_boxes=(hasobject == 1))
         files.append(fileobj)
 
     # Get the total count
     tot = sum([len(f.boxes) for f in files])
 
     return files, tot
+
+def load_training_files(VOCSETTINGS, class_name, dataset='train'):
+    path = os.path.join(VOCSETTINGS['path'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))
+
+    f = np.genfromtxt(path, dtype='i') 
+    N = f.shape[0]
+    img_ids = f[:,0]
+    has_objects = f[:,1] 
+    return load_specific_files(VOCSETTINGS, class_name, img_ids, has_objects)
+
+def _load_images(objfiles, tot, size, padding=0):
+    images = []
+    for objfile in objfiles:
+        for bbobj in objfile.boxes:
+            # Only non-truncated and non-difficult ones
+            if not bbobj.truncated and not bbobj.difficult:
+                im = gv.img.load_image(objfile.path)
+                bbsquare = bbobj.box #gv.bb.expand_to_square(bbobj.box)
+                # Resize padding with a factor, so that the end image will have that
+                # padding.
+                factor = max(bbsquare[3]-bbsquare[1], bbsquare[2]-bbsquare[0]) / max(size)
+                bbsquare_padded = gv.bb.inflate(bbsquare, int(round(padding * factor)))
+                bbim = (0, 0)+im.shape[:2]
+                if gv.bb.box_sticks_out(bbsquare_padded, bbim):
+                    continue
+
+                im_patch = image_from_bounding_box(im, bbsquare_padded)
+                
+                padded_size = (size[0] + 2*padding, size[1] + 2*padding)
+                image_resized = gv.img.resize(im_patch, padded_size)
+                images.append(image_resized)  
+
+    return images
+
+def load_object_images_of_size_from_list(VOCSETTINGS, class_name, size, img_ids, padding=0):
+    objfiles, tot = load_specific_files(VOCSETTINGS, class_name, img_ids)
+    return _load_images(objfiles, tot, size, padding=padding)
+
+def load_negative_images_of_size(VOCSETTINGS, class_name, size, dataset='train', count=10, padding=0):
+    padded_size = (size[0]+2*padding, size[1]+2*padding)
+    images = []
+    i = 1
+    while True: 
+        objfile = load_training_file(VOCSETTINGS, class_name, i, load_boxes=False)
+        im = gv.img.load_image(objfile.path)
+
+        # Randomize factor
+        factor = np.random.uniform(0.3, 1.0)
+
+        im_resized = gv.img.resize_with_factor(im, factor)
+    
+        shift = [im_resized.shape[i] - padded_size[i] for i in xrange(2)]
+        if min(shift) > 0: 
+            i, j = [np.random.randint(shift[i]) for i in xrange(2)]
+
+            # Extract image
+            im_patch = im_resized[i:i+padded_size[0], j:j+padded_size[1]]
+            images.append(im_patch)
+        
+        i += 1
+        if len(images) >= count:
+            break
+    return images
+
+def load_object_images_of_size(VOCSETTINGS, class_name, size, dataset='train'):
+    objfiles, tot = load_training_files(VOCSETTINGS, class_name, dataset=dataset)
+    return _load_images(objfiles, tot, size)
+
+                 
 
 if __name__ == '__main__':
     pass

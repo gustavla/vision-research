@@ -1,4 +1,4 @@
-
+from __future__ import division
 import argparse
 
 parser = argparse.ArgumentParser(description='View mixture components')
@@ -14,4 +14,11 @@ import gv
 # Load detector
 detector = gv.Detector.load(model_file)
 
-ag.plot.images(detector.support, caption=lambda i, im: "{0}: max: {1:.02}".format(i, im.max()))
+data = None
+if detector.support is None:
+    # Visualize feature activity if the support does not exist
+    data = detector.kernels.sum(axis=-1) / detector.kernels.shape[-1] 
+else:
+    data = detector.support
+
+ag.plot.images(data, caption=lambda i, im: "{0}: max: {1:.02} (w: {2:.02})".format(i, im.max(), detector.mixture.weights[i]))

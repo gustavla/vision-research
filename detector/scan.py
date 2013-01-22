@@ -5,15 +5,15 @@ import argparse
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
 parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
-parser.add_argument('--single-scale', dest='factor', nargs=1, default=[None], metavar='FACTOR', type=float, help='Run single scale factor')
+parser.add_argument('--kernel-size', dest='side', nargs=1, default=[None], metavar='SIDE', type=float, help='Run single side length of kernel')
 
-# TODO: Remove
+# TODO: Make into an option 
 parser.add_argument('mixcomp', metavar='<mixture component>', nargs='?', type=int, help='mix comp')
 
 args = parser.parse_args()
 model_file = args.model
 img_id = args.img_id
-factor = args.factor[0]
+side = args.side[0]
 mixcomp = args.mixcomp
 
 import gv
@@ -39,9 +39,9 @@ img = gv.img.load_image(fileobj.path)
 
 #img = np.array(Image.open(image_file)).astype(np.float64) / 255.0
 
-if factor is not None:
+if side is not None:
     assert mixcomp is not None
-    bbs, x, small = detector.detect_coarse_unfiltered_at_scale(img, factor, mixcomp) 
+    bbs, x, small = detector.detect_coarse_unfiltered_at_scale(img, side, mixcomp) 
     bbs = detector.nonmaximal_suppression(bbs)
 
     xx = (x - x.mean()) / x.std()

@@ -3,8 +3,11 @@ import numpy as np
 class Saveable(object):
     @classmethod
     def load(cls, path):
-        d = np.load(path).flat[0]
-        return cls.load_from_dict(d)
+        if path is None:
+            return cls.load_from_dict({})
+        else:
+            d = np.load(path).flat[0]
+            return cls.load_from_dict(d)
         
     def save(self, path):
         np.save(path, self.save_to_dict())
