@@ -16,8 +16,15 @@ d = obj.flat[0]
 negs = d['llhs_negatives']
 poss = d['llhs_positives']
 
-plt.hist(negs, 30, alpha=0.5, normed=True)
-plt.hist(poss, 15, alpha=0.5, normed=True)
+mn, mx = min(negs.min(), poss.min()), max(negs.max(), poss.max())
+
+mn = 100 * (mn//100) - 200
+mx = 100 * (mx//100) + 300
+
+bins = np.arange(mn, mx+1, 100)
+
+plt.hist(negs, bins, alpha=0.5, normed=True)
+plt.hist(poss, bins, alpha=0.5, normed=True)
 
 plt.show()
 
