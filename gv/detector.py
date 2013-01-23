@@ -236,7 +236,7 @@ class Detector(Saveable):
 
         if self.small_support is not None:
             ss = self.small_support[mixcomp].copy()
-            ss *= 1 
+            ss *= 5 
             ss = np.clip(ss, 0, 1)
             #kernels[mixcomp] *= 1.67
             #kernels[mixcomp] *= 1.10
@@ -253,26 +253,27 @@ class Detector(Saveable):
             higher = 10.0
             middle = 1.0 
         
-            limit = 0
-            while np.fabs(score_lower - score) > 10.0 and limit < 30:
-                limit += 1
-                middle = (lower + higher) / 2.0
-                kerny = kernels[mixcomp].copy()
-                kerny *= middle
-                for f in xrange(small.shape[-1]):
-                    kerny[...,f] = np.clip((1-ss) * back[0,0,f] + ss * kerny[...,f], 0.05, 0.95)
+            if 0:
+                limit = 0
+                while np.fabs(score_lower - score) > 10.0 and limit < 30:
+                    limit += 1
+                    middle = (lower + higher) / 2.0
+                    kerny = kernels[mixcomp].copy()
+                    kerny *= middle
+                    for f in xrange(small.shape[-1]):
+                        kerny[...,f] = np.clip((1-ss) * back[0,0,f] + ss * kerny[...,f], 0.05, 0.95)
 
 
-                score_lower = (np.log(1.0 - kerny) - np.log(1.0 - back)).sum()
-                score = (back * (np.log(kerny) - np.log(back)) + \
-                         (1-back) * (np.log(1.0 - kerny) - np.log(1.0 - back))).sum()
+                    score_lower = (np.log(1.0 - kerny) - np.log(1.0 - back)).sum()
+                    score = (back * (np.log(kerny) - np.log(back)) + \
+                             (1-back) * (np.log(1.0 - kerny) - np.log(1.0 - back))).sum()
 
-                #print lower, higher, score_lower, score
+                    #print lower, higher, score_lower, score
 
-                if score < score_lower:
-                    lower = middle
-                else:
-                    higher = middle
+                    if score < score_lower:
+                        lower = middle
+                    else:
+                        higher = middle
 
             #kernels *= middle
             #print 'middle', middle
@@ -432,7 +433,7 @@ class Detector(Saveable):
         #th = 800.0
         th = 750.0
         xx = x
-        xx = (x - x.mean()) / x.std()
+        #xx = (x - x.mean()) / x.std()
         GET_ONE = True#False 
         if GET_ONE:
             th = xx.max() 

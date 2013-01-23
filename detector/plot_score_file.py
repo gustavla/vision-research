@@ -16,15 +16,31 @@ d = obj.flat[0]
 negs = d['llhs_negatives']
 poss = d['llhs_positives']
 
+alls = np.r_[negs, poss]
+
+mean, std = alls.mean(), alls.std()
+
+negs = (negs - mean) / std
+poss = (poss - mean) / std
+
 mn, mx = min(negs.min(), poss.min()), max(negs.max(), poss.max())
 
-mn = 100 * (mn//100) - 200
-mx = 100 * (mx//100) + 300
+dbin = 0.2
 
-bins = np.arange(mn, mx+1, 100)
+mn = dbin * (mn//dbin) - dbin * 2 
+mx = dbin * (mx//dbin) + dbin * 3
 
-plt.hist(negs, bins, alpha=0.5, normed=True)
-plt.hist(poss, bins, alpha=0.5, normed=True)
+bins = np.arange(mn, mx+1e-10, dbin)
+
+#bins = (bins - mean) / std
+
+print 'Score: ', poss.mean() - negs.mean()
+
+plt.hist(negs, bins, alpha=0.5, normed=True, label='Negatives')
+plt.hist(poss, bins, alpha=0.5, normed=True, label='Positives')
+plt.xlabel("Standardized log likelihood")
+plt.ylabel("Normalized histogram")
+plt.legend()
 
 plt.show()
 
