@@ -64,12 +64,12 @@ def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
         ps = detector.settings['pooling_size']
         m = int((bb[0]+bb[2])/ps[0]//2), int((bb[1]+bb[3])/ps[1]//2)
         #m = res.shape[0]//2, res.shape[1]//2
-        s = 3
+        s = 2
         #print 'factor', self.factor(
-        print 'ps', ps
-        print 'im', im.shape
-        print 'res', res.shape
-        print m
+        #print 'ps', ps
+        #print 'im', im.shape
+        #print 'res', res.shape
+        #print m
         top = res[max(0, m[0]-s):min(m[0]+s, res.shape[0]), max(0, m[1]-s):min(m[1]+s, res.shape[1])].max()
         llhs.append(top)
 

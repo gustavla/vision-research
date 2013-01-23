@@ -214,8 +214,8 @@ class Detector(Saveable):
         else:
             back = np.tile(back, (small.kernel_shape + (small.shape[-1],)))
     
-        print 'MAX BACK', back.max()
-        print 'which', back[0,0].argmax()
+        #print 'MAX BACK', back.max()
+        #print 'which', back[0,0].argmax()
 
         #print "Backs: {0} (std: {1}) [{2}, {3}]".format(back.mean(), back.std(), back.min(), back.max())
 
