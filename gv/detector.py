@@ -202,14 +202,20 @@ class Detector(Saveable):
         small = max_pooling(edges, self.settings['pooling_size'])
         return small
 
-    def prepare_kernels(self, image, mixcomp):
+    def prepare_kernels(self, image, mixcomp, back=None):
         # Convert image to our feature space representation
         small = self.extract_pooled_features(image)
 
-        # Figure out background probabilities of this image
-        back = np.zeros(self.log_kernels.shape[1:]) 
-        for f in xrange(small.shape[-1]):
-            back[...,f] = small[...,f].sum() / np.prod(small.shape[:2])
+        if back is None:
+            # Figure out background probabilities of this image
+            back = np.zeros(self.log_kernels.shape[1:]) 
+            for f in xrange(small.shape[-1]):
+                back[...,f] = small[...,f].sum() / np.prod(small.shape[:2])
+        else:
+            back = np.tile(back, (small.kernel_shape + (small.shape[-1],)))
+    
+        print 'MAX BACK', back.max()
+        print 'which', back[0,0].argmax()
 
         #print "Backs: {0} (std: {1}) [{2}, {3}]".format(back.mean(), back.std(), back.min(), back.max())
 
@@ -277,8 +283,19 @@ class Detector(Saveable):
 
             #kernels *= middle
             #print 'middle', middle
-            for f in xrange(small.shape[-1]):
-                kernels[mixcomp,...,f] = np.clip((1-ss) * back[0,0,f] + ss * kernels[mixcomp,...,f], 0.05, 0.95)
+
+            if 0:
+                for i in xrange(self.kernel_size[0]):
+                    for j in xrange(self.kernel_size[1]):
+                        c = 0
+                        for f in xrange(small.shape[-1]): 
+                            c += int(kernels[mixcomp,i,j,f] > back[0,0,f])
+                        if c < 40:#self.settings['magic_threshold']:
+                            #print "Setting {0},{1},{2} to {3}".format(i,j,f,back[0,0,f])
+                            kernels[mixcomp,i,j] = back[0,0]
+            else:
+                for f in xrange(small.shape[-1]):
+                    kernels[mixcomp,...,f] = np.clip((1-ss) * back[0,0,f] + ss * kernels[mixcomp,...,f], 0.05, 0.95)
             
             #print "MAX KERNELS", kernels[mixcomp].max()
         
@@ -303,10 +320,10 @@ class Detector(Saveable):
 
         return back, kernels, small
 
-    def response_map(self, image, mixcomp):
+    def response_map(self, image, mixcomp, back=None):
         """Retrieves log-likelihood response on 'image' (no scaling done)"""
 
-        back, kernels, small = self.prepare_kernels(image, mixcomp)
+        back, kernels, small = self.prepare_kernels(image, mixcomp, back=back)
 
         sh = kernels.shape
         bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
@@ -409,17 +426,24 @@ class Detector(Saveable):
         # The side here is the maximum side of the kernel size 
         return max(self.kernel_size)
 
-    def resize_and_detect(self, img, mixcomp, side=128):
+    def resize_and_detect(self, img, mixcomp, side=128, back=None):
         factor = self.factor(side)
         img_resized = gv.img.resize_with_factor(img, factor)
-        x, img_feat = self.response_map(img_resized, mixcomp)
+    
+
+        print side, factor
+        import pylab as plt
+        plt.imshow(img_resized, interpolation='nearest')
+        plt.show()
+
+        x, img_feat = self.response_map(img_resized, mixcomp, back=back)
         return x, img_feat, img_resized
 
     def factor(self, side):
         return self.kernel_side / side
 
-    def detect_coarse_unfiltered_at_scale(self, img, side, mixcomp):
-        x, small, img_resized = self.resize_and_detect(img, mixcomp, side)
+    def detect_coarse_unfiltered_at_scale(self, img, side, mixcomp, back=None):
+        x, small, img_resized = self.resize_and_detect(img, mixcomp, side, back=back)
 
         #import ipdb; ipdb.set_trace()
 

@@ -67,5 +67,4 @@ def load_image(path):
 def save_image(im, path):
     pil_im = Image.fromarray((im*255).astype(np.uint8))
     pil_im.save(path)
-    
 

@@ -32,33 +32,45 @@ def main():
 def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
     padding = 0 
     if not positives:
-        images = gv.voc.load_negative_images_of_size(VOCSETTINGS, 'bicycle', detector.kernel_size, count=300, padding=padding) 
+        np.random.seed(0)
+        originals, bbs = gv.voc.load_negative_images_of_size(VOCSETTINGS, 'bicycle', detector.kernel_size, count=50, padding=padding) 
     else:
         profiles = map(int, open('profiles.txt').readlines())
-        images = gv.voc.load_object_images_of_size_from_list(VOCSETTINGS, 'bicycle', detector.kernel_size, profiles, padding=padding) 
+        originals, bbs = gv.voc.load_object_images_of_size_from_list(VOCSETTINGS, 'bicycle', detector.kernel_size, profiles, padding=padding) 
 
-    print "NUMBER OF IMAGES", len(images)
+    print "NUMBER OF IMAGES", len(originals)
 
     limit = None 
 
     reses = []
     llhs = []
     # Extract features
-    for i, im in enumerate(images[:limit]):
+    for i in xrange(len(originals)):
+        im = originals[i]  
+        bb = bbs[i]
         #edges = detector.extract_pooled_features(im)
 
         # Now remove the padding
         #edges = edges[padding:-padding,padding:-padding]
 
         #edgemaps.append(edges)
+        #plt.imshow(im)
+        #plt.show()        
 
         # Check response map
         res, small = detector.response_map(im, mixcomp)
 
-        # Check max
-        m = res.shape[0]//2, res.shape[1]//2
+        # Check max at the center of the bounding box (bb)
+        ps = detector.settings['pooling_size']
+        m = int((bb[0]+bb[2])/ps[0]//2), int((bb[1]+bb[3])/ps[1]//2)
+        #m = res.shape[0]//2, res.shape[1]//2
         s = 3
-        top = res[m[0]-s:m[0]+s, m[1]-s:m[1]+s].max()
+        #print 'factor', self.factor(
+        print 'ps', ps
+        print 'im', im.shape
+        print 'res', res.shape
+        print m
+        top = res[max(0, m[0]-s):min(m[0]+s, res.shape[0]), max(0, m[1]-s):min(m[1]+s, res.shape[1])].max()
         llhs.append(top)
 
         if 1:
@@ -72,14 +84,15 @@ def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
             elif False:#top < -5000:
                 #plt.subplot(3, 6, 1+2*i)
                 plt.subplot(1, 2, 1)
-                plt.imshow(images[i], interpolation='nearest')
+                plt.imshow(im, interpolation='nearest')
                 #plt.subplot(3, 6, 2+2*i)
                 plt.subplot(1, 2, 2)
                 plt.imshow(res, interpolation='nearest')
                 plt.colorbar()
-                plt.title("{0}".format(i))
-                #plt.title("Top: {0:.2f} ({1:.2f})".format(top, res.max()))
+                #plt.title("{0}".format(i))
+                plt.title("Top: {0:.2f} ({1:.2f})".format(top, res.max()))
                 plt.show()
+        #import sys; sys.exit(0)
         
     #print llhs
     if 0:

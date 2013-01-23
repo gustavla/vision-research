@@ -78,28 +78,42 @@ def load_training_files(VOCSETTINGS, class_name, dataset='train'):
     return load_specific_files(VOCSETTINGS, class_name, img_ids, has_objects)
 
 def _load_images(objfiles, tot, size, padding=0):
-    images = []
+    bbs = []
+    originals = []
     for objfile in objfiles:
         for bbobj in objfile.boxes:
             # Only non-truncated and non-difficult ones
             if not bbobj.truncated and not bbobj.difficult:
                 im = gv.img.load_image(objfile.path)
                 bbsquare = bbobj.box #gv.bb.expand_to_square(bbobj.box)
+                #bbsquare = gv.bb.expand_to_square(bbobj.box)
                 # Resize padding with a factor, so that the end image will have that
                 # padding.
-                factor = max(bbsquare[3]-bbsquare[1], bbsquare[2]-bbsquare[0]) / max(size)
+                factor = max(size) / max(bbsquare[3]-bbsquare[1], bbsquare[2]-bbsquare[0])
+        
+                # Resize the big image
+                img_resized = gv.img.resize_with_factor(im, factor) 
+
+
                 bbsquare_padded = gv.bb.inflate(bbsquare, int(round(padding * factor)))
                 bbim = (0, 0)+im.shape[:2]
                 if gv.bb.box_sticks_out(bbsquare_padded, bbim):
                     continue
+    
+                bbsquare_resized = tuple([bbsquare_padded[i] * factor for i in xrange(4)])
 
-                im_patch = image_from_bounding_box(im, bbsquare_padded)
-                
                 padded_size = (size[0] + 2*padding, size[1] + 2*padding)
-                image_resized = gv.img.resize(im_patch, padded_size)
-                images.append(image_resized)  
+                if 1:
+                    image_resized = image_from_bounding_box(img_resized, bbsquare_resized)
+                else:
+                    im_patch = image_from_bounding_box(im, bbsquare_padded)
+                    image_resized = gv.img.resize(im_patch, padded_size)
 
-    return images
+                #images.append(image_resized)  
+                originals.append(img_resized)
+                bbs.append(bbsquare_resized)
+
+    return originals, bbs
 
 def load_object_images_of_size_from_list(VOCSETTINGS, class_name, size, img_ids, padding=0):
     objfiles, tot = load_specific_files(VOCSETTINGS, class_name, img_ids)
@@ -107,7 +121,8 @@ def load_object_images_of_size_from_list(VOCSETTINGS, class_name, size, img_ids,
 
 def load_negative_images_of_size(VOCSETTINGS, class_name, size, dataset='train', count=10, padding=0):
     padded_size = (size[0]+2*padding, size[1]+2*padding)
-    images = []
+    bbs = []
+    originals = []
     i = 1
     while True: 
         objfile = load_training_file(VOCSETTINGS, class_name, i, load_boxes=False)
@@ -124,12 +139,16 @@ def load_negative_images_of_size(VOCSETTINGS, class_name, size, dataset='train',
 
             # Extract image
             im_patch = im_resized[i:i+padded_size[0], j:j+padded_size[1]]
-            images.append(im_patch)
+            #images.append(im_patch)
+            bb = (i, j, i+padded_size[0], j+padded_size[1])
+            bbs.append(bb)
+            originals.append(im_resized)
         
         i += 1
-        if len(images) >= count:
+        if len(bbs) >= count:
             break
-    return images
+
+    return originals, bbs
 
 def load_object_images_of_size(VOCSETTINGS, class_name, size, dataset='train'):
     objfiles, tot = load_training_files(VOCSETTINGS, class_name, dataset=dataset)
