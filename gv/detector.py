@@ -455,8 +455,6 @@ class Detector(Saveable):
     def detect_coarse_unfiltered_at_scale(self, img, side, mixcomp, back=None):
         x, small, img_resized = self.resize_and_detect(img, mixcomp, side, back=back)
 
-        #import ipdb; ipdb.set_trace()
-
         # Frst pick 
         th = -37000#-35400 
         #th = -36000

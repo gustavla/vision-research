@@ -109,15 +109,10 @@ class PartsDescriptor(BinaryDescriptor):
 
     def train_from_images(self, filenames):
         raw_patches, raw_originals = self.random_patches_from_images(filenames)
-
-        print raw_patches.shape
-        #import ipdb; ipdb.set_trace()
-
         mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0)
         # Also store these in "settings"
         mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
         ag.info("Done.")
-        import ipdb; ipdb.set_trace()
         
         # Store the stuff in the instance
         self.parts = mixture.templates
