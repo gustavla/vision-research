@@ -24,7 +24,7 @@ def main():
     print 'Processing positives...'
     llhs_positives = calc_llhs(VOCSETTINGS, detector, True, mixcomp)
     print 'Processing negatives...'
-    llhs_negatives = calc_llhs(VOCSETTINGS, detector, False, mixcomp)
+    #llhs_negatives = calc_llhs(VOCSETTINGS, detector, False, mixcomp)
 
     score = llhs_positives.mean() - llhs_negatives.mean() 
 

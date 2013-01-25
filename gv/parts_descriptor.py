@@ -2,6 +2,7 @@ import random
 import copy
 import amitgroup as ag
 import numpy as np
+import gv
 from binary_descriptor import BinaryDescriptor
 
 @BinaryDescriptor.register('parts')
@@ -33,12 +34,19 @@ class PartsDescriptor(BinaryDescriptor):
         the_originals = []
         ag.info("Extracting patches from", filename)
         #edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=False, return_original=True, lastaxis=True)
-        edges, img = ag.features.bedges_from_image(filename, return_original=True, **self.settings['bedges'])
 
-        s = self.settings['bedges'].copy()
-        if 'radius' in s:
-            del s['radius']
-        edges_nospread = ag.features.bedges_from_image(filename, radius=0, **s)
+        # LEAVE-BEHIND
+        if 1:
+            img = gv.img.load_image(filename)
+            img = img[...,:3].mean(axis=-1)
+            edges = ag.features.bedges(img, **self.settings['bedges'])
+        else:
+            edges, img = ag.features.bedges_from_image(filename, return_original=True, **self.settings['bedges'])
+
+        #s = self.settings['bedges'].copy()
+        #if 'radius' in s:
+        #    del s['radius']
+        #edges_nospread = ag.features.bedges_from_image(filename, radius=0, **s)
 
         # How many patches could we extract?
         w, h = [edges.shape[i]-self.patch_size[i]+1 for i in xrange(2)]
@@ -51,16 +59,20 @@ class PartsDescriptor(BinaryDescriptor):
                 selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
                 # Return grayscale patch and edges patch
                 edgepatch = edges[selection]
-                edgepatch_nospread = edges_nospread[selection]
+                #edgepatch_nospread = edges_nospread[selection]
                 num = edgepatch[fr:-fr,fr:-fr].sum()
                 if num >= self.settings['threshold']: 
-                    the_patches.append(edgepatch_nospread)
+                    the_patches.append(edgepatch)
+                    #the_patches.append(edgepatch_nospread)
         
                     # The following is only for clearer visualization of the 
                     # patches. However, normalizing like this might be misleading
                     # in other ways.
                     vispatch = img[selection]
-                    vispatch = vispatch[...,:3].mean(axis=vispatch.ndim-1)
+                    if 1:
+                        pass
+                    else:
+                        vispatch = vispatch[...,:3].mean(axis=vispatch.ndim-1)
                     span = vispatch.min(), vispatch.max() 
                     if span[1] - span[0] > 0:
                         vispatch = (vispatch-span[0])/(span[1]-span[0])
@@ -98,10 +110,14 @@ class PartsDescriptor(BinaryDescriptor):
     def train_from_images(self, filenames):
         raw_patches, raw_originals = self.random_patches_from_images(filenames)
 
+        print raw_patches.shape
+        #import ipdb; ipdb.set_trace()
+
         mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0)
         # Also store these in "settings"
         mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
         ag.info("Done.")
+        import ipdb; ipdb.set_trace()
         
         # Store the stuff in the instance
         self.parts = mixture.templates
@@ -115,7 +131,11 @@ class PartsDescriptor(BinaryDescriptor):
         self._log_invparts = np.log(1-self.parts)
 
     def extract_features(self, image):
-        edges = ag.features.bedges_from_image(image, **self.bedges_settings()) 
+        if 1:
+            edges = ag.features.bedges(image, **self.bedges_settings())
+        else:
+            # LEAVE-BEHIND: From multi-channel images
+            edges = ag.features.bedges_from_image(image, **self.bedges_settings()) 
         return self.extract_parts(edges)
     
     def extract_parts(self, edges):

@@ -97,9 +97,11 @@ class Detector(Saveable):
             if isinstance(img_obj, str):
                 ag.info(i, "Processing file", img_obj)
                 img = gv.img.load_image(img_obj)
+                img = img[...,:3].mean(axis=-1)
             else:
                 ag.info(i, "Processing image of shape", img_obj.shape)
                 img = img_obj
+    
     
             # Resize the image before extracting features
             if resize_to is not None and resize_to != img.shape[:2]:
@@ -213,6 +215,11 @@ class Detector(Saveable):
                 back[...,f] = small[...,f].sum() / np.prod(small.shape[:2])
         else:
             back = np.tile(back, (small.kernel_shape + (small.shape[-1],)))
+
+        if 1:
+            import pylab as plt
+            plt.hist(back[0,0], 30)
+            plt.show()
     
         #print 'MAX BACK', back.max()
         #print 'which', back[0,0].argmax()
@@ -242,8 +249,15 @@ class Detector(Saveable):
 
         if self.small_support is not None:
             ss = self.small_support[mixcomp].copy()
+            #ss /= ss.max()
             ss *= 5 
             ss = np.clip(ss, 0, 1)
+            #ss = (0.30 < ss).astype(float)
+            if 1:
+                import pylab as plt
+                plt.imshow(ss, interpolation='nearest', cmap=plt.cm.gray)
+                plt.colorbar()
+                plt.show()
             #kernels[mixcomp] *= 1.67
             #kernels[mixcomp] *= 1.10
             #kernels[mixcomp] *= 1.38
@@ -284,13 +298,13 @@ class Detector(Saveable):
             #kernels *= middle
             #print 'middle', middle
 
-            if 0:
+            if 1:
                 for i in xrange(self.kernel_size[0]):
                     for j in xrange(self.kernel_size[1]):
                         c = 0
                         for f in xrange(small.shape[-1]): 
                             c += int(kernels[mixcomp,i,j,f] > back[0,0,f])
-                        if c < 40:#self.settings['magic_threshold']:
+                        if c < 1:#self.settings['magic_threshold']:
                             #print "Setting {0},{1},{2} to {3}".format(i,j,f,back[0,0,f])
                             kernels[mixcomp,i,j] = back[0,0]
             else:
@@ -431,11 +445,7 @@ class Detector(Saveable):
         img_resized = gv.img.resize_with_factor(img, factor)
     
 
-        print side, factor
-        import pylab as plt
-        plt.imshow(img_resized, interpolation='nearest')
-        plt.show()
-
+        #print "calling response_map", img_resized.shape, mixcomp
         x, img_feat = self.response_map(img_resized, mixcomp, back=back)
         return x, img_feat, img_resized
 

@@ -44,6 +44,8 @@ if side is not None:
     bbs, x, small = detector.detect_coarse_unfiltered_at_scale(img, side, mixcomp) 
     bbs = detector.nonmaximal_suppression(bbs)
 
+    print('small', small.shape)
+
     xx = (x - x.mean()) / x.std()
     plot_results(detector, img, x, small, mixcomp, bbs)
     print('max response', x.max())
