@@ -36,6 +36,7 @@ if dsettings['use_voc']:
 else:
     files = glob.glob(os.path.join(dsettings['cad_dir'], "*.png"))
 
+print "Training on {0} files".format(len(files))
 #files = files[:10]
 
 detector.train_from_images(files)
