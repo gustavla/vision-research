@@ -46,6 +46,6 @@ else:
         plt.plot(arr[...,0])
         plt.show()
     else:
-        ag.plot.images(originals/originals.max())
+        ag.plot.images(originals, zero_to_one=False)
 
 #ag.plot.images(np.rollaxis(parts[9], axis=2))

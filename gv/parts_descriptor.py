@@ -146,14 +146,16 @@ class PartsDescriptor(BinaryDescriptor):
         
         # Do spreading
         radii = self.settings['spread_radii']
-        if max(radii) > 0:
-            spread_parts = ag.features.spread_patches(parts, radii[0], radii[1], self.num_parts)
-            return spread_parts 
-        else:
+        print 'spreading', radii
+        #radii = (0, 0)
+        #if max(radii) > 0:
+        spread_parts = ag.features.spread_patches(parts, radii[0], radii[1], self.num_parts)
+        return spread_parts 
+        #else:
             # TODO: Maybe not this way.
             #spread_parts = ag.features.spread_parts(parts, 0, 0, self.num_parts)
             #return spread_parts 
-            return parts
+            #return parts
 
     @classmethod
     def load_from_dict(cls, d):

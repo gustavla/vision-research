@@ -97,17 +97,17 @@ class Detector(Saveable):
             if isinstance(img_obj, str):
                 ag.info(i, "Processing file", img_obj)
                 img = gv.img.load_image(img_obj)
-                img = img[...,:3].mean(axis=-1)
+                grayscale_img = img[...,:3].mean(axis=-1)
             else:
                 ag.info(i, "Processing image of shape", img_obj.shape)
-                img = img_obj
+                grayscale_img = img_obj.mean(axis=-1)
     
     
             # Resize the image before extracting features
-            if resize_to is not None and resize_to != img.shape[:2]:
-                img = gv.img.resize(img, resize_to) 
+            if resize_to is not None and resize_to != grayscale_img.shape[:2]:
+                grayscale_img = gv.img.resize(grayscale_img, resize_to) 
 
-            small = self.extract_pooled_features(img)
+            small = self.extract_pooled_features(grayscale_img)
 
             if has_alpha is None:
                 has_alpha = (img.shape[-1] == 4)
@@ -216,33 +216,7 @@ class Detector(Saveable):
         else:
             back = np.tile(back, (small.kernel_shape + (small.shape[-1],)))
 
-        if 1:
-            import pylab as plt
-            plt.hist(back[0,0], 30)
-            plt.show()
-    
-        #print 'MAX BACK', back.max()
-        #print 'which', back[0,0].argmax()
-
-        #print "Backs: {0} (std: {1}) [{2}, {3}]".format(back.mean(), back.std(), back.min(), back.max())
-
-        #print "Most ubiquitous:", np.argmax(back)
-
-        #back[...] = 0.05
-
         back = np.clip(back, 0.05, 0.95)
-
-        if 0:
-            import matplotlib.pylab as plt
-            print back.shape
-            plt.hist(back[0,0], 30)
-            plt.show()
-
-    
-        #print back.shape
-        #print back
-        #self.log_back = np.log(back)
-        #self.log_invback = np.log(1.0 - back)
 
         # Create kernels just for this case
         kernels = self.kernels.copy()
@@ -258,13 +232,6 @@ class Detector(Saveable):
                 plt.imshow(ss, interpolation='nearest', cmap=plt.cm.gray)
                 plt.colorbar()
                 plt.show()
-            #kernels[mixcomp] *= 1.67
-            #kernels[mixcomp] *= 1.10
-            #kernels[mixcomp] *= 1.38
-            #print 'max kernels', kernels[mixcomp].max()
-        
-            #total = (kernels[mixcomp] - back).sum()
-            #print 'TOTAL', total
 
             score_lower = (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)).sum()
             score = np.inf
@@ -298,7 +265,7 @@ class Detector(Saveable):
             #kernels *= middle
             #print 'middle', middle
 
-            if 1:
+            if 0:
                 for i in xrange(self.kernel_size[0]):
                     for j in xrange(self.kernel_size[1]):
                         c = 0
@@ -405,7 +372,7 @@ class Detector(Saveable):
 
         if self.small_support is not None:
             ss = self.small_support[mixcomp].copy()
-            ss *= 2 
+            ss *= 5 
             ss = np.clip(ss, 0, 1)
 
             #print "Top-left (pre-normalization):", res[0,0]
@@ -422,13 +389,6 @@ class Detector(Saveable):
 
             #print 'TOP', np.unravel_index(res.argmax(), res.shape)
 
-        if 0:
-            import pylab as plt
-            plt.imshow(densities, interpolation='nearest')
-            plt.colorbar()
-            plt.show()
-
-        #print "Top-left:", res[0,0]
         return res, small
 
     @property
