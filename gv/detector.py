@@ -227,7 +227,7 @@ class Detector(Saveable):
             ss *= 5 
             ss = np.clip(ss, 0, 1)
             #ss = (0.30 < ss).astype(float)
-            if 1:
+            if 0:
                 import pylab as plt
                 plt.imshow(ss, interpolation='nearest', cmap=plt.cm.gray)
                 plt.colorbar()
