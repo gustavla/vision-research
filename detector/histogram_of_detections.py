@@ -47,6 +47,7 @@ def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
     # Extract features
     for i in xrange(len(originals)):
         im = originals[i]  
+        grayscale_img = im.mean(axis=-1)
         bb = bbs[i]
         #edges = detector.extract_pooled_features(im)
 
@@ -59,7 +60,7 @@ def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
 
         # Check response map
         print "calling response_map", im.shape, mixcomp
-        res, small = detector.response_map(im, mixcomp)
+        res, small = detector.response_map(grayscale_img, mixcomp)
 
         print 'small', small.shape
 
@@ -84,7 +85,7 @@ def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
                 plt.imshow(res, interpolation='nearest')
                 plt.colorbar()
                 plt.title("Top: {0:.2f} ({1:.2f})".format(top, res.max()))
-            elif True:#top < -5000:
+            elif False:#top < -5000:
                 #plt.subplot(3, 6, 1+2*i)
                 plt.subplot(1, 2, 1)
                 plt.imshow(im, interpolation='nearest')
@@ -95,7 +96,6 @@ def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
                 #plt.title("{0}".format(i))
                 plt.title("Top: {0:.2f} ({1:.2f})".format(top, res.max()))
                 plt.show()
-        import sys; sys.exit(0)
         
     #print llhs
     if 0:

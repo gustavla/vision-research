@@ -146,7 +146,6 @@ class PartsDescriptor(BinaryDescriptor):
         
         # Do spreading
         radii = self.settings['spread_radii']
-        print 'spreading', radii
         #radii = (0, 0)
         #if max(radii) > 0:
         spread_parts = ag.features.spread_patches(parts, radii[0], radii[1], self.num_parts)

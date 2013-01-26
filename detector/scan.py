@@ -32,6 +32,8 @@ if fileobj is None:
     print("Could not find image", file=sys.stderr)
     sys.exit(0)
 img = gv.img.load_image(fileobj.path)
+
+grayscale_img = img.mean(axis=-1)
 #img = np.random.random(img.shape)
 
 #print(fileobj)
@@ -41,7 +43,7 @@ img = gv.img.load_image(fileobj.path)
 
 if side is not None:
     assert mixcomp is not None
-    bbs, x, small = detector.detect_coarse_unfiltered_at_scale(img, side, mixcomp) 
+    bbs, x, small = detector.detect_coarse_unfiltered_at_scale(grayscale_img, side, mixcomp) 
     bbs = detector.nonmaximal_suppression(bbs)
 
     print('small', small.shape)
@@ -52,9 +54,9 @@ if side is not None:
     print('max response (xx)', xx.max())
 else:
     if mixcomp is None:
-        bbs = detector.detect_coarse(img, fileobj=fileobj)
+        bbs = detector.detect_coarse(grayscale_img, fileobj=fileobj)
     else:
-        bbs = detector.detect_coarse_single_component(img, mixcomp, fileobj=fileobj) 
+        bbs = detector.detect_coarse_single_component(grayscale_img, mixcomp, fileobj=fileobj) 
     print(bbs)
     if len(bbs) > 0:
         print('max score: ', bbs[0].score)
