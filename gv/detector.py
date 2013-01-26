@@ -21,8 +21,14 @@ def probpad(data, padwidth, prob):
     new_data[ [slice(w, -w) if w > 0 else slice(None) for w in padwidth] ] = data 
     return new_data
 
+def pooling_size(data, size):
+    return tuple([data.shape[i]//size[i] for i in xrange(2)])
+
 # TODO: Eventually migrate 
 def max_pooling(data, size):
+    # TODO: Remove this later
+    if size == (1, 1):
+        return data
     steps = tuple([data.shape[i]//size[i] for i in xrange(2)])
     offset = tuple([data.shape[i]%size[i]//2 for i in xrange(2)])
     if data.ndim == 3:
@@ -108,7 +114,8 @@ class Detector(Saveable):
                 img = gv.img.resize(img, resize_to)
                 grayscale_img = gv.img.resize(grayscale_img, resize_to) 
 
-            small = self.extract_pooled_features(grayscale_img)
+            #small = self.extract_pooled_features(grayscale_img)
+            edges = self.descriptor.extract_features(grayscale_img)
 
             if has_alpha is None:
                 has_alpha = (img.shape[-1] == 4)
@@ -116,11 +123,11 @@ class Detector(Saveable):
             # Extract the parts, with some pooling 
             #small = self.descriptor.pool_features(edges)
             if shape is None:
-                shape = small.shape
-                output = np.empty((len(images),) + small.shape)
+                shape = edges.shape
+                output = np.empty((len(images),) + edges.shape)
                 
-            assert small.shape == shape, "Images must all be of the same size, for now at least"
-            output[i] = small 
+            assert edges.shape == shape, "Images must all be of the same size, for now at least"
+            output[i] = edges 
             if has_alpha:
                 alpha_maps.append(img[...,3])
 
@@ -128,7 +135,7 @@ class Detector(Saveable):
 
         # Train mixture model OR SVM
         mixture = ag.stats.BernoulliMixture(self.num_mixtures, output)
-        mixture.run_EM(1e-7, self.settings['min_probability'])
+        mixture.run_EM(1e-6, self.settings['min_probability'])
         
         #self.templates = mixture.templates
         self.mixture = mixture
@@ -147,14 +154,17 @@ class Detector(Saveable):
         mean pooling here, which might be different from the pooling we use for the
         features.
         """
-        self.small_support = None
-        if self.support is not None:
-            num_mix = self.mixture.num_mix
-            for k in xrange(num_mix):
-                p = mean_pooling(self.support[k], self.settings['pooling_size'])
-                if self.small_support is None:
-                    self.small_support = np.zeros((num_mix,) + p.shape)
-                self.small_support[k] = p
+
+        # TODO: No such thing as mean pooling the support anymore
+        if 0:
+            self.small_support = None
+            if self.support is not None:
+                num_mix = self.mixture.num_mix
+                for k in xrange(num_mix):
+                    p = mean_pooling(self.support[k], self.settings['pooling_size'])
+                    if self.small_support is None:
+                        self.small_support = np.zeros((num_mix,) + p.shape)
+                    self.small_support[k] = p
 
     def _preprocess_kernels(self):
         # TODO: Change this to a 
@@ -162,122 +172,60 @@ class Detector(Saveable):
     
         # Now, we will extract the templates from the mixture model and
         # incorporate the support into it. We will call the result the kernel
-        self.kernels = self.mixture.templates.copy()
-        m0, m1 = self.kernels.min(), self.kernels.max()
-        for f in xrange(self.mixture.templates.shape[-1]):
+        self.large_kernels = self.mixture.templates.copy()
+        #m0, m1 = kernels.min(), self.kernels.max()
+        if 0:
+            for f in xrange(self.mixture.templates.shape[-1]):
+                
+                # only after this step.
+                if self.support is not None:
+                    alpha = self.small_support
+                    m = self.kernels[...,f].copy()
             
-            # TODO: These are two competing ways. I need to confirm
-            # the right way more scientifically. The second way produces    
-            # better results (as far as I can see from the test images).
-            #alpha = np.clip(self.small_support, 2.0*smallest, 1.0)
-            #self.mixture.templates[...,f] = self.mixture.templates[...,f] / alpha
-            #alpha = np.clip(self.small_support, smallest, 1.0-smallest)
-
-            # The fact that they range from 0.05 to 0.95 causes some problem here.
-            # We might even consider removing that constraint altogether, and enforce it
-            # only after this step.
-            if self.small_support is not None:
-                alpha = self.small_support
-                m = self.kernels[...,f].copy()
-        
-                # Or stretch them out?
-                m[m == m0] = 0.0
-                m[m == m1] = 1.0
-                # What this is essentially doing is boosting everything a bit, nothing is
-                # completely opaque, which might be the source of the boost.
-                # If we add "alpha *" before m, then it's as bad as the other method (and
-                # with very similar results)
-                #self.kernels[...,f] = 0.5 * (1-alpha) + m#self.mixture.templates[...,f]# / alpha
+                    # Or stretch them out?
+                    m[m == m0] = 0.0
+                    m[m == m1] = 1.0
+                    # What this is essentially doing is boosting everything a bit, nothing is
+                    # completely opaque, which might be the source of the boost.
+                    # If we add "alpha *" before m, then it's as bad as the other method (and
+                    # with very similar results)
+                    #self.kernels[...,f] = 0.5 * (1-alpha) + m#self.mixture.templates[...,f]# / alpha
+                    #self.kernels[...,f] = 
 
         # TODO: Putting *3 here makes it stop favor background. UNDERSTAND!
         #self.kernels *= 1 
 
-        eps = self.settings['min_probability']
-        self.kernels = np.clip(self.kernels, eps, 1-eps)
+        #eps = self.settings['min_probability']
+        #self.kernels = np.clip(self.kernels, eps, 1-eps)
 
         #self.mixture.templates = np.clip(self.mixture.templates, 0.5, 1.0)
-        self.log_kernels = np.log(self.kernels)
-        self.log_invkernels = np.log(1.0-self.kernels)
-        self.log_kernel_ratios = np.log(self.kernels / (1.0 - self.kernels))
+        #self.log_kernels = np.log(self.kernels)
+        #self.log_invkernels = np.log(1.0-self.kernels)
+        #self.log_kernel_ratios = np.log(self.kernels / (1.0 - self.kernels))
 
     def extract_pooled_features(self, image):
         edges = self.descriptor.extract_features(image)
         small = max_pooling(edges, self.settings['pooling_size'])
         return small
 
-    def prepare_kernels(self, image, mixcomp, back=None):
+    def prepare_kernels(self, image, mixcomp, backTODO=None):
         # Convert image to our feature space representation
-        small = self.extract_pooled_features(image)
+        #small = self.extract_pooled_features(image)
+        edges = self.descriptor.extract_features(image)
 
-        if back is None:
-            # Figure out background probabilities of this image
-            back = np.zeros(self.log_kernels.shape[1:]) 
-            for f in xrange(small.shape[-1]):
-                back[...,f] = small[...,f].sum() / np.prod(small.shape[:2])
-        else:
-            back = np.tile(back, (small.kernel_shape + (small.shape[-1],)))
-
-        back = np.clip(back, 0.05, 0.95)
-
-        # Create kernels just for this case
-        kernels = self.kernels.copy()
-
-        if self.small_support is not None:
-            ss = self.small_support[mixcomp].copy()
-            #ss /= ss.max()
-            ss *= 5 
-            ss = np.clip(ss, 0, 1)
-            #ss = (0.30 < ss).astype(float)
-            if 0:
-                import pylab as plt
-                plt.imshow(ss, interpolation='nearest', cmap=plt.cm.gray)
-                plt.colorbar()
-                plt.show()
-
-            score_lower = (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)).sum()
-            score = np.inf
-
-            lower = 0.0001
-            higher = 10.0
-            middle = 1.0 
+        num_features = edges.shape[-1]
+        back = np.zeros(num_features)
+        for f in xrange(num_features):
+            back[f] = edges[...,f].sum() / np.prod(edges.shape[:2])
         
-            if 0:
-                limit = 0
-                while np.fabs(score_lower - score) > 10.0 and limit < 30:
-                    limit += 1
-                    middle = (lower + higher) / 2.0
-                    kerny = kernels[mixcomp].copy()
-                    kerny *= middle
-                    for f in xrange(small.shape[-1]):
-                        kerny[...,f] = np.clip((1-ss) * back[0,0,f] + ss * kerny[...,f], 0.05, 0.95)
+        # Create kernels just for this case
+        #large_kernels = self.large_kernels.copy()
+        large_kernels = self.mixture.templates.copy()
 
-
-                    score_lower = (np.log(1.0 - kerny) - np.log(1.0 - back)).sum()
-                    score = (back * (np.log(kerny) - np.log(back)) + \
-                             (1-back) * (np.log(1.0 - kerny) - np.log(1.0 - back))).sum()
-
-                    #print lower, higher, score_lower, score
-
-                    if score < score_lower:
-                        lower = middle
-                    else:
-                        higher = middle
-
-            #kernels *= middle
-            #print 'middle', middle
-
-            if 0:
-                for i in xrange(self.kernel_size[0]):
-                    for j in xrange(self.kernel_size[1]):
-                        c = 0
-                        for f in xrange(small.shape[-1]): 
-                            c += int(kernels[mixcomp,i,j,f] > back[0,0,f])
-                        if c < 1:#self.settings['magic_threshold']:
-                            #print "Setting {0},{1},{2} to {3}".format(i,j,f,back[0,0,f])
-                            kernels[mixcomp,i,j] = back[0,0]
-            else:
-                for f in xrange(small.shape[-1]):
-                    kernels[mixcomp,...,f] = np.clip((1-ss) * back[0,0,f] + ss * kernels[mixcomp,...,f], 0.05, 0.95)
+        if self.support is not None:
+            for f in xrange(num_features):
+                #large_kernels[mixcomp,...,f] = np.clip(large_kernels[mixcomp,...,f] + (1-self.support[mixcomp]) * back[f], 0.05, 0.95) # Parameterize min probability
+                large_kernels[mixcomp,...,f] += (1-self.support[mixcomp]) * back[f]
             
             #print "MAX KERNELS", kernels[mixcomp].max()
         
@@ -300,15 +248,45 @@ class Detector(Saveable):
         #print "Front score", score2
         #print "Middle score", score3
 
-        return back, kernels, small
+        # Pool kernels
+        kernels = None
+        psize = self.settings['pooling_size']
+        for k in xrange(self.num_mixtures):          
+            # TODO: MAX POOLING THE PROBABILITIES!? Doesn't make sense.
+            pooled = max_pooling(self.large_kernels[k], psize)
+            if kernels is None:
+                kernels = np.empty((self.num_mixtures,) + pooled.shape)
+            kernels[k] = pooled
 
-    def response_map(self, image, mixcomp, back=None):
+        kernels = np.clip(kernels, 0.05, 0.95)
+
+        large_back = np.zeros(self.large_kernels.shape[1:]) 
+        for f in xrange(edges.shape[-1]):
+            large_back[...,f] = edges[...,f].sum() / np.prod(edges.shape[:2])
+
+        back_kernel = np.zeros(kernels.shape[1:]) 
+        for f in xrange(edges.shape[-1]):
+            back_kernel[...,f] = edges[...,f].sum() / np.prod(edges.shape[:2])
+
+        back_kernel = np.clip(back_kernel, 0.05, 0.95)
+
+        # Now pool edges
+        pooled_edges = max_pooling(edges, psize)
+
+        # TODO: Revisit this
+        self.kernels = kernels
+
+        #import ipdb; ipdb.set_trace()
+
+        return back_kernel, kernels, pooled_edges#small
+
+    def response_map(self, image, mixcomp):
         """Retrieves log-likelihood response on 'image' (no scaling done)"""
 
-        back, kernels, small = self.prepare_kernels(image, mixcomp, back=back)
+        back_kernel, kernels, edges = self.prepare_kernels(image, mixcomp)
 
         sh = kernels.shape
-        bigger = ag.util.zeropad(small, (sh[1]//2, sh[2]//2, 0))
+        bigger = ag.util.zeropad(edges, (sh[1]//2, sh[2]//2, 0)).astype(np.float64)
         #bigger = ag.util.zeropad(small, (sh[1], sh[2], 0))
         #bigger = probpad(small, (sh[1]//2, sh[2]//2, 0), back[0,0])
 
@@ -322,10 +300,11 @@ class Detector(Saveable):
                 # TODO: Missing constant now
                 #r1 = masked_convolve(bigger, self.log_kernel_ratios[k])
                 #r2 = 0.0
+                #print bigger.dtype, kernels.dtype
                 r1 = masked_convolve(bigger, np.log(kernels[k]))
                 r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
-                r3 = masked_convolve(1-bigger, -np.log(1.0 - back))
-                r4 = masked_convolve(bigger, -np.log(back))
+                r3 = masked_convolve(1-bigger, -np.log(1.0 - back_kernel))
+                r4 = masked_convolve(bigger, -np.log(back_kernel))
                 #print 'TOP-LEFTS', r1[0,0], r2[0,0], r3[0,0], r4[0,0]
                 #print r1.sum(), r2.sum(), r3.sum(), r4.sum()
                 #res += r1 + r2
@@ -356,65 +335,35 @@ class Detector(Saveable):
                     else:
                         res += r1 + r2 + r3 + r4
 
-        ksh = sh[1:3]
+        return res, edges 
 
-        score_lower = (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)).sum()
-        score_upper = (np.log(kernels[mixcomp]) - np.log(back)).sum()
-        #print "Back score", score_lower
-        #print "Front score", score_upper
-
-        # Normalize
-        #print 'ksh', ksh
-        #print sh[1:]
-        #print 'res', res.shape
-        #print 'small', small.shape
-        #print 'bigger', bigger.shape
-        densities = np.empty(res.shape)
-
-        if self.small_support is not None:
-            ss = self.small_support[mixcomp].copy()
-            ss *= 5 
-            ss = np.clip(ss, 0, 1)
-
-            #print "Top-left (pre-normalization):", res[0,0]
-
-            for x in xrange(res.shape[0]):
-                for y in xrange(res.shape[1]):
-                    density = (ss.reshape(ss.shape + (1,)) * bigger[x:x + ksh[0], y:y + ksh[1]]).sum() / (ss.sum() * sh[-1]) #np.prod(sh[1:])
-                    #print density
-                    #res[x,y] = (res[x,y] + 0.001) / max(density, 0.0000000000000000001)
-                    #res[x,y] = (res[x,y] - score_lower) - density * (score_upper - score_lower)
-                    # Doesn't matter if standardizing
-                    #res[x,y] -= score_lower
-                    densities[x,y] = density
-
-            #print 'TOP', np.unravel_index(res.argmax(), res.shape)
-
-        return res, small
+    @property
+    def large_kernel_size(self):
+        return self.large_kernels.shape[1:3]
 
     @property
     def kernel_size(self):
-        return self.kernels.shape[1:3]
+        return pooling_size(self.large_kernels[0], self.settings['pooling_size'])
 
     @property
     def kernel_side(self):
         # The side here is the maximum side of the kernel size 
         return max(self.kernel_size)
 
-    def resize_and_detect(self, img, mixcomp, side=128, back=None):
+    def resize_and_detect(self, img, mixcomp, side=128):
         factor = self.factor(side)
         img_resized = gv.img.resize_with_factor(img, factor)
     
 
         #print "calling response_map", img_resized.shape, mixcomp
-        x, img_feat = self.response_map(img_resized, mixcomp, back=back)
+        x, img_feat = self.response_map(img_resized, mixcomp)
         return x, img_feat, img_resized
 
     def factor(self, side):
         return self.kernel_side / side
 
-    def detect_coarse_unfiltered_at_scale(self, img, side, mixcomp, back=None):
-        x, small, img_resized = self.resize_and_detect(img, mixcomp, side, back=back)
+    def detect_coarse_unfiltered_at_scale(self, img, side, mixcomp):
+        x, small, img_resized = self.resize_and_detect(img, mixcomp, side)
 
         # Frst pick 
         th = -37000#-35400 
@@ -528,10 +477,11 @@ class Detector(Saveable):
     
     def bounding_box_for_mix_comp(self, k):
         """This returns a bounding box of the support for a given component"""
+
         # Take the bounding box of the support, with a certain threshold.
         #print self.support
-        if self.small_support is not None:
-            supp = self.small_support[k] 
+        if self.support is not None:
+            supp = self.support[k] 
             supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
 
             # TODO: Make into a setting
@@ -540,7 +490,8 @@ class Detector(Saveable):
             bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
 
             # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
-            ret = (bb[0][0], bb[1][0], bb[0][1], bb[1][1])
+            psize = self.settings['pooling_size']
+            ret = (bb[0][0]/psize[0], bb[1][0]/psize[1], bb[0][1]/psize[0], bb[1][1]/psize[1])
             return ret
         else:
             #print '------------'
@@ -625,6 +576,9 @@ class Detector(Saveable):
             obj.mixture = ag.stats.BernoulliMixture.load_from_dict(d['mixture'])
             obj.settings = d['settings']
             obj.support = d['support']
+
+            # TODO: Pooling is not supported right now! 
+            obj.settings['pooling_size'] = (1, 1)
             obj._preprocess()
             return obj
         except KeyError, e:
