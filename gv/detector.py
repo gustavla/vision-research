@@ -105,6 +105,7 @@ class Detector(Saveable):
     
             # Resize the image before extracting features
             if resize_to is not None and resize_to != grayscale_img.shape[:2]:
+                img = gv.img.resize(img, resize_to)
                 grayscale_img = gv.img.resize(grayscale_img, resize_to) 
 
             small = self.extract_pooled_features(grayscale_img)
