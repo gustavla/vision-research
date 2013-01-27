@@ -62,6 +62,9 @@ def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
         print "calling response_map", im.shape, mixcomp
         res, small = detector.response_map(grayscale_img, mixcomp)
 
+        # Normalize 
+        xx = (res - res.mean()) / res.std()
+
         print 'small', small.shape
 
         # Check max at the center of the bounding box (bb)
@@ -74,7 +77,7 @@ def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
         #print 'im', im.shape
         #print 'res', res.shape
         #print m
-        top = res[max(0, m[0]-s):min(m[0]+s, res.shape[0]), max(0, m[1]-s):min(m[1]+s, res.shape[1])].max()
+        top = xx[max(0, m[0]-s):min(m[0]+s, res.shape[0]), max(0, m[1]-s):min(m[1]+s, res.shape[1])].max()
         llhs.append(top)
 
         if 1:
