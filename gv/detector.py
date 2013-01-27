@@ -375,7 +375,7 @@ class Detector(Saveable):
         #th = 800.0
         th = 750.0
         xx = x
-        #xx = (x - x.mean()) / x.std()
+        xx = (x - x.mean()) / x.std()
         GET_ONE = True#False 
         if GET_ONE:
             th = xx.max() 
