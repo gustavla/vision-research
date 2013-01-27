@@ -113,10 +113,34 @@ class PartsDescriptor(BinaryDescriptor):
         # Also store these in "settings"
         mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
         ag.info("Done.")
+
+        # Reject weak parts
+        scores = np.empty(self.num_parts) 
+        for i in xrange(self.num_parts):
+            part = mixture.templates[i]
+            sh = part.shape
+            p = part.reshape((sh[0]*sh[1], sh[2]))
+            
+            #import ipdb; ipdb.set_trace()
+            pec = p.mean(axis=0)
+        
+            N = np.sum(p * np.log(p/pec) + (1-p)*np.log((1-p)/(1-pec)))
+            D = np.sqrt(np.sum(np.log(p/(1-p))**2 * p * (1-p)))
+
+            scores[i] = N/D 
+
+        # Only keep with a certain score
+        visparts = mixture.remix(raw_originals)
+        
+        self.parts = mixture.templates[scores > 1]
+        self.visparts = visparts[scores > 1]
+        self.num_parts = self.parts.shape[0]
+        
+        # Update num_parts
         
         # Store the stuff in the instance
-        self.parts = mixture.templates
-        self.visparts = mixture.remix(raw_originals)
+        #self.parts = mixture.templates
+        #self.visparts = mixture.remix(raw_originals)
 
         self._preprocess_logs()
 

@@ -35,6 +35,8 @@ if normalize:
 else:
     dbin = 100
 
+dbin = 0.5
+
 mn = dbin * (mn//dbin) - dbin * 2 
 mx = dbin * (mx//dbin) + dbin * 3
 
