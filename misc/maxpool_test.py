@@ -3,6 +3,21 @@ import numpy as np
 import amitgroup as ag
 from time import time
 
+def pool(data, length, func):
+    steps = data.shape[1]//length
+    ret = np.empty((data.shape[0], steps))
+    for i in xrange(steps):
+        ret[:,i] = func(data[:,i*length:(i+1)*length])
+    return ret
+    
+def maxpool(data, length):
+    return pool(data, length, lambda x: np.max(x, axis=1))
+
+def meanpool(data, length):
+    return pool(data, length, lambda x: np.mean(x, axis=1))
+
+def minpool(data, length):
+    return pool(data, length, lambda x: np.min(x, axis=1))
 
 def trial(seed=0):
     eps = 1e-10
@@ -12,7 +27,8 @@ def trial(seed=0):
     K = 2
     eachN = 100000 
     N = K*eachN
-    M = 500 
+    M = 40 
+    pool_length = 2 
     np.random.seed(0)
     theta = np.random.random((K, M))
     alphas = (np.random.random((K, M)) < 0.5).astype(float)
@@ -20,6 +36,7 @@ def trial(seed=0):
     #alphas = np.tile(np.random.random(M) < 0.5, (K, 1))
     #b = np.clip(np.random.random(M), 0.1, 0.9)
     b = np.ones(M) * 0.2
+    b2 = np.ones(M//pool_length) * 0.36
     print theta
     print b
 
@@ -35,10 +52,18 @@ def trial(seed=0):
     X *= A
     end = time() 
     print end - start
-    model = ag.stats.BernoulliMixture(K, X.astype(np.uint8))
+    Y = maxpool(X, pool_length)
+    model = ag.stats.BernoulliMixture(K, Y.astype(np.uint8))
     model.run_EM(eps, 1e-5)
-    support = model.remix(A)
-    corrected = model.templates + (1-support) * b
+    B = meanpool(A, pool_length)
+    B2 = maxpool(A, pool_length)
+    print "#"*80
+    print A.shape
+    print B.shape
+    support = model.remix(B)
+    support2 = model.remix(B2)
+    #corrected = model.templates + (1-(support+support2)/2) * b2
+    corrected = 1 - (1-model.templates) * (1-b[0])**(pool_length*(1-support))
     print "X"
     print X
     print "alphas"
@@ -55,7 +80,11 @@ def trial(seed=0):
             fore = (np.random.random(M) < theta[k]).astype(float)
             X2[k*eachN+i] = alphas[k] * fore + (1-alphas[k]) * back
 
-    model2 = ag.stats.BernoulliMixture(K, X2.astype(np.uint8))
+    print '---------->'
+    print X2.shape
+    Y2 = maxpool(X2, pool_length)
+    print Y2.shape
+    model2 = ag.stats.BernoulliMixture(K, Y2.astype(np.uint8))
     model2.run_EM(eps, 1e-5)
     #print X
     #print X2
@@ -86,6 +115,7 @@ def trial(seed=0):
     print 'model2'
     print model2templates
     print '---'
+    print (corrected - model2templates)
     scores = np.fabs(corrected - model2templates).sum(), np.fabs(model1templates - model2templates).sum()
     print scores[0], scores[1]
 
@@ -95,6 +125,6 @@ if __name__ == '__main__':
     TRIALS = 1
     for i in xrange(TRIALS):
         c, m, s = trial(i)
-        print c
-        print m
-        print s 
+        #print c
+        #print m
+        #print s 
