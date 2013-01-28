@@ -14,7 +14,8 @@ class EdgeDescriptor(BinaryDescriptor):
         self.settings.update(settings)
 
     def extract_features(self, img):
-        return ag.features.bedges_from_image(img, **self.settings)
+        #return ag.features.bedges_from_image(img, **self.settings)
+        return ag.features.bedges(img, **self.settings)
 
     def save_to_dict(self):
         return self.settings

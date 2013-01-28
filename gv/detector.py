@@ -114,8 +114,8 @@ class Detector(Saveable):
                 img = gv.img.resize(img, resize_to)
                 grayscale_img = gv.img.resize(grayscale_img, resize_to) 
 
-            #small = self.extract_pooled_features(grayscale_img)
-            edges = self.descriptor.extract_features(grayscale_img)
+            edges = self.extract_pooled_features(grayscale_img)
+            #edges = self.descriptor.extract_features(grayscale_img)
 
             if has_alpha is None:
                 has_alpha = (img.shape[-1] == 4)
@@ -156,7 +156,7 @@ class Detector(Saveable):
         """
 
         # TODO: No such thing as mean pooling the support anymore
-        if 0:
+        if 1:
             self.small_support = None
             if self.support is not None:
                 num_mix = self.mixture.num_mix
@@ -204,14 +204,15 @@ class Detector(Saveable):
         #self.log_kernel_ratios = np.log(self.kernels / (1.0 - self.kernels))
 
     def extract_pooled_features(self, image):
+        #print image.shape
         edges = self.descriptor.extract_features(image)
         small = max_pooling(edges, self.settings['pooling_size'])
         return small
 
     def prepare_kernels(self, image, mixcomp, backTODO=None):
         # Convert image to our feature space representation
-        #small = self.extract_pooled_features(image)
-        edges = self.descriptor.extract_features(image)
+        edges = self.extract_pooled_features(image)
+        #edges = self.descriptor.extract_features(image)
 
         num_features = edges.shape[-1]
         back = np.zeros(num_features)
@@ -225,7 +226,7 @@ class Detector(Saveable):
         if self.support is not None:
             for f in xrange(num_features):
                 #large_kernels[mixcomp,...,f] = np.clip(large_kernels[mixcomp,...,f] + (1-self.support[mixcomp]) * back[f], 0.05, 0.95) # Parameterize min probability
-                large_kernels[mixcomp,...,f] += (1-self.support[mixcomp]) * back[f]
+                large_kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
             
             #print "MAX KERNELS", kernels[mixcomp].max()
         
@@ -578,7 +579,7 @@ class Detector(Saveable):
             obj.support = d['support']
 
             # TODO: Pooling is not supported right now! 
-            obj.settings['pooling_size'] = (1, 1)
+            obj.settings['pooling_size'] = (2, 2)
             obj._preprocess()
             return obj
         except KeyError, e:
