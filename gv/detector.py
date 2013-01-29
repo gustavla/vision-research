@@ -135,7 +135,8 @@ class Detector(Saveable):
 
         # Train mixture model OR SVM
         mixture = ag.stats.BernoulliMixture(self.num_mixtures, output)
-        mixture.run_EM(1e-6, self.settings['min_probability'])
+        #mixture.run_EM(1e-6, self.settings['min_probability'])
+        mixture.run_EM(1e-6, 1e-5)
         
         #self.templates = mixture.templates
         self.mixture = mixture
@@ -172,7 +173,7 @@ class Detector(Saveable):
     
         # Now, we will extract the templates from the mixture model and
         # incorporate the support into it. We will call the result the kernel
-        self.large_kernels = self.mixture.templates.copy()
+        self.kernels = self.mixture.templates.copy()
         #m0, m1 = kernels.min(), self.kernels.max()
         if 0:
             for f in xrange(self.mixture.templates.shape[-1]):
@@ -221,16 +222,18 @@ class Detector(Saveable):
         
         # Create kernels just for this case
         #large_kernels = self.large_kernels.copy()
-        large_kernels = self.mixture.templates.copy()
+        kernels = self.mixture.templates.copy()
 
         if self.support is not None:
             for f in xrange(num_features):
                 #large_kernels[mixcomp,...,f] = np.clip(large_kernels[mixcomp,...,f] + (1-self.support[mixcomp]) * back[f], 0.05, 0.95) # Parameterize min probability
-                large_kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
+                print kernels[mixcomp,...,f].shape, self.small_support[mixcomp].shape, back[f].shape
+                kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
+                #kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.small_support[mixcomp])
             
             #print "MAX KERNELS", kernels[mixcomp].max()
         
-            
+
         #for x in xrange(kernels.shape[1]):
             #for y in xrange(kernels.shape[2]):
                 #kernels[mixcomp,x,y] = kernels[mixcomp,x,y] / kernels[mixcomp,x,y].sum()
@@ -250,26 +253,27 @@ class Detector(Saveable):
         #print "Middle score", score3
 
         # Pool kernels
-        kernels = None
         psize = self.settings['pooling_size']
-        for k in xrange(self.num_mixtures):          
-            # TODO: MAX POOLING THE PROBABILITIES!? Doesn't make sense.
-            pooled = max_pooling(self.large_kernels[k], psize)
-            if kernels is None:
-                kernels = np.empty((self.num_mixtures,) + pooled.shape)
-            kernels[k] = pooled
+        #for k in xrange(self.num_mixtures):          
+        #    # TODO: MAX POOLING THE PROBABILITIES!? Doesn't make sense.
+            #pooled = max_pooling(self.large_kernels[k], psize)
+        #    if kernels is None:
+        #        kernels = np.empty((self.num_mixtures,) + pooled.shape)
+        #    kernels[k] = pooled
 
-        kernels = np.clip(kernels, 0.05, 0.95)
+        eps = self.settings['min_probability']
+        kernels = np.clip(kernels, eps, 1-eps)
 
-        large_back = np.zeros(self.large_kernels.shape[1:]) 
+        back = np.zeros(kernels.shape[1:]) 
         for f in xrange(edges.shape[-1]):
-            large_back[...,f] = edges[...,f].sum() / np.prod(edges.shape[:2])
+            back[...,f] = edges[...,f].sum()
+        back /= np.prod(edges.shape[:2])
 
-        back_kernel = np.zeros(kernels.shape[1:]) 
-        for f in xrange(edges.shape[-1]):
-            back_kernel[...,f] = edges[...,f].sum() / np.prod(edges.shape[:2])
+        #back_kernel = np.zeros(kernels.shape[1:]) 
+        #for f in xrange(edges.shape[-1]):
+        #    back_kernel[...,f] = edges[...,f].sum() / np.prod(edges.shape[:2])
 
-        back_kernel = np.clip(back_kernel, 0.05, 0.95)
+        #back_kernel = np.clip(back_kernel, 0.05, 0.95)
 
         # Now pool edges
         pooled_edges = max_pooling(edges, psize)
@@ -279,7 +283,7 @@ class Detector(Saveable):
 
         #import ipdb; ipdb.set_trace()
 
-        return back_kernel, kernels, pooled_edges#small
+        return back, kernels, pooled_edges#small
 
     def response_map(self, image, mixcomp):
         """Retrieves log-likelihood response on 'image' (no scaling done)"""
@@ -302,6 +306,7 @@ class Detector(Saveable):
                 #r1 = masked_convolve(bigger, self.log_kernel_ratios[k])
                 #r2 = 0.0
                 #print bigger.dtype, kernels.dtype
+                print back_kernel.shape, bigger.shape, kernels[k].shape
                 r1 = masked_convolve(bigger, np.log(kernels[k]))
                 r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
                 r3 = masked_convolve(1-bigger, -np.log(1.0 - back_kernel))
@@ -339,12 +344,8 @@ class Detector(Saveable):
         return res, edges 
 
     @property
-    def large_kernel_size(self):
-        return self.large_kernels.shape[1:3]
-
-    @property
     def kernel_size(self):
-        return pooling_size(self.large_kernels[0], self.settings['pooling_size'])
+        return self.kernels.shape[1:3] #pooling_size(self.large_kernels[0], self.settings['pooling_size'])
 
     @property
     def kernel_side(self):
@@ -352,7 +353,10 @@ class Detector(Saveable):
         return max(self.kernel_size)
 
     def resize_and_detect(self, img, mixcomp, side=128):
+        print 'side', side
+        print 'kernel_side', self.kernel_side
         factor = self.factor(side)
+        print 'factor', factor
         img_resized = gv.img.resize_with_factor(img, factor)
     
 
@@ -579,7 +583,7 @@ class Detector(Saveable):
             obj.support = d['support']
 
             # TODO: Pooling is not supported right now! 
-            obj.settings['pooling_size'] = (2, 2)
+            #obj.settings['pooling_size'] = (2, 2)
             obj._preprocess()
             return obj
         except KeyError, e:
