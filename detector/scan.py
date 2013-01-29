@@ -18,6 +18,7 @@ mixcomp = args.mixcomp
 
 import gv
 import numpy as np
+np.seterr(divide='raise')
 from PIL import Image
 import matplotlib.pylab as plt
 import sys
@@ -49,6 +50,7 @@ if side is not None:
     print('small', small.shape)
 
     xx = (x - x.mean()) / x.std()
+    print(bbs)
     plot_results(detector, img, x, small, mixcomp, bbs)
     print('max response', x.max())
     print('max response (xx)', xx.max())

@@ -227,10 +227,9 @@ class Detector(Saveable):
         if self.support is not None:
             for f in xrange(num_features):
                 #large_kernels[mixcomp,...,f] = np.clip(large_kernels[mixcomp,...,f] + (1-self.support[mixcomp]) * back[f], 0.05, 0.95) # Parameterize min probability
-                print kernels[mixcomp,...,f].shape, self.small_support[mixcomp].shape, back[f].shape
-                kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
-                #kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.small_support[mixcomp])
-            
+                #kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
+                kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.small_support[mixcomp])
+
             #print "MAX KERNELS", kernels[mixcomp].max()
         
 
@@ -264,26 +263,27 @@ class Detector(Saveable):
         eps = self.settings['min_probability']
         kernels = np.clip(kernels, eps, 1-eps)
 
-        back = np.zeros(kernels.shape[1:]) 
-        for f in xrange(edges.shape[-1]):
-            back[...,f] = edges[...,f].sum()
-        back /= np.prod(edges.shape[:2])
-
-        #back_kernel = np.zeros(kernels.shape[1:]) 
+        #back = np.zeros(kernels.shape[1:]) 
         #for f in xrange(edges.shape[-1]):
-        #    back_kernel[...,f] = edges[...,f].sum() / np.prod(edges.shape[:2])
+            #back[...,f] = edges[...,f].sum()
+        #back /= np.prod(edges.shape[:2])
 
-        #back_kernel = np.clip(back_kernel, 0.05, 0.95)
+        back_kernel = np.zeros(kernels.shape[1:]) 
+        for f in xrange(edges.shape[-1]):
+            back_kernel[...,f] = edges[...,f].sum()
+        back_kernel /= np.prod(edges.shape[:2])
+
+        back_kernel = np.clip(back_kernel, 0.05, 0.95)
 
         # Now pool edges
-        pooled_edges = max_pooling(edges, psize)
+        #pooled_edges = max_pooling(edges, psize)
 
         # TODO: Revisit this
         self.kernels = kernels
 
         #import ipdb; ipdb.set_trace()
 
-        return back, kernels, pooled_edges#small
+        return back_kernel, kernels, edges#small
 
     def response_map(self, image, mixcomp):
         """Retrieves log-likelihood response on 'image' (no scaling done)"""
@@ -306,7 +306,6 @@ class Detector(Saveable):
                 #r1 = masked_convolve(bigger, self.log_kernel_ratios[k])
                 #r2 = 0.0
                 #print bigger.dtype, kernels.dtype
-                print back_kernel.shape, bigger.shape, kernels[k].shape
                 r1 = masked_convolve(bigger, np.log(kernels[k]))
                 r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
                 r3 = masked_convolve(1-bigger, -np.log(1.0 - back_kernel))
@@ -343,9 +342,25 @@ class Detector(Saveable):
 
         return res, edges 
 
+    def unpooled_factor(self, side):
+        return self.unpooled_kernel_side / side
+    
+    def factor(self, side):
+        return self.kernel_side / side
+
+    @property
+    def unpooled_kernel_size(self):
+        ps = self.settings['pooling_size']
+        return (self.kernels.shape[1]*ps[0], self.kernels.shape[2]*ps[1])
+
     @property
     def kernel_size(self):
         return self.kernels.shape[1:3] #pooling_size(self.large_kernels[0], self.settings['pooling_size'])
+
+
+    @property
+    def unpooled_kernel_side(self):
+        return max(self.unpooled_kernel_size)
 
     @property
     def kernel_side(self):
@@ -353,19 +368,12 @@ class Detector(Saveable):
         return max(self.kernel_size)
 
     def resize_and_detect(self, img, mixcomp, side=128):
-        print 'side', side
-        print 'kernel_side', self.kernel_side
-        factor = self.factor(side)
-        print 'factor', factor
+        factor = self.unpooled_factor(side)
         img_resized = gv.img.resize_with_factor(img, factor)
-    
 
         #print "calling response_map", img_resized.shape, mixcomp
         x, img_feat = self.response_map(img_resized, mixcomp)
         return x, img_feat, img_resized
-
-    def factor(self, side):
-        return self.kernel_side / side
 
     def detect_coarse_unfiltered_at_scale(self, img, side, mixcomp):
         x, small, img_resized = self.resize_and_detect(img, mixcomp, side)
@@ -406,7 +414,7 @@ class Detector(Saveable):
                     iy = j * pooling_size[1]
                     bb = self.bounding_box_at_pos((ix, iy), mixcomp)
                     # TODO: The above function should probably return in this coordinates
-                    bb = tuple([bb[k] / self.factor(side) for k in xrange(4)])
+                    bb = tuple([bb[k] / self.unpooled_factor(side) for k in xrange(4)])
                     # Clip to bb_bigger 
                     bb = gv.bb.intersection(bb, bb_bigger)
                     score = xx[i,j]
@@ -508,12 +516,15 @@ class Detector(Saveable):
     def bounding_box_at_pos(self, pos, mixcomp):
         supp_size = self.kernel_size 
         bb = self.bounding_box_for_mix_comp(mixcomp)
+        print 'bb', bb
 
-        pos0 = [pos[i]-supp_size[i]//2 for i in xrange(2)]
-        return (pos0[0]+bb[0],   
-                pos0[1]+bb[1], 
-                pos0[0]+bb[2], 
-                pos0[1]+bb[3])
+        # TODO: Is ps needed here? When should this be done?
+        ps = self.settings['pooling_size']
+        pos0 = [pos[i]-ps[i]*supp_size[i]//2 for i in xrange(2)]
+        return (pos0[0]+bb[0]*ps[0],   
+                pos0[1]+bb[1]*ps[1], 
+                pos0[0]+bb[2]*ps[0], 
+                pos0[1]+bb[3]*ps[1])
 
 
     def label_corrects(self, bbs, fileobj):
