@@ -224,32 +224,12 @@ class Detector(Saveable):
         #large_kernels = self.large_kernels.copy()
         kernels = self.mixture.templates.copy()
 
+        # Support correction
         if self.support is not None:
             for f in xrange(num_features):
-                #large_kernels[mixcomp,...,f] = np.clip(large_kernels[mixcomp,...,f] + (1-self.support[mixcomp]) * back[f], 0.05, 0.95) # Parameterize min probability
                 #kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
                 kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.small_support[mixcomp])
-
-            #print "MAX KERNELS", kernels[mixcomp].max()
         
-
-        #for x in xrange(kernels.shape[1]):
-            #for y in xrange(kernels.shape[2]):
-                #kernels[mixcomp,x,y] = kernels[mixcomp,x,y] / kernels[mixcomp,x,y].sum()
-
-        #print '----'
-        #print np.prod(k/(1-k))
-        #print np.prod(kernels[mixcomp].sum()
-
-        #score2 = (np.log(kernels[mixcomp]) - np.log(back)).sum()
-        #score3 = (back * (np.log(kernels[mixcomp]) - np.log(back)) + \
-        #          (1-back) * (np.log(1.0 - kernels[mixcomp]) - np.log(1.0 - back)))
-        #print 'shape', score3.shape
-        #score3 = score3.sum()
-
-        #print "Back score", score_lower
-        #print "Front score", score2
-        #print "Middle score", score3
 
         # Pool kernels
         psize = self.settings['pooling_size']
@@ -263,11 +243,6 @@ class Detector(Saveable):
         eps = self.settings['min_probability']
         kernels = np.clip(kernels, eps, 1-eps)
 
-        #back = np.zeros(kernels.shape[1:]) 
-        #for f in xrange(edges.shape[-1]):
-            #back[...,f] = edges[...,f].sum()
-        #back /= np.prod(edges.shape[:2])
-
         back_kernel = np.zeros(kernels.shape[1:]) 
         for f in xrange(edges.shape[-1]):
             back_kernel[...,f] = edges[...,f].sum()
@@ -275,15 +250,9 @@ class Detector(Saveable):
 
         back_kernel = np.clip(back_kernel, 0.05, 0.95)
 
-        # Now pool edges
-        #pooled_edges = max_pooling(edges, psize)
-
-        # TODO: Revisit this
         self.kernels = kernels
 
-        #import ipdb; ipdb.set_trace()
-
-        return back_kernel, kernels, edges#small
+        return back_kernel, kernels, edges
 
     def response_map(self, image, mixcomp):
         """Retrieves log-likelihood response on 'image' (no scaling done)"""
@@ -292,27 +261,16 @@ class Detector(Saveable):
 
         sh = kernels.shape
         bigger = ag.util.zeropad(edges, (sh[1]//2, sh[2]//2, 0)).astype(np.float64)
-        #bigger = ag.util.zeropad(small, (sh[1], sh[2], 0))
-        #bigger = probpad(small, (sh[1]//2, sh[2]//2, 0), back[0,0])
 
         res = None
         for k in [mixcomp]:#xrange(self.num_mixtures):
         #for k in xrange(self.mixture.num_mix):
             if 1:
-                # TODO: Place outside of forloop (k) !
-                #bigger = ag.util.zeropad(small, (sh[1], sh[2], 0))
                 from masked_convolve import masked_convolve
-                # TODO: Missing constant now
-                #r1 = masked_convolve(bigger, self.log_kernel_ratios[k])
-                #r2 = 0.0
-                #print bigger.dtype, kernels.dtype
                 r1 = masked_convolve(bigger, np.log(kernels[k]))
                 r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
                 r3 = masked_convolve(1-bigger, -np.log(1.0 - back_kernel))
                 r4 = masked_convolve(bigger, -np.log(back_kernel))
-                #print 'TOP-LEFTS', r1[0,0], r2[0,0], r3[0,0], r4[0,0]
-                #print r1.sum(), r2.sum(), r3.sum(), r4.sum()
-                #res += r1 + r2
                 if res is None:
                     res = r1 + r2 + r3 + r4
                 else:
@@ -388,7 +346,7 @@ class Detector(Saveable):
         #th = 800.0
         th = 750.0
         xx = x
-        xx = (x - x.mean()) / x.std()
+        #xx = (x - x.mean()) / x.std()
         GET_ONE = True#False 
         if GET_ONE:
             th = xx.max() 

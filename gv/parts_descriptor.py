@@ -109,6 +109,8 @@ class PartsDescriptor(BinaryDescriptor):
 
     def train_from_images(self, filenames):
         raw_patches, raw_originals = self.random_patches_from_images(filenames)
+        if len(raw_patches) == 0:
+            raise Exception("No patches found, maybe your thresholds are too strict?")
         mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0)
         # Also store these in "settings"
         mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
