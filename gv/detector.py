@@ -156,53 +156,17 @@ class Detector(Saveable):
         features.
         """
 
-        # TODO: No such thing as mean pooling the support anymore
-        if 1:
-            self.small_support = None
-            if self.support is not None:
-                num_mix = self.mixture.num_mix
-                for k in xrange(num_mix):
-                    p = mean_pooling(self.support[k], self.settings['pooling_size'])
-                    if self.small_support is None:
-                        self.small_support = np.zeros((num_mix,) + p.shape)
-                    self.small_support[k] = p
+        self.small_support = None
+        if self.support is not None:
+            num_mix = self.mixture.num_mix
+            for k in xrange(num_mix):
+                p = mean_pooling(self.support[k], self.settings['pooling_size'])
+                if self.small_support is None:
+                    self.small_support = np.zeros((num_mix,) + p.shape)
+                self.small_support[k] = p
 
     def _preprocess_kernels(self):
-        # TODO: Change this to a 
-        smallest = self.mixture.templates.min()
-    
-        # Now, we will extract the templates from the mixture model and
-        # incorporate the support into it. We will call the result the kernel
         self.kernels = self.mixture.templates.copy()
-        #m0, m1 = kernels.min(), self.kernels.max()
-        if 0:
-            for f in xrange(self.mixture.templates.shape[-1]):
-                
-                # only after this step.
-                if self.support is not None:
-                    alpha = self.small_support
-                    m = self.kernels[...,f].copy()
-            
-                    # Or stretch them out?
-                    m[m == m0] = 0.0
-                    m[m == m1] = 1.0
-                    # What this is essentially doing is boosting everything a bit, nothing is
-                    # completely opaque, which might be the source of the boost.
-                    # If we add "alpha *" before m, then it's as bad as the other method (and
-                    # with very similar results)
-                    #self.kernels[...,f] = 0.5 * (1-alpha) + m#self.mixture.templates[...,f]# / alpha
-                    #self.kernels[...,f] = 
-
-        # TODO: Putting *3 here makes it stop favor background. UNDERSTAND!
-        #self.kernels *= 1 
-
-        #eps = self.settings['min_probability']
-        #self.kernels = np.clip(self.kernels, eps, 1-eps)
-
-        #self.mixture.templates = np.clip(self.mixture.templates, 0.5, 1.0)
-        #self.log_kernels = np.log(self.kernels)
-        #self.log_invkernels = np.log(1.0-self.kernels)
-        #self.log_kernel_ratios = np.log(self.kernels / (1.0 - self.kernels))
 
     def extract_pooled_features(self, image):
         #print image.shape
@@ -216,14 +180,16 @@ class Detector(Saveable):
         #edges = self.descriptor.extract_features(image)
 
         num_features = edges.shape[-1]
-        back = np.zeros(num_features)
+        back = np.empty(num_features)
         for f in xrange(num_features):
-            back[f] = edges[...,f].sum() / np.prod(edges.shape[:2])
+            back[f] = edges[...,f].sum()
+        back /= np.prod(edges.shape[:2])
         
         # Create kernels just for this case
         #large_kernels = self.large_kernels.copy()
         kernels = self.mixture.templates.copy()
 
+        #import ipdb; ipdb.set_trace()
         # Support correction
         if self.support is not None:
             for f in xrange(num_features):
@@ -245,10 +211,9 @@ class Detector(Saveable):
 
         back_kernel = np.zeros(kernels.shape[1:]) 
         for f in xrange(edges.shape[-1]):
-            back_kernel[...,f] = edges[...,f].sum()
-        back_kernel /= np.prod(edges.shape[:2])
+            back_kernel[...,f] = back[f]#edges[...,f].sum()
 
-        back_kernel = np.clip(back_kernel, 0.05, 0.95)
+        back_kernel = np.clip(back_kernel, eps, 1-eps)
 
         self.kernels = kernels
 
@@ -260,7 +225,8 @@ class Detector(Saveable):
         back_kernel, kernels, edges = self.prepare_kernels(image, mixcomp)
 
         sh = kernels.shape
-        bigger = ag.util.zeropad(edges, (sh[1]//2, sh[2]//2, 0)).astype(np.float64)
+        #bigger = ag.util.zeropad(edges, (sh[1]//2, sh[2]//2, 0)).astype(np.float64)
+        bigger = probpad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
 
         res = None
         for k in [mixcomp]:#xrange(self.num_mixtures):
@@ -346,7 +312,10 @@ class Detector(Saveable):
         #th = 800.0
         th = 750.0
         xx = x
-        #xx = (x - x.mean()) / x.std()
+        xx = (x - x.mean()) / x.std()
+        #xx /= x.std()
+        #xx /= #np.sqrt(np.sum(np.log(xx/(1-xx))**2 * xx * (1-xx))) 
+
         GET_ONE = True#False 
         if GET_ONE:
             th = xx.max() 
