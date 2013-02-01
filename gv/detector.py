@@ -227,20 +227,32 @@ class Detector(Saveable):
         sh = kernels.shape
         #bigger = ag.util.zeropad(edges, (sh[1]//2, sh[2]//2, 0)).astype(np.float64)
         bigger = probpad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
+        bigger_minus_back = bigger.copy()
+
+        for f in xrange(edges.shape[-1]):
+            bigger_minus_back[...,f] -= back_kernel[0,0,f] 
 
         res = None
         for k in [mixcomp]:#xrange(self.num_mixtures):
         #for k in xrange(self.mixture.num_mix):
             if 1:
                 from masked_convolve import masked_convolve
-                r1 = masked_convolve(bigger, np.log(kernels[k]))
-                r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
-                r3 = masked_convolve(1-bigger, -np.log(1.0 - back_kernel))
-                r4 = masked_convolve(bigger, -np.log(back_kernel))
+                #r1 = masked_convolve(bigger, np.log(kernels[k]))
+                #r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
+                #r3 = masked_convolve(1-bigger, -np.log(1.0 - back_kernel))
+                #r4 = masked_convolve(bigger, -np.log(back_kernel))
+                a = np.log(kernels[k] * (1-back_kernel) / ((1-kernels[k]) * back_kernel))
+                r1 = masked_convolve(bigger_minus_back, a)
+                r2 = r3 = r4 = 0
                 if res is None:
                     res = r1 + r2 + r3 + r4
                 else:
                     res += r1 + r2 + r3 + r4
+
+                # Normalize
+                summand = a**2 * back_kernel * (1 - back_kernel)
+                res /= np.sqrt(np.sum(summand))
+
 
             else:
                 for f in xrange(small.shape[-1]):
@@ -312,7 +324,7 @@ class Detector(Saveable):
         #th = 800.0
         th = 750.0
         xx = x
-        xx = (x - x.mean()) / x.std()
+        #xx = (x - x.mean()) / x.std()
         #xx /= x.std()
         #xx /= #np.sqrt(np.sum(np.log(xx/(1-xx))**2 * xx * (1-xx))) 
 

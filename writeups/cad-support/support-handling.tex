@@ -1,0 +1,57 @@
+\documentclass{report}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{pifont}
+\usepackage{color}
+\usepackage{graphics, epstopdf}
+\usepackage[pdftex]{graphicx}
+\usepackage[pdftex]{hyperref}
+\usepackage{verbatim}
+\usepackage{amsthm}
+\usepackage{cleveref}
+\usepackage{caption}
+\usepackage{subcaption}
+\urlstyle{same}
+
+\newcommand{\com}[1]{
+	\vspace{0.2cm}
+	\noindent
+	\emph{#1}
+}
+
+\definecolor{gray}{gray}{0.5}
+\hypersetup{colorlinks, citecolor=black, filecolor=black, linkcolor=black, urlcolor=gray}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\newtheorem{mydef}{Definition}
+    
+\begin{document}
+
+\title{Support handling}
+
+\author{Gustav Larsson}
+
+\maketitle
+
+\begin{abstract}
+One of the advantages of training a Bernoulli mixture model from CAD images (in RGBA) of objects, is that in each image we know the support of the image.
+%
+%Using wavelet deformations of mixture component templates, to 
+%Classifying well-posed handwritten digits (MNIST) using binary edge features and wavelet-based deformations. 
+%
+%\keywords{score following, real-time score alignment, automatic accompaniment}
+\end{abstract}
+%
+%\chapter{Support handling}
+
+\section{Introduction}
+
+\section{Model}
+We will assume that the object that we are detecting, can be approximated with a Bernoulli Mixture model 
+
+Suppose we have a Bernoulli mixture model, $\theta^* \in (0, 1)^{K \times M \times E}$, where $K$ is the number of mixture components, $M$ is the number of pixels, and $E$ is the number of binary features per pixel. Suppose also that each component is associated with a binary support, which we call $\alpha^* \in \{0, 1\}^{K \times M}$.
+
+We make the assumption that $\theta^*_{k,i,e} = 0$ for all $e$, if $\alpha_{k,i} = 0$. This means that when we train a mixture model $\theta$ from 
+
+\end{document}
