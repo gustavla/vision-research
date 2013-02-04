@@ -19,7 +19,6 @@ class PartsDescriptor(BinaryDescriptor):
         self.settings['threshold'] = 4 
         self.settings['threaded'] = False 
         self.settings['samples_per_image'] = 500 
-        self.settings['spread_radii'] = (3, 3)
         self.settings['min_probability'] = 0.05
 
         # Or maybe just do defaults?
@@ -151,15 +150,15 @@ class PartsDescriptor(BinaryDescriptor):
         self._log_parts = np.log(self.parts)
         self._log_invparts = np.log(1-self.parts)
 
-    def extract_features(self, image):
+    def extract_features(self, image, settings={}):
         if 1:
             edges = ag.features.bedges(image, **self.bedges_settings())
         else:
             # LEAVE-BEHIND: From multi-channel images
             edges = ag.features.bedges_from_image(image, **self.bedges_settings()) 
-        return self.extract_parts(edges)
+        return self.extract_parts(edges, settings=settings)
     
-    def extract_parts(self, edges):
+    def extract_parts(self, edges, settings={}):
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
                                            self.settings['threshold'], self.settings['patch_frame'])
         parts = partprobs.argmax(axis=-1)
@@ -170,6 +169,9 @@ class PartsDescriptor(BinaryDescriptor):
         # TODO: If we're not using a support, this could be extremely detrimental!
         parts = ag.util.zeropad(parts, (self._log_parts.shape[1]//2, self._log_parts.shape[2]//2))
         
+        sett = self.settings.copy()
+        sett.update(settings)
+
         # Do spreading
         radii = self.settings['spread_radii']
         #radii = (0, 0)

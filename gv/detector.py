@@ -54,6 +54,11 @@ def max_pooling(data, size):
     return output
 
 
+def subsample(data, size):
+    offsets = [size[i]//2 for i in xrange(2)]
+    return data[offsets[0]::size[0],offsets[1]::size[1]]
+    
+
 # TODO: Eventually migrate
 # TODO: Also, does it need to be general for ndim=3?
 def mean_pooling(data, size):
@@ -108,11 +113,10 @@ class Detector(Saveable):
                 ag.info(i, "Processing image of shape", img_obj.shape)
                 grayscale_img = img_obj.mean(axis=-1)
     
-    
             # Resize the image before extracting features
             if resize_to is not None and resize_to != grayscale_img.shape[:2]:
-                img = gv.img.resize(img, resize_to)
-                grayscale_img = gv.img.resize(grayscale_img, resize_to) 
+                img = gv.img.resize(img, factor)
+                grayscale_img = gv.img.resize(grayscale_img, factor) 
 
             edges = self.extract_pooled_features(grayscale_img)
             #edges = self.descriptor.extract_features(grayscale_img)
@@ -170,8 +174,9 @@ class Detector(Saveable):
 
     def extract_pooled_features(self, image):
         #print image.shape
-        edges = self.descriptor.extract_features(image)
-        small = max_pooling(edges, self.settings['pooling_size'])
+        edges = self.descriptor.extract_features(image, {'spread_radii': self.settings['spread_radii']})
+        #small = max_pooling(edges, self.settings['pooling_size'])
+        small = subsample(edges, self.settings['pooling_size'])
         return small
 
     def prepare_kernels(self, image, mixcomp, backTODO=None):
@@ -241,6 +246,7 @@ class Detector(Saveable):
                 #r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
                 #r3 = masked_convolve(1-bigger, -np.log(1.0 - back_kernel))
                 #r4 = masked_convolve(bigger, -np.log(back_kernel))
+                print 'sizes', kernels[k].shape, back_kernel.shape
                 a = np.log(kernels[k] * (1-back_kernel) / ((1-kernels[k]) * back_kernel))
                 r1 = masked_convolve(bigger_minus_back, a)
                 r2 = r3 = r4 = 0
@@ -251,7 +257,9 @@ class Detector(Saveable):
 
                 # Normalize
                 summand = a**2 * back_kernel * (1 - back_kernel)
-                res /= np.sqrt(np.sum(summand))
+                Z = np.sqrt(np.sum(summand))
+                print 'norm factor', Z
+                res /= Z
 
 
             else:
