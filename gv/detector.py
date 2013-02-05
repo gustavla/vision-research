@@ -189,6 +189,8 @@ class Detector(Saveable):
         for f in xrange(num_features):
             back[f] = edges[...,f].sum()
         back /= np.prod(edges.shape[:2])
+
+        #back[:] = 0.05
         
         # Create kernels just for this case
         #large_kernels = self.large_kernels.copy()
@@ -198,8 +200,8 @@ class Detector(Saveable):
         # Support correction
         if self.support is not None:
             for f in xrange(num_features):
-                #kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
-                kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.small_support[mixcomp])
+                kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
+                #kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.small_support[mixcomp])
         
 
         # Pool kernels
@@ -230,12 +232,16 @@ class Detector(Saveable):
         back_kernel, kernels, edges = self.prepare_kernels(image, mixcomp)
 
         sh = kernels.shape
-        #bigger = ag.util.zeropad(edges, (sh[1]//2, sh[2]//2, 0)).astype(np.float64)
-        bigger = probpad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
+        padding = (sh[1]//2, sh[2]//2, 0)
+        bigger = ag.util.zeropad(edges, padding).astype(np.float64)
+        #bigger = probpad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
+        #bigger = ag.util.pad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
+        
         bigger_minus_back = bigger.copy()
 
         for f in xrange(edges.shape[-1]):
-            bigger_minus_back[...,f] -= back_kernel[0,0,f] 
+            bigger_minus_back[padding[0]:-padding[0],padding[1]:-padding[1],f] -= back_kernel[0,0,f] 
+
 
         res = None
         for k in [mixcomp]:#xrange(self.num_mixtures):
@@ -248,12 +254,7 @@ class Detector(Saveable):
                 #r4 = masked_convolve(bigger, -np.log(back_kernel))
                 print 'sizes', kernels[k].shape, back_kernel.shape
                 a = np.log(kernels[k] * (1-back_kernel) / ((1-kernels[k]) * back_kernel))
-                r1 = masked_convolve(bigger_minus_back, a)
-                r2 = r3 = r4 = 0
-                if res is None:
-                    res = r1 + r2 + r3 + r4
-                else:
-                    res += r1 + r2 + r3 + r4
+                res = masked_convolve(bigger_minus_back, a)
 
                 # Normalize
                 summand = a**2 * back_kernel * (1 - back_kernel)
@@ -261,6 +262,7 @@ class Detector(Saveable):
                 print 'norm factor', Z
                 res /= Z
 
+                import ipdb; ipdb.set_trace()
 
             else:
                 for f in xrange(small.shape[-1]):
