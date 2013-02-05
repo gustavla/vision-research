@@ -200,6 +200,7 @@ class Detector(Saveable):
         # Support correction
         if self.support is not None:
             for f in xrange(num_features):
+                # This is explained in writeups/cad-support/.
                 kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
                 #kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.small_support[mixcomp])
         
