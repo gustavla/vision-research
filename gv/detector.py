@@ -234,20 +234,33 @@ class Detector(Saveable):
 
         sh = kernels.shape
         padding = (sh[1]//2, sh[2]//2, 0)
-        bigger = ag.util.zeropad(edges, padding).astype(np.float64)
-        #bigger = probpad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
+        #bigger = ag.util.zeropad(edges, padding).astype(np.float64)
+        bigger = probpad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
         #bigger = ag.util.pad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
         
-        bigger_minus_back = bigger.copy()
+        #bigger_minus_back = bigger.copy()
 
         for f in xrange(edges.shape[-1]):
-            bigger_minus_back[padding[0]:-padding[0],padding[1]:-padding[1],f] -= back_kernel[0,0,f] 
+            pass
+            #bigger_minus_back[padding[0]:-padding[0],padding[1]:-padding[1],f] -= back_kernel[0,0,f] 
+            #bigger_minus_back[padding[0]:-padding[0],padding[1]:-padding[1],f] -= kernels[mixcomp,...,f]
 
 
         res = None
         for k in [mixcomp]:#xrange(self.num_mixtures):
         #for k in xrange(self.mixture.num_mix):
-            if 1:
+            if 0:
+                from masked_convolve import llh 
+                print bigger.dtype, kernels[k].dtype
+                res = llh(bigger, kernels[k].astype(np.float64)) 
+
+                #summand = a**2 * back_kernel * (1 - back_kernel)
+                #summand = a**2 * kernels[k] * (1 - kernels[k])
+                #Z = np.sqrt(np.sum(summand))
+                #print 'norm factor', Z
+                #res /= Z
+            
+            elif 1:
                 from masked_convolve import masked_convolve
                 #r1 = masked_convolve(bigger, np.log(kernels[k]))
                 #r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
@@ -255,15 +268,21 @@ class Detector(Saveable):
                 #r4 = masked_convolve(bigger, -np.log(back_kernel))
                 print 'sizes', kernels[k].shape, back_kernel.shape
                 a = np.log(kernels[k] * (1-back_kernel) / ((1-kernels[k]) * back_kernel))
-                res = masked_convolve(bigger_minus_back, a)
+                res = masked_convolve(bigger, a)
+                
+                # Subtract expected log likelihood
+                res -= (back_kernel * a).sum()
+                #res2 = (kernels[k] * a).sum()
+                #import ipdb; ipdb.set_trace()
+                #res -= res2
 
                 # Normalize
                 summand = a**2 * back_kernel * (1 - back_kernel)
+                #summand = a**2 * kernels[k] * (1 - kernels[k])
                 Z = np.sqrt(np.sum(summand))
                 print 'norm factor', Z
                 res /= Z
 
-                import ipdb; ipdb.set_trace()
 
             else:
                 for f in xrange(small.shape[-1]):

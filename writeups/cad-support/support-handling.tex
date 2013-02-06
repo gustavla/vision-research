@@ -36,7 +36,7 @@
 \maketitle
 
 \begin{abstract}
-One of the advantages of training a Bernoulli mixture model of an object from CAD images (in RGBA), is that in each image we know the support of the image. This document is a treatment of how to incorporate this knowledge of the support into the model.
+One of the advantages of training a Bernoulli mixture model of an object from CAD images (in RGB$\alpha$), is that in each image we know the support of the image. This document is a treatment of how to incorporate this knowledge of the support into the model.
 %
 %Using wavelet deformations of mixture component templates, to 
 %Classifying well-posed handwritten digits (MNIST) using binary edge features and wavelet-based deformations. 
@@ -49,9 +49,9 @@ One of the advantages of training a Bernoulli mixture model of an object from CA
 %\section{Introduction}
 
 \section{Model}
-Suppose we have a Bernoulli mixture model with parameters $\theta^* \in (0, 1)^{K \times M \times E}$, where $K$ is the number of mixture components, $M$ is the number of pixels, and $E$ is the number of binary features per pixel. Suppose also that each component is associated with a binary support, which is associated with yet another Bernoulli mixture model with parameters $\alpha \in (0, 1)^{K \times M}$.
+Suppose we have a Bernoulli mixture model with parameters $\theta^* \in [0, 1]^{K \times M \times E}$, where $K$ is the number of mixture components, $M$ is the number of pixels, and $E$ is the number of binary features per pixel. Suppose also that each component is associated with a binary support, which is associated with yet another Bernoulli mixture model with parameters $\alpha \in [0, 1]^{K \times M}$.
 
-When trying to learn these parameters, we can imagine drawing a sample of the support, $A$, and then the features, $X$:
+When trying to learn these parameters, we can imagine drawing a sample of the support, $A$, and then a feature, $X$:
 \begin{align*}
     A_{k,j} & \sim \Bern{\alpha_{k,j}}, \\
     X_{k,j,e} & \sim \left\{
