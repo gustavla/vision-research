@@ -115,8 +115,8 @@ class Detector(Saveable):
     
             # Resize the image before extracting features
             if resize_to is not None and resize_to != grayscale_img.shape[:2]:
-                img = gv.img.resize(img, factor)
-                grayscale_img = gv.img.resize(grayscale_img, factor) 
+                img = gv.img.resize(img, resize_to)
+                grayscale_img = gv.img.resize(grayscale_img, resize_to) 
 
             edges = self.extract_pooled_features(grayscale_img)
             #edges = self.descriptor.extract_features(grayscale_img)
@@ -138,7 +138,7 @@ class Detector(Saveable):
         ag.info("Running mixture model in Detector")
 
         # Train mixture model OR SVM
-        mixture = ag.stats.BernoulliMixture(self.num_mixtures, output)
+        mixture = ag.stats.BernoulliMixture(self.num_mixtures, output.astype(np.uint8), float_type=np.float32)
         #mixture.run_EM(1e-6, self.settings['min_probability'])
         mixture.run_EM(1e-6, 1e-5)
         
