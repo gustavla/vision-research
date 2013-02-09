@@ -266,7 +266,7 @@ class Detector(Saveable):
                 #r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
                 #r3 = masked_convolve(1-bigger, -np.log(1.0 - back_kernel))
                 #r4 = masked_convolve(bigger, -np.log(back_kernel))
-                print 'sizes', kernels[k].shape, back_kernel.shape
+                #print 'sizes', kernels[k].shape, back_kernel.shape
                 a = np.log(kernels[k] * (1-back_kernel) / ((1-kernels[k]) * back_kernel))
                 res = masked_convolve(bigger, a)
                 
@@ -280,7 +280,7 @@ class Detector(Saveable):
                 summand = a**2 * back_kernel * (1 - back_kernel)
                 #summand = a**2 * kernels[k] * (1 - kernels[k])
                 Z = np.sqrt(np.sum(summand))
-                print 'norm factor', Z
+                #print 'norm factor', Z
                 res /= Z
 
 
@@ -344,26 +344,19 @@ class Detector(Saveable):
     def detect_coarse_unfiltered_at_scale(self, img, side, mixcomp):
         x, small, img_resized = self.resize_and_detect(img, mixcomp, side)
 
-        # Frst pick 
-        th = -37000#-35400 
-        #th = -36000
-        th = -35400 + 70 - 2500
-        #th = -36040 - 1
-        th = 0.0#15
-        #th = -10002.0 
-        #th = 800.0
-        th = 750.0
         xx = x
+        #th = xx.max() - 10.0
+        th = 40.0
+        top_th = 100.0
         #xx = (x - x.mean()) / x.std()
         #xx /= x.std()
         #xx /= #np.sqrt(np.sum(np.log(xx/(1-xx))**2 * xx * (1-xx))) 
 
-        GET_ONE = True#False 
+        GET_ONE = False 
         if GET_ONE:
             th = xx.max() 
 
         bbs = []
-        
 
         if 0:
             import pylab as plt
@@ -387,7 +380,10 @@ class Detector(Saveable):
                     # Clip to bb_bigger 
                     bb = gv.bb.intersection(bb, bb_bigger)
                     score = xx[i,j]
-                    dbb = gv.bb.DetectionBB(score=score, box=bb, confidence=np.clip((score-th)/2.0, 0, 1))
+                
+                    conf = (score - th) / (top_th - th)
+                    conf = np.clip(conf, 0, 1)
+                    dbb = gv.bb.DetectionBB(score=score, box=bb, confidence=conf, scale=side)
 
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)
@@ -396,6 +392,9 @@ class Detector(Saveable):
             bbs.sort(reverse=True)
             bbs = bbs[:1]
             #print bbs[0]
+
+        # Let's limit to five per level
+        bbs = bbs[:5]
     
         return bbs, xx, small
 
@@ -403,14 +402,15 @@ class Detector(Saveable):
         bbs = []
         df = 0.05
         #df = 0.1
-        factors = np.arange(0.3, 1.0+0.01, df)
+        #factors = np.arange(0.3, 1.0+0.01, df)
+        factors = range(100, 401, 25)
         for factor in factors:
             for mixcomp in xrange(self.num_mixtures):
                 bbsthis, _, _ = self.detect_coarse_unfiltered_at_scale(img, factor, mixcomp)
                 bbs += bbsthis
 
         # Do NMS here
-        final_bbs = self.nonmaximal_suppression(bbs)
+        final_bbs = self.nonmaximal_suppression2(bbs)
         
         # Mark corrects here
         if fileobj is not None:
@@ -420,7 +420,8 @@ class Detector(Saveable):
     def detect_coarse_single_component(self, img, mixcomp, fileobj=None):
         df = 0.05
         #df = 0.1
-        factors = np.arange(0.3, 1.0+0.01, df)
+        #factors = np.arange(0.3, 1.0+0.01, df)
+        factors = range(100, 401, 25)
 
         bbs = []
         for factor in factors:
@@ -430,12 +431,34 @@ class Detector(Saveable):
             bbs += bbsthis
     
         # Do NMS here
-        final_bbs = self.nonmaximal_suppression(bbs)
+        final_bbs = self.nonmaximal_suppression2(bbs)
 
         # Mark corrects here
         if fileobj is not None:
             self.label_corrects(final_bbs, fileobj)
         return final_bbs
+
+    def nonmaximal_suppression2(self, bbs):
+        # This one will respect scales a bit more
+        bbs_sorted = sorted(bbs, reverse=True)
+
+        overlap_threshold = 0.5
+
+        #print 'bbs length', len(bbs_sorted)
+        i = 1
+        while i < len(bbs_sorted):
+            # TODO: This can be vastly improved performance-wise
+            for j in xrange(i):
+                #print bb_area(bb_overlap(bbs[i].box, bbs[j].box))/bb_area(bbs[j].box)
+                overlap = gv.bb.area(gv.bb.intersection(bbs_sorted[i].box, bbs_sorted[j].box))/gv.bb.area(bbs_sorted[j].box)
+                if overlap > overlap_threshold and abs(bbs_sorted[i].scale - bbs_sorted[j].scale) <= 50: 
+                    del bbs_sorted[i]
+                    i -= 1
+                    break
+
+            i += 1
+        #print 'bbs length', len(bbs_sorted)
+        return bbs_sorted
 
     def nonmaximal_suppression(self, bbs):
         bbs_sorted = sorted(bbs, reverse=True)
@@ -485,7 +508,6 @@ class Detector(Saveable):
     def bounding_box_at_pos(self, pos, mixcomp):
         supp_size = self.kernel_size 
         bb = self.bounding_box_for_mix_comp(mixcomp)
-        print 'bb', bb
 
         # TODO: Is ps needed here? When should this be done?
         ps = self.settings['pooling_size']

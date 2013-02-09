@@ -68,6 +68,9 @@ def load_specific_files(VOCSETTINGS, class_name, img_ids, has_objects=None, padd
 
     return files, tot
 
+def load_files(VOCSETTINGS, class_name, dataset='train'):
+    return load_training_files(VOCSETTINGS, class_name, dataset)
+
 def load_training_files(VOCSETTINGS, class_name, dataset='train'):
     path = os.path.join(VOCSETTINGS['path'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))
 
