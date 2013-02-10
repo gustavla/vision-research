@@ -74,7 +74,7 @@ def load_files(VOCSETTINGS, class_name, dataset='train'):
 def load_training_files(VOCSETTINGS, class_name, dataset='train'):
     path = os.path.join(VOCSETTINGS['path'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))
 
-    f = np.genfromtxt(path, dtype='i') 
+    f = np.genfromtxt(path, dtype=int) 
     N = f.shape[0]
     img_ids = f[:,0]
     has_objects = f[:,1] 

@@ -9,7 +9,7 @@ parser.add_argument('-a', '--all', action='store_true', help='List all')
 args = parser.parse_args()
 listall = args.all
 
-fileobjs, tot = gv.voc.load_training_files(VOCSETTINGS, 'bicycle')
+fileobjs, tot = gv.voc.load_training_files(VOCSETTINGS, 'bicycle', dataset='test')
 
 print("<filename> <number of boxes> (<number of which are difficult>)")
 for f in fileobjs:
