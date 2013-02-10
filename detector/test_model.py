@@ -11,6 +11,7 @@ model_file = args.model
 import gv
 import amitgroup as ag
 import numpy as np
+import scipy.integrate
 
 from config import VOCSETTINGS
 
@@ -24,7 +25,7 @@ tot_tp_fn = 0
 
 detections = []
 
-for fileobj in files[0:50]:
+for fileobj in files[5:15]:
     print("Testing file {0}".format(fileobj.img_id))
     img = gv.img.load_image(fileobj.path)
     grayscale_img = img.mean(axis=-1)
@@ -49,33 +50,35 @@ for fileobj in files[0:50]:
     tot_tp_fp += tp_fp
     tot_tp_fn += tp_fn
 
-np.save('conf.npy', detections)
+detections = np.array(detections, dtype=[('confidence', float), ('correct', bool)])
+detections.sort(order='confidence')
 
 def calc_precision_recall(detections, tp_fn):
-    arr = np.asarray(detections)
-    arr.sort(axis=0)
-
-    N = arr.shape[0]
+    indices = np.where(detections['correct'] == True)[0]
+    N = indices.size
     precisions = np.zeros(N)
     recalls = np.zeros(N)
-    
     for i in xrange(N):
-        tp = arr[i:,1].sum()
-        tp_fp = arr[i:,1].size
+        indx = indices[i]
+        arr = detections['correct'][indx:]
+        tp = arr.sum()
+        tp_fp = arr.size
     
-        recalls[i] = tp / tp_fn
-        precisions[i] = tp / tp_fp
+        recalls[-1-i] = tp / tp_fn
+        precisions[-1-i] = tp / tp_fp
     
     return precisions, recalls
 
 precisions, recalls = calc_precision_recall(detections, tot_tp_fn)
-np.savez('conf.npz', precisions=precisions, recalls=recalls)
+ap = scipy.integrate.trapz(precisions, recalls)
+np.savez('conf.npz', precisions=precisions, recalls=recalls, detections=detections, tp_fn=tot_tp_fn, ap=ap)
 
 print('tp', tot_tp)
 print('tp+fp', tot_tp_fp)
 print('tp+fn', tot_tp_fn)
-print('----')
+print('----------------')
 if tot_tp_fp:
     print('Precision', tot_tp / tot_tp_fp)
 if tot_tp_fn:
     print('Recall', tot_tp / tot_tp_fn)
+print('AP', ap)

@@ -185,10 +185,26 @@ class Detector(Saveable):
         #edges = self.descriptor.extract_features(image)
 
         num_features = edges.shape[-1]
+
+        feat_activity = edges.mean(axis=-1)
         back = np.empty(num_features)
+        #has_feat = (feat_activity > 0.05)
+        has_feat = (feat_activity > -np.inf)
         for f in xrange(num_features):
-            back[f] = edges[...,f].sum()
-        back /= np.prod(edges.shape[:2])
+            back[f] = (has_feat  * edges[...,f]).sum()
+        #back /= np.prod(edges.shape[:2])
+        back /= has_feat.sum() 
+        #back *= 3 
+
+        #import pylab as plt
+        #plt.hist(back)
+        #plt.show() 
+
+        #import pylab as plt
+        #plt.imshow(feat_activity > 0.05)
+        #plt.show()
+
+        back *= 1 
 
         #back[:] = 0.05
         
@@ -345,26 +361,15 @@ class Detector(Saveable):
         x, small, img_resized = self.resize_and_detect(img, mixcomp, side)
 
         xx = x
-        #th = xx.max() - 10.0
-        th = 40.0
-        top_th = 100.0
-        #xx = (x - x.mean()) / x.std()
-        #xx /= x.std()
-        #xx /= #np.sqrt(np.sum(np.log(xx/(1-xx))**2 * xx * (1-xx))) 
-
-        GET_ONE = False 
-        if GET_ONE:
-            th = xx.max() 
-
+        th = 30.0
+        top_th = 150.0
         bbs = []
+        GET_ONE = False
 
         if 0:
             import pylab as plt
             plt.hist(xx.flatten(), 50)
             plt.show()
-
-        #print 'feature activity:', small.sum() / np.prod(small.shape)
-        #print 'x max', x.max()
 
         bb_bigger = (0.0, 0.0, img.shape[0], img.shape[1])
 
@@ -388,15 +393,14 @@ class Detector(Saveable):
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)
 
-        if GET_ONE:
-            bbs.sort(reverse=True)
-            bbs = bbs[:1]
-            #print bbs[0]
-
         # Let's limit to five per level
-        bbs = bbs[:5]
+        bbs_sorted = self.nonmaximal_suppression(bbs)
+        bbs_sorted = bbs_sorted[:5]
+
+        if GET_ONE:
+            bbs_sorted = bbs_sorted[:1]
     
-        return bbs, xx, small
+        return bbs_sorted, xx, small
 
     def detect_coarse(self, img, fileobj=None):
         bbs = []
@@ -451,7 +455,7 @@ class Detector(Saveable):
             for j in xrange(i):
                 #print bb_area(bb_overlap(bbs[i].box, bbs[j].box))/bb_area(bbs[j].box)
                 overlap = gv.bb.area(gv.bb.intersection(bbs_sorted[i].box, bbs_sorted[j].box))/gv.bb.area(bbs_sorted[j].box)
-                if overlap > overlap_threshold and abs(bbs_sorted[i].scale - bbs_sorted[j].scale) <= 50: 
+                if overlap > overlap_threshold and abs(bbs_sorted[i].scale - bbs_sorted[j].scale) <= 25: 
                     del bbs_sorted[i]
                     i -= 1
                     break
