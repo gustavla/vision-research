@@ -63,7 +63,7 @@ Together they simplify to
 \] 
 This is what we are drawing from when training from CAD images, so let us assume that we are able to infer $\theta_{k,j,e} = \theta^*_{k,j,e} \alpha_{k,j}$. Since we know the support of each image, we can also infer $\alpha$.
 
-\subsection{Background model}
+\subsection{Background model adjustment}
 Suppose we have a background model, with Bernoulli probabilities $b_e$ for each feature $e$. Ideally, we would like to have a model of our object drawn from the following distributions
 \begin{align*}
     A_{k,j} & \sim \Bern{\alpha_{k,j}}, \\
@@ -80,6 +80,67 @@ Let's simplify this to $Y_{k,j,e} \sim \Bern{\theta'_{k,j,e}}$. We get
         &= \theta^*_{k,j,e} \alpha_{k,j} + b_e (1 - \alpha_{k,j}) = \theta_{k,j,e} + b_e (1 - \alpha_{k,j}).
 \end{align*}
 Since we know $\theta$, $\alpha$ and $b$, we now know $\theta'$.
+
+
+
+
+\section{Feature spreading}
+\newcommand{\neigh}[1]{\text{Ne}(#1)}
+\newcommand{\Ne}{\text{Ne}}
+\newcommand{\spr}[1]{#1^{\text{(spr)}}}
+
+Feature spreading is done by OR:ing a neighborhood of features $X$. Let $\neigh{j}$ denote a set of all spatial indices in some neighborhood around $j$. Let us regard the result after spreading as a set of new random variables, $\spr{X}$, by the following
+\[
+    \spr{X}_{k,j,e} = \bigvee_{l \in \neigh{j}} X_{k,l,e}
+\]
+As before, we want to express this as $\spr{X}_{k,j,e} \sim \Bern{\phi_{k,j,e}}$. We assume all $X$ are independent, so we can simplify as follows 
+\begin{align*}
+    \phi_{k,j,e} &= \Pr(\spr{X}_{k,j,e} = 1) = \Pr(\bigcup_{l \in \neigh{j}} X_{k,l,e} = 1) = 1 - \Pr(\bigcap_{l \in \neigh{j}} X_{k,l,e} = 0) \\
+    &= 1 - \prod_{l \in \neigh{j}} \Pr(X_{k,l,e} = 0) = 1 - \prod_{l \in \neigh{j}} (1 - \theta^*_{k,l,e} \alpha_{k,l}),
+\end{align*}
+or simply
+\[
+    \phi_{k,j,e} = 1 - \prod_{l \in \neigh{j}} (1 - \theta_{k,l,e}).
+\]
+
+\subsection{Background model adjustment}
+%Extending this to a background-aware model $Y'$, as follows
+As before, let us extend this to a model, $\spr{Y}$, including background
+\[
+    \spr{Y}_{k,j,e} = \bigvee_{l \in \neigh{j}} Y_{k,j,e}
+\]
+Following the same procedure as before, or solving it simply with variable substitution, we get that if $\spr{Y}_{k,j,e} \sim \Bern{\phi'_{k,j,e}}$, then
+\begin{equation} \label{eq:phiprime}
+    \phi'_{k,j,e} = 1 - \prod_{l \in \neigh{j}} [1 - \theta_{k,l,e} - b_e (1 - \alpha_{k,l})]
+\end{equation}
+This is unfortunately impossible to express in term of only $\phi$ instead of $\theta$, so we can't adjust this model correctly if we have trained our model with spreading. However, we can still train without spreading to uncover $\theta$, and then build our model using the above expression.
+
+\subsection{Spread background model}
+Since we will be spreading our feature maps, it might make sense to infer the background model from the spread features directly. We therefore imagine a spread background model, $\spr{H_0} \sim \Bern{b'_e}$, with the following relationship to $b_e$ (let $j$ be an arbitrary pixel)
+\[
+    b'_e = 1 - \prod_{l \in \neigh{j}} (1 - b) = 1 - (1 - b_e)^{|\Ne|},
+\]
+we can thus recover $b_e$ for use in (\ref{eq:phiprime}) as
+\[
+    b_e = 1 - (1 - b'_e)^{\frac{1}{|\Ne|}}.
+\]
+In the case of a rectangular neighborhood of radius $S$, we have $|\Ne| = (2S + 1)^2$.
+
+%It is faster to infer our background model from 
+
+% There are two potential problems with this, (1) We need to train with more images to 
+\subsection{Implementation details}
+There are two concerns with this that arise when we depart from our theoretical model. First of all, will we recover $\theta$ correctly without the stabilizing effect of spreading? This is not hard to overcome, either by increasing the number of CAD images as needed, or actually using spreading when training the mixture model, but then taking that result and applying it to unspread edges to retrieve~$\theta$. 
+
+The second concern is the computational overhead. This also turns out to be a non-issue, at least if we assume a rectangular neighborhood. First, we rewrite (\ref{eq:phiprime}) as 
+\[
+    \log(1 - \phi'_{k,j,e}) = \sum_{l \in \neigh{j}} \log [1 - \theta_{k,l,e} - b_e (1 - \alpha_{k,l})] \equiv \sum_{l \in \neigh{j}} A_{k,l,e},
+\]
+then, by building an integral image of $A$, it becomes fast to evaluate the above for all spatial locations.
+%we can then evaluate the above quickly for all spatial locations by building an integral image of $A$.  %using an integral image of the summand. 
+
+
+
 
 %\subsection{Max pooling - fixed support}
 

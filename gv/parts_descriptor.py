@@ -173,7 +173,9 @@ class PartsDescriptor(BinaryDescriptor):
         sett.update(settings)
 
         # Do spreading
-        radii = self.settings['spread_radii']
+        radii = sett['spread_radii']
+        radii = (3, 3) # TODO: Temporary
+        
         #radii = (0, 0)
         #if max(radii) > 0:
         spread_parts = ag.features.spread_patches(parts, radii[0], radii[1], self.num_parts)

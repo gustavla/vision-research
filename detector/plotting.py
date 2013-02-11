@@ -14,7 +14,6 @@ def plot_results(detector, img_resized, x, small, mixcomp=None, bounding_boxes=[
     plt.subplot(221)
     plt.title('Input image')
     plt.imshow(img_resized)
-    plt.colorbar()
 
     for dbb in bounding_boxes:
         bb = dbb.box

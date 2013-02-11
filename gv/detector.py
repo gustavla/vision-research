@@ -1,4 +1,3 @@
-
 from __future__ import division
 import amitgroup as ag
 import numpy as np
@@ -172,6 +171,7 @@ class Detector(Saveable):
     def _preprocess_kernels(self):
         self.kernels = self.mixture.templates.copy()
 
+
     def extract_pooled_features(self, image):
         #print image.shape
         edges = self.descriptor.extract_features(image, {'spread_radii': self.settings['spread_radii']})
@@ -188,17 +188,18 @@ class Detector(Saveable):
 
         feat_activity = edges.mean(axis=-1)
         back = np.empty(num_features)
-        #has_feat = (feat_activity > 0.05)
-        has_feat = (feat_activity > -np.inf)
+        has_feat = (feat_activity > 0.05)
+        #has_feat = (feat_activity > -np.inf)
         for f in xrange(num_features):
-            back[f] = (has_feat  * edges[...,f]).sum()
+            back[f] = (has_feat * edges[...,f]).sum()
         #back /= np.prod(edges.shape[:2])
         back /= has_feat.sum() 
-        #back *= 3 
+        #back *= 2 
 
-        #import pylab as plt
-        #plt.hist(back)
-        #plt.show() 
+
+        import pylab as plt
+        plt.hist(back)
+        plt.show() 
 
         #import pylab as plt
         #plt.imshow(feat_activity > 0.05)
@@ -212,12 +213,48 @@ class Detector(Saveable):
         #large_kernels = self.large_kernels.copy()
         kernels = self.mixture.templates.copy()
 
+
+        if 1:
+            spread_N = 3
+            nospread_back = 1 - (1 - back)**(1/(2*spread_N+1)**2)
+
+            mixcomp = 2
+            # Fix kernels
+            krn = kernels[mixcomp].copy()
+
+            #for f in xrange(num_features):
+            for i in xrange(krn.shape[0]):
+                for j in xrange(krn.shape[1]):
+                    p = np.ones(num_features)
+                    for u in xrange(-3, 4):
+                        for v in xrange(-3, 4):
+                            if 0 <= i+u < krn.shape[0] and \
+                               0 <= j+v < krn.shape[1]:
+                                p *= (1 - kernels[mixcomp,i+u,j+v]) - nospread_back * (1-self.small_support[mixcomp,i+u,j+v])
+                            else:
+                                p *= (1 - nospread_back)
+
+                    krn[i,j] = 1 - p
+
+            f0 = 0
+            import pylab as plt
+            plt.subplot(1, 2, 1)
+            plt.imshow(kernels[mixcomp,...,f0], interpolation='nearest')
+            plt.colorbar()
+            plt.subplot(1, 2, 2)
+            plt.imshow(krn[...,f0], interpolation='nearest')
+            plt.colorbar()
+            plt.show()
+
+            kernels[mixcomp] = krn
+
         #import ipdb; ipdb.set_trace()
         # Support correction
         if self.support is not None:
             for f in xrange(num_features):
                 # This is explained in writeups/cad-support/.
-                kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
+                pass
+                #kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
                 #kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.small_support[mixcomp])
         
 
