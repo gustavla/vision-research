@@ -25,8 +25,7 @@ tot_tp_fn = 0
 
 detections = []
 
-for fileobj in files[5:15]:
-    print("Testing file {0}".format(fileobj.img_id))
+for fileobj in files:
     img = gv.img.load_image(fileobj.path)
     grayscale_img = img.mean(axis=-1)
 
@@ -45,6 +44,8 @@ for fileobj in files[5:15]:
         detections.append((bbobj.confidence, bbobj.correct))
         if bbobj.correct:
             tp += 1
+
+    print("Testing file {0} (tp:{1} tp+fp:{2} tp+fn:{3}".format(fileobj.img_id, tp, tp_fp, tp_fn))
 
     tot_tp += tp
     tot_tp_fp += tp_fp

@@ -122,7 +122,6 @@ class PartsDescriptor(BinaryDescriptor):
             sh = part.shape
             p = part.reshape((sh[0]*sh[1], sh[2]))
             
-            #import ipdb; ipdb.set_trace()
             pec = p.mean(axis=0)
         
             N = np.sum(p * np.log(p/pec) + (1-p)*np.log((1-p)/(1-pec)))
@@ -173,7 +172,7 @@ class PartsDescriptor(BinaryDescriptor):
         sett.update(settings)
 
         # Do spreading
-        radii = self.settings['spread_radii']
+        radii = sett['spread_radii']
         #radii = (0, 0)
         #if max(radii) > 0:
         spread_parts = ag.features.spread_patches(parts, radii[0], radii[1], self.num_parts)
