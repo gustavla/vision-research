@@ -188,24 +188,52 @@ class Detector(Saveable):
 
         feat_activity = edges.mean(axis=-1)
         back = np.empty(num_features)
-        has_feat = (feat_activity > 0.05)
-        #has_feat = (feat_activity > -np.inf)
+        #has_feat = (feat_activity > 0.05)
+        has_feat = (feat_activity > -np.inf)
         for f in xrange(num_features):
             back[f] = (has_feat * edges[...,f]).sum()
         #back /= np.prod(edges.shape[:2])
         back /= has_feat.sum() 
         #back *= 2 
 
-
         import pylab as plt
-        plt.hist(back)
-        plt.show() 
+        K = 2 
+        flat_edges = edges.reshape((np.prod(edges.shape[:2]),-1))
+        backmodel = ag.stats.BernoulliMixture(K, flat_edges)
+        backmodel.run_EM(1e-8, 0.05)
+
+        #import ipdb; ipdb.set_trace()
+
+        aa = np.argmax(backmodel.affinities.reshape(edges.shape[:2]+(-1,)), axis=-1)
+        if 0:
+            plt.figure(figsize=(8, 5))
+            plt.subplot(1, 2, 1)
+            plt.imshow(image, cmap=plt.cm.gray, interpolation='nearest')
+            plt.subplot(1, 2, 2)
+            plt.imshow(aa)
+            plt.show()
+
+        if 0:
+            for i in xrange(K):
+                plt.subplot(2, 2, 1+i)
+                plt.plot(backmodel.templates[i], drawstyle='steps')
+                plt.ylim((0, 1))
+                
+            plt.show()
+
+        # Choose the loudest
+        back_i = np.argmax(backmodel.templates.sum(axis=-1))
+        print 'back i', back_i
+        back = backmodel.templates[back_i]
+        
+        #plt.plot(back, drawstyle='steps')
+        #plt.show()
+        #plt.hist(back)
+        #plt.show() 
 
         #import pylab as plt
         #plt.imshow(feat_activity > 0.05)
         #plt.show()
-
-        back *= 1 
 
         #back[:] = 0.05
         
@@ -218,7 +246,6 @@ class Detector(Saveable):
             spread_N = 3
             nospread_back = 1 - (1 - back)**(1/(2*spread_N+1)**2)
 
-            mixcomp = 2
             # Fix kernels
             krn = kernels[mixcomp].copy()
 
@@ -237,14 +264,16 @@ class Detector(Saveable):
                     krn[i,j] = 1 - p
 
             f0 = 0
-            import pylab as plt
-            plt.subplot(1, 2, 1)
-            plt.imshow(kernels[mixcomp,...,f0], interpolation='nearest')
-            plt.colorbar()
-            plt.subplot(1, 2, 2)
-            plt.imshow(krn[...,f0], interpolation='nearest')
-            plt.colorbar()
-            plt.show()
+        
+            if 0:
+                import pylab as plt
+                plt.subplot(1, 2, 1)
+                plt.imshow(kernels[mixcomp,...,f0], interpolation='nearest')
+                plt.colorbar()
+                plt.subplot(1, 2, 2)
+                plt.imshow(krn[...,f0], interpolation='nearest')
+                plt.colorbar()
+                plt.show()
 
             kernels[mixcomp] = krn
 

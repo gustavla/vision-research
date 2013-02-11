@@ -105,7 +105,7 @@ or simply
 
 \subsection{Background model adjustment}
 %Extending this to a background-aware model $Y'$, as follows
-As before, let us extend this to a model, $\spr{Y}$, including background
+Again, let us extend this to a model, $\spr{Y}$, including background
 \[
     \spr{Y}_{k,j,e} = \bigvee_{l \in \neigh{j}} Y_{k,j,e}
 \]
@@ -116,13 +116,13 @@ Following the same procedure as before, or solving it simply with variable subst
 This is unfortunately impossible to express in term of only $\phi$ instead of $\theta$, so we can't adjust this model correctly if we have trained our model with spreading. However, we can still train without spreading to uncover $\theta$, and then build our model using the above expression.
 
 \subsection{Spread background model}
-Since we will be spreading our feature maps, it might make sense to infer the background model from the spread features directly. We therefore imagine a spread background model, $\spr{H_0} \sim \Bern{b'_e}$, with the following relationship to $b_e$ (let $j$ be an arbitrary pixel)
+Since we will be spreading our feature maps, it might make sense to infer the background model from the spread features directly. We therefore imagine a spread background model, $\spr{H_0} \sim \Bern{\spr{b}_e}$, with the following relationship to $b_e$ (let $j$ be an arbitrary pixel)
 \[
-    b'_e = 1 - \prod_{l \in \neigh{j}} (1 - b) = 1 - (1 - b_e)^{|\Ne|},
+    \spr{b}_e = 1 - \prod_{l \in \neigh{j}} (1 - b_e) = 1 - (1 - b_e)^{|\Ne|},
 \]
 we can thus recover $b_e$ for use in (\ref{eq:phiprime}) as
 \[
-    b_e = 1 - (1 - b'_e)^{\frac{1}{|\Ne|}}.
+    b_e = 1 - (1 - \spr{b}_e)^{\frac{1}{|\Ne|}}.
 \]
 In the case of a rectangular neighborhood of radius $S$, we have $|\Ne| = (2S + 1)^2$.
 
