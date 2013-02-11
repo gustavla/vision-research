@@ -53,10 +53,12 @@ def max_pooling(data, size):
     return output
 
 
-def subsample(data, size):
+def subsample(data, size, skip_first_axis=False):
     offsets = [size[i]//2 for i in xrange(2)]
-    return data[offsets[0]::size[0],offsets[1]::size[1]]
-    
+    if skip_first_axis:
+        return data[:,offsets[0]::size[0],offsets[1]::size[1]]
+    else:
+        return data[offsets[0]::size[0],offsets[1]::size[1]]
 
 # TODO: Eventually migrate
 # TODO: Also, does it need to be general for ndim=3?
@@ -117,7 +119,7 @@ class Detector(Saveable):
                 img = gv.img.resize(img, resize_to)
                 grayscale_img = gv.img.resize(grayscale_img, resize_to) 
 
-            edges = self.extract_pooled_features(grayscale_img)
+            edges, _ = self.extract_pooled_features(grayscale_img)
             #edges = self.descriptor.extract_features(grayscale_img)
 
             if has_alpha is None:
@@ -177,14 +179,14 @@ class Detector(Saveable):
         edges = self.descriptor.extract_features(image, {'spread_radii': self.settings['spread_radii']})
         #small = max_pooling(edges, self.settings['pooling_size'])
         small = subsample(edges, self.settings['pooling_size'])
-        return small
+        return small, edges 
 
     def prepare_kernels(self, image, mixcomp, backTODO=None):
         # Convert image to our feature space representation
-        edges = self.extract_pooled_features(image)
+        small, edges = self.extract_pooled_features(image)
         #edges = self.descriptor.extract_features(image)
 
-        num_features = edges.shape[-1]
+        num_features = small.shape[-1]
 
         feat_activity = edges.mean(axis=-1)
         back = np.empty(num_features)
@@ -196,35 +198,36 @@ class Detector(Saveable):
         back /= has_feat.sum() 
         #back *= 2 
 
-        import pylab as plt
-        K = 2 
-        flat_edges = edges.reshape((np.prod(edges.shape[:2]),-1))
-        backmodel = ag.stats.BernoulliMixture(K, flat_edges)
-        backmodel.run_EM(1e-8, 0.05)
-
-        #import ipdb; ipdb.set_trace()
-
-        aa = np.argmax(backmodel.affinities.reshape(edges.shape[:2]+(-1,)), axis=-1)
         if 0:
-            plt.figure(figsize=(8, 5))
-            plt.subplot(1, 2, 1)
-            plt.imshow(image, cmap=plt.cm.gray, interpolation='nearest')
-            plt.subplot(1, 2, 2)
-            plt.imshow(aa)
-            plt.show()
+            #import pylab as plt
+            K = 2 
+            flat_edges = edges.reshape((np.prod(edges.shape[:2]),-1))
+            backmodel = ag.stats.BernoulliMixture(K, flat_edges)
+            backmodel.run_EM(1e-8, 0.05)
 
-        if 0:
-            for i in xrange(K):
-                plt.subplot(2, 2, 1+i)
-                plt.plot(backmodel.templates[i], drawstyle='steps')
-                plt.ylim((0, 1))
-                
-            plt.show()
+            #import ipdb; ipdb.set_trace()
 
-        # Choose the loudest
-        back_i = np.argmax(backmodel.templates.sum(axis=-1))
-        print 'back i', back_i
-        back = backmodel.templates[back_i]
+            aa = np.argmax(backmodel.affinities.reshape(edges.shape[:2]+(-1,)), axis=-1)
+            if 0:
+                plt.figure(figsize=(8, 5))
+                plt.subplot(1, 2, 1)
+                plt.imshow(image, cmap=plt.cm.gray, interpolation='nearest')
+                plt.subplot(1, 2, 2)
+                plt.imshow(aa)
+                plt.show()
+
+            if 0:
+                for i in xrange(K):
+                    plt.subplot(2, 2, 1+i)
+                    plt.plot(backmodel.templates[i], drawstyle='steps')
+                    plt.ylim((0, 1))
+                    
+                plt.show()
+
+            # Choose the loudest
+            back_i = np.argmax(backmodel.templates.sum(axis=-1))
+            print 'back i', back_i
+            back = backmodel.templates[back_i]
         
         #plt.plot(back, drawstyle='steps')
         #plt.show()
@@ -242,7 +245,7 @@ class Detector(Saveable):
         kernels = self.mixture.templates.copy()
 
 
-        if 1:
+        if 0:
             spread_N = 3
             nospread_back = 1 - (1 - back)**(1/(2*spread_N+1)**2)
 
@@ -283,12 +286,15 @@ class Detector(Saveable):
             for f in xrange(num_features):
                 # This is explained in writeups/cad-support/.
                 pass
-                #kernels[mixcomp,...,f] += (1-self.small_support[mixcomp]) * back[f]
+                kernels[mixcomp,...,f] += (1-self.support[mixcomp]) * back[f]
                 #kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.small_support[mixcomp])
         
 
         # Pool kernels
         psize = self.settings['pooling_size']
+
+        kernels = subsample(kernels, psize, skip_first_axis=True)
+
         #for k in xrange(self.num_mixtures):          
         #    # TODO: MAX POOLING THE PROBABILITIES!? Doesn't make sense.
             #pooled = max_pooling(self.large_kernels[k], psize)
@@ -307,87 +313,79 @@ class Detector(Saveable):
 
         self.kernels = kernels
 
-        return back_kernel, kernels, edges
+        return back_kernel, kernels, small 
 
     def response_map(self, image, mixcomp):
         """Retrieves log-likelihood response on 'image' (no scaling done)"""
 
         back_kernel, kernels, edges = self.prepare_kernels(image, mixcomp)
 
+        back = back_kernel[0,0]
+
         sh = kernels.shape
         padding = (sh[1]//2, sh[2]//2, 0)
-        #bigger = ag.util.zeropad(edges, padding).astype(np.float64)
-        bigger = probpad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
+        bigger = ag.util.zeropad(edges, padding).astype(np.float64)
+        #bigger = probpad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
         #bigger = ag.util.pad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
         
         #bigger_minus_back = bigger.copy()
 
-        for f in xrange(edges.shape[-1]):
-            pass
+        #for f in xrange(edges.shape[-1]):
+        #    pass
             #bigger_minus_back[padding[0]:-padding[0],padding[1]:-padding[1],f] -= back_kernel[0,0,f] 
             #bigger_minus_back[padding[0]:-padding[0],padding[1]:-padding[1],f] -= kernels[mixcomp,...,f]
 
+        import time
+        start = time.time()
 
         res = None
-        for k in [mixcomp]:#xrange(self.num_mixtures):
-        #for k in xrange(self.mixture.num_mix):
-            if 0:
-                from masked_convolve import llh 
-                print bigger.dtype, kernels[k].dtype
-                res = llh(bigger, kernels[k].astype(np.float64)) 
 
-                #summand = a**2 * back_kernel * (1 - back_kernel)
-                #summand = a**2 * kernels[k] * (1 - kernels[k])
-                #Z = np.sqrt(np.sum(summand))
-                #print 'norm factor', Z
-                #res /= Z
-            
-            elif 1:
-                from masked_convolve import masked_convolve
-                #r1 = masked_convolve(bigger, np.log(kernels[k]))
-                #r2 = masked_convolve(1-bigger, np.log(1.0 - kernels[k]))
-                #r3 = masked_convolve(1-bigger, -np.log(1.0 - back_kernel))
-                #r4 = masked_convolve(bigger, -np.log(back_kernel))
-                #print 'sizes', kernels[k].shape, back_kernel.shape
-                a = np.log(kernels[k] * (1-back_kernel) / ((1-kernels[k]) * back_kernel))
-                res = masked_convolve(bigger, a)
-                
-                # Subtract expected log likelihood
-                res -= (back_kernel * a).sum()
-                #res2 = (kernels[k] * a).sum()
-                #import ipdb; ipdb.set_trace()
-                #res -= res2
+        if 0:
+            from masked_convolve import llh 
+            print bigger.dtype, kernels[mixcomp].dtype
+            res = llh(bigger, kernels[mixcomp].astype(np.float64)) 
 
-                # Normalize
-                summand = a**2 * back_kernel * (1 - back_kernel)
-                #summand = a**2 * kernels[k] * (1 - kernels[k])
-                Z = np.sqrt(np.sum(summand))
-                #print 'norm factor', Z
-                res /= Z
+            #summand = a**2 * back_kernel * (1 - back_kernel)
+            #summand = a**2 * kernels[k] * (1 - kernels[k])
+            #Z = np.sqrt(np.sum(summand))
+            #print 'norm factor', Z
+            #res /= Z
+        
+        a = np.log(kernels[mixcomp] / (1-kernels[mixcomp]) * ((1-back) / back_kernel))
+
+        start2 = time.time()
+
+        if 0:
+            from masked_convolve import masked_convolve
+            res = masked_convolve(bigger, a)
+        else:
+            areversed = a[::-1,::-1]
+            biggo = np.rollaxis(bigger, axis=-1)
+            arro = np.rollaxis(areversed, axis=-1)
+
+            #import pdb; pdb.set_trace()
+    
+            for f in xrange(edges.shape[-1]):
+                r1 = scipy.signal.fftconvolve(biggo[f], arro[f], mode='valid')
+                if res is None:
+                    res = r1
+                else:
+                    res += r1
+        
+        # Subtract expected log likelihood
+        res -= (back_kernel * a).sum()
+
+        # Standardize 
+        summand = a**2 * (back * (1 - back))
+        #summand = a**2 * kernels[k] * (1 - kernels[k])
+        Z = np.sqrt(np.sum(summand))
+        #print 'norm factor', Z
+        res /= Z
 
 
-            else:
-                for f in xrange(small.shape[-1]):
-                    # Pad the incoming image, so that the result will be the same size (this
-                    # also allows us to detect objects partly cropped, even though it will be
-                    # difficult - TODO: It might help if they get a score boost)
-                    # TODO: Place outside of forloop (k) !
-                    smallf = small[...,f]
-                    sh = self.kernels.shape
-                    bigger = ag.util.zeropad(smallf, (sh[1]//2, sh[2]//2))
-                    # can also use fftconvolve
-                    r1 = scipy.signal.convolve2d(bigger, self.log_kernels[k,::-1,::-1,f], mode='valid')
-                    r2 = scipy.signal.convolve2d(1-bigger, self.log_invkernels[k,::-1,::-1,f], mode='valid')
-
-                    r3 = bigger.sum() * np.log(1-self.back[f])
-                    r4 = (1-bigger).sum() * np.log(self.back[f])
-            
-
-                    if res is None:
-                        res = r1 + r2 + r3 + r4
-                    else:
-                        res += r1 + r2 + r3 + r4
-
+        end = time.time()
+        print "Time elapsed:", (end-start)
+        print "Time elapsed2:", (end-start2)
         return res, edges 
 
     def unpooled_factor(self, side):
@@ -653,6 +651,8 @@ class Detector(Saveable):
             obj.mixture = ag.stats.BernoulliMixture.load_from_dict(d['mixture'])
             obj.settings = d['settings']
             obj.support = d['support']
+            # TODO: VERY TEMPORARY!
+            obj.settings['pooling_size'] = (4, 4)
 
             # TODO: Pooling is not supported right now! 
             #obj.settings['pooling_size'] = (2, 2)
