@@ -71,7 +71,7 @@ else:
         print("Total: ", tot)
     plot_results(detector, img, None, None, mixcomp, bbs)
 
-print('kernel sum', np.fabs(detector.kernels[mixcomp] - 0.5).sum())
+#print('kernel sum', np.fabs(detector.kernels[mixcomp] - 0.5).sum())
 
 plt.show()
 
