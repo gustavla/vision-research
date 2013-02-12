@@ -15,7 +15,7 @@ real_p = np.float64
 ctypedef np.float64_t real
 #ctypedef cython.floating real
 
-def masked_convolve(np.ndarray[real,ndim=3] data_, np.ndarray[real,ndim=3] kernel_):
+def multifeature_correlate2d(np.ndarray[real,ndim=3] data_, np.ndarray[real,ndim=3] kernel_):
     assert data_.shape[0] > kernel_.shape[0]
     assert data_.shape[1] > kernel_.shape[1]
     cdef:

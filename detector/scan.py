@@ -44,19 +44,24 @@ grayscale_img = img.mean(axis=-1)
 
 if side is not None:
     assert mixcomp is not None
-    bbs, x, small = detector.detect_coarse_unfiltered_at_scale(grayscale_img, side, mixcomp) 
-    bbs = detector.nonmaximal_suppression(bbs)
+    #bbs, x, small = detector.detect_coarse_unfiltered_at_scale(grayscale_img, side, mixcomp) 
 
-    print('small', small.shape)
+    factor = side/detector.unpooled_kernel_side
+    bbs, x = detector.detect_coarse_single_factor(grayscale_img, factor, mixcomp)
+    #bbs = detector.nonmaximal_suppression(bbs)
 
-    xx = (x - x.mean()) / x.std()
+    #print('small', small.shape)
+
     print(bbs)
-    plot_results(detector, img, x, small, mixcomp, bbs)
+    plot_results(detector, img, x, None, mixcomp, bbs)
     print('max response', x.max())
-    print('max response (xx)', xx.max())
 else:
     if mixcomp is None:
+        import time
+        start = time.time()
         bbs = detector.detect_coarse(grayscale_img, fileobj=fileobj)
+        print("Elapsed:", (time.time() - start))
+        #sys.exit(0)
     else:
         bbs = detector.detect_coarse_single_component(grayscale_img, mixcomp, fileobj=fileobj) 
     print(bbs)

@@ -17,6 +17,7 @@ detector = gv.Detector.load(model_file)
 data = None
 if detector.support is None:
     # Visualize feature activity if the support does not exist
+    assert 0, "This is broken since refactoring"
     data = detector.kernels.sum(axis=-1) / detector.kernels.shape[-1] 
 else:
     data = detector.support
