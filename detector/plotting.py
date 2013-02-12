@@ -39,10 +39,11 @@ def plot_results(detector, img_resized, x, small, mixcomp=None, bounding_boxes=[
         plt.imshow(x / np.clip(small.sum(axis=-1), 5, np.inf), interpolation='nearest')
         plt.colorbar()
     else:
-        if mixcomp is not None:
-            plt.title('Kernel Bernoulli probability averages')
-            plt.imshow(detector.kernels[mixcomp].mean(axis=-1), interpolation='nearest', cmap=plt.cm.RdBu, vmin=0, vmax=1)
-        plt.colorbar()
+        #if mixcomp is not None:
+            #plt.title('Kernel Bernoulli probability averages')
+            #plt.imshow(detector.kernels[mixcomp].mean(axis=-1), interpolation='nearest', cmap=plt.cm.RdBu, vmin=0, vmax=1)
+        #plt.colorbar()
+        pass
 
 def plot_box(bb, color='lightgreen'):
     plt.gca().add_patch(plt.Rectangle((bb[1], bb[0]), bb[3]-bb[1], bb[2]-bb[0], facecolor='none', edgecolor=color, linewidth=2.0))

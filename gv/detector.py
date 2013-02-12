@@ -206,7 +206,7 @@ class Detector(Saveable):
             back[f] = edges[...,f].sum()
         back /= np.prod(edges.shape[:2])
 
-        if 0:
+        if 1:
             #import pylab as plt
             K = 2 
             flat_edges = edges.reshape((np.prod(edges.shape[:2]),-1))
@@ -262,8 +262,8 @@ class Detector(Saveable):
                 for i in xrange(krn.shape[0]):
                     for j in xrange(krn.shape[1]):
                         p = np.ones(num_features)
-                        for u in xrange(-3, 4):
-                            for v in xrange(-3, 4):
+                        for u in xrange(-spread_N, spread_N+1):
+                            for v in xrange(-spread_N, spread_N+1):
                                 if 0 <= i+u < krn.shape[0] and \
                                    0 <= j+v < krn.shape[1]:
                                     p *= (1 - kernels[mixcomp,i+u,j+v]) - nospread_back * (1-self.support[mixcomp,i+u,j+v])
@@ -288,14 +288,15 @@ class Detector(Saveable):
 
         #import ipdb; ipdb.set_trace()
         # Support correction
-        for mixcomp in xrange(self.num_mixtures):
-            if self.support is not None:
-                for f in xrange(num_features):
-                    # This is explained in writeups/cad-support/.
-                    pass
-                    #kernels[mixcomp,...,f] += (1-self.support[mixcomp]) * back[f]
-                    #kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.support[mixcomp])
-        
+        if 0:
+            for mixcomp in xrange(self.num_mixtures):
+                if self.support is not None:
+                    for f in xrange(num_features):
+                        # This is explained in writeups/cad-support/.
+                        pass
+                        #kernels[mixcomp,...,f] += (1-self.support[mixcomp]) * back[f]
+                        #kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.support[mixcomp])
+            
 
         # Subsample kernels
         psize = self.settings['subsample_size']
@@ -436,7 +437,7 @@ class Detector(Saveable):
         res = None
 
         if 0:
-            from masked_convolve import llh 
+            from fast import llh 
             print bigger.dtype, kernels[mixcomp].dtype
             res = llh(bigger, kernels[mixcomp].astype(np.float64)) 
 
@@ -491,7 +492,7 @@ class Detector(Saveable):
             for j in xrange(i):
                 #print bb_area(bb_overlap(bbs[i].box, bbs[j].box))/bb_area(bbs[j].box)
                 overlap = gv.bb.area(gv.bb.intersection(bbs_sorted[i].box, bbs_sorted[j].box))/gv.bb.area(bbs_sorted[j].box)
-                print bbs_sorted[i].scale, bbs_sorted[j].scale
+                #print bbs_sorted[i].scale, bbs_sorted[j].scale
                 if overlap > overlap_threshold and 1/self.scale_factor-0.01 <= (bbs_sorted[i].scale / bbs_sorted[j].scale) <= self.scale_factor+0.01: 
                     del bbs_sorted[i]
                     i -= 1
