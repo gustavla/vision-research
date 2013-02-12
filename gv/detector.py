@@ -121,7 +121,8 @@ class Detector(Saveable):
                 grayscale_img = gv.img.resize(grayscale_img, resize_to) 
 
             unspread_edges = self.extract_unspread_features(grayscale_img)
-            edges = self.extract_spread_features(grayscale_img)
+            #edges = self.subsample(self.extract_spread_features(grayscale_img))
+            edges = _subsample(self.extract_spread_features(grayscale_img), (2, 2))
             #edges = self.descriptor.extract_features(grayscale_img)
 
             if has_alpha is None:
@@ -131,31 +132,33 @@ class Detector(Saveable):
             #small = self.descriptor.pool_features(edges)
             if shape is None:
                 shape = edges.shape
-                unspread_output = np.empty((len(images),) + unspread_edges.shape)
-                output = np.empty((len(images),) + edges.shape)
+                unspread_output = np.empty((len(images),) + unspread_edges.shape, dtype=np.uint8)
+                output = np.empty((len(images),) + edges.shape, dtype=np.uint8)
                 
             assert edges.shape == shape, "Images must all be of the same size, for now at least"
             output[i] = edges 
             unspread_output[i] = unspread_edges
             if has_alpha:
-                alpha_maps.append(img[...,3])
+                alpha_maps.append((img[...,3] > 0.05).astype(np.uint8))
 
         ag.info("Running mixture model in Detector")
+
 
         # Train mixture model OR SVM
         mixture = ag.stats.BernoulliMixture(self.num_mixtures, output.astype(np.uint8), float_type=np.float32)
         #mixture.run_EM(1e-6, self.settings['min_probability'])
         mixture.run_EM(1e-6, 1e-5)
-        
+        del output
+
         #self.templates = mixture.templates
         self.mixture = mixture
 
         # Now create our unspread kernels
-        self.kernel_templates = self.mixture.remix(unspread_output) 
+        self.kernel_templates = self.mixture.remix(unspread_output).astype(np.float32)
 
         # Pick out the support, by remixing the alpha channel
         if has_alpha:
-            self.support = self.mixture.remix(alpha_maps)
+            self.support = self.mixture.remix(alpha_maps).astype(np.float32)
         else:
             self.support = None#np.ones((self.num_mixtures,) + shape[:2])
 
