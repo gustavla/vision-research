@@ -106,7 +106,7 @@ class Detector(Saveable):
         unspread_output = None
         alpha_maps = []
         resize_to = self.settings.get('image_size')
-        for i, img_obj in enumerate(images[:50]):
+        for i, img_obj in enumerate(images):
             if isinstance(img_obj, str):
                 ag.info(i, "Processing file", img_obj)
                 img = gv.img.load_image(img_obj)
