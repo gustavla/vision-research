@@ -587,6 +587,7 @@ class Detector(Saveable):
             obj = cls(num_mixtures, descriptor)
             obj.mixture = ag.stats.BernoulliMixture.load_from_dict(d['mixture'])
             obj.settings = d['settings']
+            obj.kernel_templates = d['kernel_templates']
             obj.support = d['support']
             # TODO: VERY TEMPORARY!
             obj.settings['subsample_size'] = (4, 4)
