@@ -134,9 +134,9 @@ There are two concerns with this that arise when we depart from our theoretical 
 
 The second concern is the computational overhead. This also turns out to be a non-issue, at least if we assume a rectangular neighborhood. First, we rewrite (\ref{eq:phiprime}) as 
 \[
-    \log(1 - \phi'_{k,j,e}) = \sum_{l \in \neigh{j}} \log [1 - \theta_{k,l,e} - b_e (1 - \alpha_{k,l})] \equiv \sum_{l \in \neigh{j}} A_{k,l,e},
+    \log(1 - \phi'_{k,j,e}) = \sum_{l \in \neigh{j}} \log [1 - \theta_{k,l,e} - b_e (1 - \alpha_{k,l})] \equiv \sum_{l \in \neigh{j}} L_{k,l,e},
 \]
-then, by building an integral image of $A$, it becomes fast to evaluate the above for all spatial locations.
+then, by building an integral image of $L$, it becomes fast to evaluate the above for all spatial locations.
 %we can then evaluate the above quickly for all spatial locations by building an integral image of $A$.  %using an integral image of the summand. 
 
 

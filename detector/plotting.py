@@ -15,7 +15,7 @@ def plot_results(detector, img_resized, x, small, mixcomp=None, bounding_boxes=[
     plt.title('Input image')
     plt.imshow(img_resized)
 
-    for dbb in bounding_boxes:
+    for dbb in bounding_boxes[::-1]:
         bb = dbb.box
         color = 'cyan' if dbb.correct else 'red'
         plt.gca().add_patch(plt.Rectangle((bb[1], bb[0]), bb[3]-bb[1], bb[2]-bb[0], facecolor='none', edgecolor=color, linewidth=2.0))

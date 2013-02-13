@@ -5,10 +5,12 @@ import argparse
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
 parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output file')
+parser.add_argument('--limit', nargs=1, type=int, default=[None])
 
 args = parser.parse_args()
 model_file = args.model
 output_file = args.output
+limit = args.limit[0]
 
 import gv
 import amitgroup as ag
@@ -27,7 +29,7 @@ tot_tp_fn = 0
 
 detections = []
 
-for fileobj in files:
+for fileobj in files[:limit]:
     img = gv.img.load_image(fileobj.path)
     grayscale_img = img.mean(axis=-1)
     #if len(fileobj.boxes) == 0:

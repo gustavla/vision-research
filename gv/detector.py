@@ -243,7 +243,7 @@ class Detector(Saveable):
             back[f] = edges[...,f].sum()
         back /= np.prod(edges.shape[:2])
 
-        if 0:
+        if 1:
             #import pylab as plt
             K = 2 
             flat_edges = edges.reshape((np.prod(edges.shape[:2]),-1))
@@ -296,45 +296,37 @@ class Detector(Saveable):
             #nospread_back = np.clip(nospread_back, eps, 1-eps)
 
             #import pdb; pdb.set_trace()
-            aa = (1 - kernels) - nospread_back * (1-self.support.reshape(self.support.shape+(1,)))
-
-            aa = ag.util.multipad(aa, (0, spread_radii[0], spread_radii[1], 0), (1-nospread_back))
-            aa_log = np.log(aa)
+            aa_log = np.log((1 - kernels) - nospread_back * (1-self.support.reshape(self.support.shape+(1,))))
+            aa_log = ag.util.multipad(aa_log, (0, spread_radii[0], spread_radii[1], 0), np.log(1-nospread_back))
             integral_aa_log = aa_log.cumsum(1).cumsum(2)
+
+            psize = self.settings['subsample_size']
+            offsets = [psize[i]//2 for i in xrange(2)]
 
             sh = kernels.shape[1:3]
             for mixcomp in xrange(self.num_mixtures):
                 # Fix kernels
-                for i in xrange(sh[0]):
-                    for j in xrange(sh[1]):
-                        p = _integrate(integral_aa_log[mixcomp], i, j, i+2*spread_radii[0], j+2*spread_radii[1])
+                istep = 2*spread_radii[0]
+                jstep = 2*spread_radii[1]
+                # Note, we are going in strides of psize, given a a certain offset, since
+                # we will be subsampling anyway, so we don't need to do the rest.
+                for i in xrange(offsets[0], sh[0], psize[0]):
+                    for j in xrange(offsets[1], sh[1], psize[1]):
+                        p = _integrate(integral_aa_log[mixcomp], i, j, i+istep, j+jstep)
                         kernels[mixcomp,i,j] = 1 - np.exp(p)
 
-                f0 = 0
-            
-                if 0:
-                    import pylab as plt
-                    plt.subplot(1, 2, 1)
-                    plt.imshow(kernels[mixcomp,...,f0], interpolation='nearest')
-                    plt.colorbar()
-                    plt.subplot(1, 2, 2)
-                    plt.imshow(krn[...,f0], interpolation='nearest')
-                    plt.colorbar()
-                    plt.show()
-
         # Support correction
-        if 0:
+        else:
+            # This does not handle support correctly
             for mixcomp in xrange(self.num_mixtures):
                 if self.support is not None:
                     for f in xrange(num_features):
                         # This is explained in writeups/cad-support/.
-                        pass
-                        #kernels[mixcomp,...,f] += (1-self.support[mixcomp]) * back[f]
+                        kernels[mixcomp,...,f] += (1-self.support[mixcomp]) * back[f]
                         #kernels[mixcomp,...,f] = 1 - (1 - kernels[mixcomp,...,f]) * (1 - back[f])**(1-self.support[mixcomp])
             
 
         # Subsample kernels
-        psize = self.settings['subsample_size']
         sub_kernels = _subsample(kernels, psize, skip_first_axis=True)
 
         eps = self.settings['min_probability']
@@ -436,7 +428,7 @@ class Detector(Saveable):
                     i_corner = i-sub_kernels.shape[1]//2
                     j_corner = j-sub_kernels.shape[2]//2
 
-                    obj_bb = self.bounding_box_for_mix_comp(mixcomp)
+                    obj_bb = self.boundingboxes[mixcomp]
                     bb = [(i_corner + obj_bb[0]) * agg_factors[0],
                           (j_corner + obj_bb[1]) * agg_factors[1],
                           (i_corner + obj_bb[2]) * agg_factors[0],
@@ -463,7 +455,7 @@ class Detector(Saveable):
         sh = sub_kernels.shape
         padding = (sh[1]//2, sh[2]//2, 0)
         bigger = ag.util.zeropad(sub_feats, padding)
-        bigger = probpad(sub_feats, (sh[1]//2, sh[2]//2, 0), back).astype(np.uint8)
+        #bigger = probpad(sub_feats, padding, back).astype(np.uint8)
         #bigger = ag.util.pad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
         
         #bigger_minus_back = bigger.copy()
@@ -474,17 +466,6 @@ class Detector(Saveable):
             #bigger_minus_back[padding[0]:-padding[0],padding[1]:-padding[1],f] -= kernels[mixcomp,...,f]
 
         res = None
-
-        if 0:
-            from fast import llh 
-            print bigger.dtype, kernels[mixcomp].dtype
-            res = llh(bigger, kernels[mixcomp].astype(np.float64)) 
-
-            #summand = a**2 * back_kernel * (1 - back_kernel)
-            #summand = a**2 * kernels[k] * (1 - kernels[k])
-            #Z = np.sqrt(np.sum(summand))
-            #print 'norm factor', Z
-            #res /= Z
         
         a = np.log(sub_kernels[mixcomp] / (1-sub_kernels[mixcomp]) * ((1-back) / back))
 
@@ -496,7 +477,6 @@ class Detector(Saveable):
             areversed = a[::-1,::-1]
             biggo = np.rollaxis(bigger, axis=-1)
             arro = np.rollaxis(areversed, axis=-1)
-
     
             for f in xrange(sub_feats.shape[-1]):
                 r1 = scipy.signal.fftconvolve(biggo[f], arro[f], mode='valid')
@@ -510,9 +490,7 @@ class Detector(Saveable):
 
         # Standardize 
         summand = a**2 * (back * (1 - back))
-        #summand = a**2 * kernels[k] * (1 - kernels[k])
-        Z = np.sqrt(np.sum(summand))
-        #print 'norm factor', Z
+        Z = np.sqrt(summand.sum())
         res /= Z
         
         return res
@@ -525,13 +503,15 @@ class Detector(Saveable):
 
         #print 'bbs length', len(bbs_sorted)
         i = 1
+        lo, hi = 1/self.scale_factor-0.01, self.scale_factor+0.01
         while i < len(bbs_sorted):
             # TODO: This can be vastly improved performance-wise
+            area_i = gv.bb.area(bbs_sorted[i].box)
             for j in xrange(i):
-                #print bb_area(bb_overlap(bbs[i].box, bbs[j].box))/bb_area(bbs[j].box)
-                overlap = gv.bb.area(gv.bb.intersection(bbs_sorted[i].box, bbs_sorted[j].box))/gv.bb.area(bbs_sorted[j].box)
-                #print bbs_sorted[i].scale, bbs_sorted[j].scale
-                if overlap > overlap_threshold and 1/self.scale_factor-0.01 <= (bbs_sorted[i].scale / bbs_sorted[j].scale) <= self.scale_factor+0.01: 
+                overlap = gv.bb.area(gv.bb.intersection(bbs_sorted[i].box, bbs_sorted[j].box))/area_i
+                scale_diff = (bbs_sorted[i].scale / bbs_sorted[j].scale)
+                if overlap > overlap_threshold and \
+                   lo <= scale_diff <= hi: 
                     del bbs_sorted[i]
                     i -= 1
                     break
@@ -592,6 +572,10 @@ class Detector(Saveable):
         """Pre-processes things"""
         self._preprocess_pooled_support()
         self._preprocess_kernels()
+    
+        # Prepare bounding boxes for all mixture model
+        self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
+    
 
     # TODO: Very temporary, but could be useful code if tidied up
     def _temp__plot_feature_kernels(self):
