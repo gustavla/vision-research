@@ -12,10 +12,12 @@ from libc.math cimport exp, abs, fabs, fmax, fmin, log
 from libc.stdlib cimport rand, srand 
 
 real_p = np.float64
+mybool_p = np.uint8
 ctypedef np.float64_t real
+ctypedef np.uint8_t mybool
 #ctypedef cython.floating real
 
-def multifeature_correlate2d(np.ndarray[real,ndim=3] data_, np.ndarray[real,ndim=3] kernel_):
+def multifeature_correlate2d(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=3] kernel_):
     assert data_.shape[0] > kernel_.shape[0]
     assert data_.shape[1] > kernel_.shape[1]
     cdef:
@@ -31,7 +33,7 @@ def multifeature_correlate2d(np.ndarray[real,ndim=3] data_, np.ndarray[real,ndim
         #int size_d1 = min(data_d1, kernel_d1)
         np.ndarray[real,ndim=2] response_ = np.zeros((steps_x, steps_y))
 
-        real[:,:,:] data = data_
+        mybool[:,:,:] data = data_
         real[:,:,:] kernel = kernel_
         real[:,:] response = response_
     

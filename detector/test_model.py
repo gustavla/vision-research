@@ -4,9 +4,11 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
+parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output file')
 
 args = parser.parse_args()
 model_file = args.model
+output_file = args.output
 
 import gv
 import amitgroup as ag
@@ -28,6 +30,8 @@ detections = []
 for fileobj in files:
     img = gv.img.load_image(fileobj.path)
     grayscale_img = img.mean(axis=-1)
+    #if len(fileobj.boxes) == 0:
+        #continue
 
     tp = tp_fp = tp_fn = 0
 
@@ -72,7 +76,7 @@ def calc_precision_recall(detections, tp_fn):
 
 precisions, recalls = calc_precision_recall(detections, tot_tp_fn)
 ap = scipy.integrate.trapz(precisions, recalls)
-np.savez('conf.npz', precisions=precisions, recalls=recalls, detections=detections, tp_fn=tot_tp_fn, ap=ap)
+np.savez(output_file, precisions=precisions, recalls=recalls, detections=detections, tp_fn=tot_tp_fn, ap=ap)
 
 print('tp', tot_tp)
 print('tp+fp', tot_tp_fp)

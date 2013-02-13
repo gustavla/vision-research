@@ -2,6 +2,9 @@ from __future__ import division
 from collections import namedtuple
 import numpy as np
 
+def _repr(tup):
+    return "("+(", ".join(["{"+str(i)+":0.1f}" for i in xrange(4)])).format(*tup)+")"
+
 class DetectionBB(object):
     def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, truncated=False, scale=0):
         self.score = score
@@ -13,7 +16,7 @@ class DetectionBB(object):
         self.scale = scale
 
     def __repr__(self):
-        return "DetectionBB(score={0}, box={1}, correct={2}, confidence={3})".format(self.score, self.box, self.correct, self.confidence)
+        return "DetectionBB(score={0:.2f}, box={1}, correct={2}, confidence={3:.2f})".format(self.score, _repr(self.box), self.correct, self.confidence)
 
     def __cmp__(self, b):
         return cmp(self.score, b.score)

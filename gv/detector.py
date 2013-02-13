@@ -60,6 +60,40 @@ def _subsample(data, size, skip_first_axis=False):
     else:
         return data[offsets[0]::size[0],offsets[1]::size[1]]
 
+def _integrate(ii, r0, c0, r1, c1):
+    """Use an integral image to integrate over a given window.
+
+    Parameters
+    ----------
+    ii : ndarray
+    Integral image.
+    r0, c0 : int
+    Top-left corner of block to be summed.
+    r1, c1 : int
+    Bottom-right corner of block to be summed.
+
+    Returns
+    -------
+    S : int
+    Integral (sum) over the given window.
+
+    """
+    # This line is modified
+    S = np.zeros(ii.shape[-1]) 
+
+    S += ii[r1, c1]
+
+    if (r0 - 1 >= 0) and (c0 - 1 >= 0):
+        S += ii[r0 - 1, c0 - 1]
+
+    if (r0 - 1 >= 0):
+        S -= ii[r0 - 1, c1]
+
+    if (c0 - 1 >= 0):
+        S -= ii[r1, c0 - 1]
+
+    return S
+
 # TODO: Eventually migrate
 # TODO: Also, does it need to be general for ndim=3?
 def mean_pooling(data, size):
@@ -90,7 +124,7 @@ class Detector(Saveable):
         self.mixture = None
         self.log_kernels = None
         self.log_invkernels = None
-        self.scale_factor = 1.5
+        self.scale_factor = np.sqrt(2)
 
         self.settings = {}
         self.settings['bounding_box_opacity_threshold'] = 0.1
@@ -209,14 +243,13 @@ class Detector(Saveable):
             back[f] = edges[...,f].sum()
         back /= np.prod(edges.shape[:2])
 
-        if 1:
+        if 0:
             #import pylab as plt
             K = 2 
             flat_edges = edges.reshape((np.prod(edges.shape[:2]),-1))
             backmodel = ag.stats.BernoulliMixture(K, flat_edges)
             backmodel.run_EM(1e-8, 0.05)
 
-            #import ipdb; ipdb.set_trace()
 
             aa = np.argmax(backmodel.affinities.reshape(edges.shape[:2]+(-1,)), axis=-1)
             if 0:
@@ -237,10 +270,10 @@ class Detector(Saveable):
 
             # Choose the loudest
             back_i = np.argmax(backmodel.templates.sum(axis=-1))
-            print 'back i', back_i
             back = backmodel.templates[back_i]
 
         eps = self.settings['min_probability']
+        # Do not clip it here.
         back = np.clip(back, eps, 1-eps)
     
         return back
@@ -254,26 +287,28 @@ class Detector(Saveable):
         kernels = self.kernel_templates.copy()
 
         if 1:
-            spread_N = 3
-            nospread_back = 1 - (1 - back)**(1/(2*spread_N+1)**2)
+            spread_radii = self.settings['spread_radii']
+            neighborhood_area = ((2*spread_radii[0]+1)*(2*spread_radii[1]+1))
+            nospread_back = 1 - (1 - back)**(1/neighborhood_area)
+            
+            # Clip nospread_back, since we didn't clip it before
+            eps = self.settings['min_probability']
+            #nospread_back = np.clip(nospread_back, eps, 1-eps)
 
+            #import pdb; pdb.set_trace()
+            aa = (1 - kernels) - nospread_back * (1-self.support.reshape(self.support.shape+(1,)))
+
+            aa = ag.util.multipad(aa, (0, spread_radii[0], spread_radii[1], 0), (1-nospread_back))
+            aa_log = np.log(aa)
+            integral_aa_log = aa_log.cumsum(1).cumsum(2)
+
+            sh = kernels.shape[1:3]
             for mixcomp in xrange(self.num_mixtures):
                 # Fix kernels
-                krn = kernels[mixcomp].copy()
-
-                #for f in xrange(num_features):
-                for i in xrange(krn.shape[0]):
-                    for j in xrange(krn.shape[1]):
-                        p = np.ones(num_features)
-                        for u in xrange(-spread_N, spread_N+1):
-                            for v in xrange(-spread_N, spread_N+1):
-                                if 0 <= i+u < krn.shape[0] and \
-                                   0 <= j+v < krn.shape[1]:
-                                    p *= (1 - kernels[mixcomp,i+u,j+v]) - nospread_back * (1-self.support[mixcomp,i+u,j+v])
-                                else:
-                                    p *= (1 - nospread_back)
-
-                        krn[i,j] = 1 - p
+                for i in xrange(sh[0]):
+                    for j in xrange(sh[1]):
+                        p = _integrate(integral_aa_log[mixcomp], i, j, i+2*spread_radii[0], j+2*spread_radii[1])
+                        kernels[mixcomp,i,j] = 1 - np.exp(p)
 
                 f0 = 0
             
@@ -287,9 +322,6 @@ class Detector(Saveable):
                     plt.colorbar()
                     plt.show()
 
-                kernels[mixcomp] = krn
-
-        #import ipdb; ipdb.set_trace()
         # Support correction
         if 0:
             for mixcomp in xrange(self.num_mixtures):
@@ -314,7 +346,7 @@ class Detector(Saveable):
         from skimage.transform import pyramid_reduce
         img_resized = pyramid_reduce(img, downscale=factor)
     
-        up_feats = self.extract_unspread_features(img_resized)
+        up_feats = self.extract_spread_features(img_resized)
         bkg = self.background_model(up_feats)
         feats = self.subsample(up_feats) 
 
@@ -328,13 +360,15 @@ class Detector(Saveable):
 
         return final_bbs, resmap
 
-    def detect_coarse(self, img, fileobj=None):
+    def detect_coarse(self, img, fileobj=None, mixcomps=None):
+        if mixcomps is None:
+            mixcomps = range(self.num_mixtures)
         # Build image pyramid
         from skimage.transform import pyramid_gaussian 
         min_size = 75
         min_factor = min_size / self.unpooled_kernel_side
 
-        max_size = 450
+        max_size = 450 
         max_factor = max_size / self.unpooled_kernel_side
 
         num_levels = 2
@@ -355,18 +389,22 @@ class Detector(Saveable):
         # Filter out levels that are below minimum scale
 
         # Prepare each level 
-        edge_pyramid = map(self.extract_unspread_features, pyramid)
+        edge_pyramid = map(self.extract_spread_features, pyramid)
         bkg_pyramid = map(self.background_model, edge_pyramid)
         small_pyramid = map(self.subsample, edge_pyramid) 
 
         bbs = []
         for i, factor in enumerate(factors):
             # Prepare the kernel for this mixture component
+            import time
+            start = time.time()
+            start2 = time.time()
             sub_kernels = self.prepare_kernels(bkg_pyramid[i])
 
-            for mixcomp in xrange(self.num_mixtures):
+            for mixcomp in mixcomps:
                 bbsthis, _ = self.detect_coarse_at_factor(small_pyramid[i], sub_kernels, bkg_pyramid[i], factor, mixcomp)
                 bbs += bbsthis
+
 
         # Do NMS here
         final_bbs = self.nonmaximal_suppression(bbs)
@@ -379,10 +417,9 @@ class Detector(Saveable):
 
     def detect_coarse_at_factor(self, sub_feats, sub_kernels, back, factor, mixcomp):
         # Get background level
-        
         resmap = self.response_map(sub_feats, sub_kernels, back, mixcomp)
 
-        th = 30.0  
+        th = 5.0  
         top_th = 200.0
         bbs = []
         
@@ -396,7 +433,6 @@ class Detector(Saveable):
                     ix = i * psize[0]
                     iy = j * psize[1]
 
-                    #import ipdb; ipdb.set_trace()
                     i_corner = i-sub_kernels.shape[1]//2
                     j_corner = j-sub_kernels.shape[2]//2
 
@@ -426,8 +462,8 @@ class Detector(Saveable):
     def response_map(self, sub_feats, sub_kernels, back, mixcomp):
         sh = sub_kernels.shape
         padding = (sh[1]//2, sh[2]//2, 0)
-        bigger = ag.util.zeropad(sub_feats, padding).astype(np.float64)
-        #bigger = probpad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
+        bigger = ag.util.zeropad(sub_feats, padding)
+        bigger = probpad(sub_feats, (sh[1]//2, sh[2]//2, 0), back).astype(np.uint8)
         #bigger = ag.util.pad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
         
         #bigger_minus_back = bigger.copy()
@@ -461,7 +497,6 @@ class Detector(Saveable):
             biggo = np.rollaxis(bigger, axis=-1)
             arro = np.rollaxis(areversed, axis=-1)
 
-            #import pdb; pdb.set_trace()
     
             for f in xrange(sub_feats.shape[-1]):
                 r1 = scipy.signal.fftconvolve(biggo[f], arro[f], mode='valid')
@@ -594,7 +629,7 @@ class Detector(Saveable):
             obj.kernel_templates = d['kernel_templates']
             obj.support = d['support']
             # TODO: VERY TEMPORARY!
-            obj.settings['subsample_size'] = (4, 4)
+            obj.settings['subsample_size'] = (6, 6)
 
             obj._preprocess()
             return obj
@@ -610,5 +645,3 @@ class Detector(Saveable):
         d['mixture'] = self.mixture.save_to_dict()
         d['kernel_templates'] = self.kernel_templates
         d['support'] = self.support
-        d['settings'] = self.settings
-        return d

@@ -52,7 +52,8 @@ if side is not None:
 
     #print('small', small.shape)
 
-    print(bbs)
+    for bb in bbs:
+        print(bb)
     plot_results(detector, img, x, None, mixcomp, bbs)
     print('max response', x.max())
 else:
@@ -63,8 +64,9 @@ else:
         print("Elapsed:", (time.time() - start))
         #sys.exit(0)
     else:
-        bbs = detector.detect_coarse_single_component(grayscale_img, mixcomp, fileobj=fileobj) 
-    print(bbs)
+        bbs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp]) 
+    for bb in bbs:
+        print(bb)
     if len(bbs) > 0:
         print('max score: ', bbs[0].score)
         tot = sum([bb.correct for bb in bbs])
