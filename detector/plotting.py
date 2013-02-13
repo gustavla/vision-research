@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pylab as plt
 
-def plot_results(detector, img_resized, x, small, mixcomp=None, bounding_boxes=[]):
+def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_resized=None):
     # Get max peak
     #print ix, iy
 
@@ -13,7 +13,7 @@ def plot_results(detector, img_resized, x, small, mixcomp=None, bounding_boxes=[
     plt.clf()
     plt.subplot(221)
     plt.title('Input image')
-    plt.imshow(img_resized)
+    plt.imshow(img)
 
     for dbb in bounding_boxes[::-1]:
         bb = dbb.box
@@ -33,6 +33,9 @@ def plot_results(detector, img_resized, x, small, mixcomp=None, bounding_boxes=[
         plt.colorbar()
 
     plt.subplot(224)
+    if img_resized is not None:
+        plt.imshow(img, interpolation='nearest')
+        
     if 0:
         pass
         plt.title('Normalized stuff')
