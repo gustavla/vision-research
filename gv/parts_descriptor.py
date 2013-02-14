@@ -23,7 +23,7 @@ class PartsDescriptor(BinaryDescriptor):
 
         # Or maybe just do defaults?
         # self.settings['bedges'] = {}
-        self.settings['bedges'] = dict(k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True)
+        self.settings['bedges'] = dict(k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, max_edges=2)
         self.settings.update(settings)
 
     def _get_patches(self, filename):

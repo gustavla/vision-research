@@ -243,7 +243,7 @@ class Detector(Saveable):
             back[f] = edges[...,f].sum()
         back /= np.prod(edges.shape[:2])
 
-        if 1:
+        if 0:
             #import pylab as plt
             K = 2 
             flat_edges = edges.reshape((np.prod(edges.shape[:2]),-1))
@@ -295,7 +295,6 @@ class Detector(Saveable):
             eps = self.settings['min_probability']
             #nospread_back = np.clip(nospread_back, eps, 1-eps)
 
-            #import pdb; pdb.set_trace()
             aa_log = np.log((1 - kernels) - nospread_back * (1-self.support.reshape(self.support.shape+(1,))))
             aa_log = ag.util.multipad(aa_log, (0, spread_radii[0], spread_radii[1], 0), np.log(1-nospread_back))
             integral_aa_log = aa_log.cumsum(1).cumsum(2)
@@ -303,17 +302,18 @@ class Detector(Saveable):
             psize = self.settings['subsample_size']
             offsets = [psize[i]//2 for i in xrange(2)]
 
+            # Fix kernels
+            istep = 2*spread_radii[0]
+            jstep = 2*spread_radii[1]
             sh = kernels.shape[1:3]
             for mixcomp in xrange(self.num_mixtures):
-                # Fix kernels
-                istep = 2*spread_radii[0]
-                jstep = 2*spread_radii[1]
                 # Note, we are going in strides of psize, given a a certain offset, since
                 # we will be subsampling anyway, so we don't need to do the rest.
-                for i in xrange(offsets[0], sh[0], psize[0]):
-                    for j in xrange(offsets[1], sh[1], psize[1]):
-                        p = _integrate(integral_aa_log[mixcomp], i, j, i+istep, j+jstep)
-                        kernels[mixcomp,i,j] = 1 - np.exp(p)
+                if 1:
+                    for i in xrange(offsets[0], sh[0], psize[0]):
+                        for j in xrange(offsets[1], sh[1], psize[1]):
+                            p = _integrate(integral_aa_log[mixcomp], i, j, i+istep, j+jstep)
+                            kernels[mixcomp,i,j] = 1 - np.exp(p)
 
         # Support correction
         else:
@@ -350,13 +350,12 @@ class Detector(Saveable):
         # Do NMS here
         final_bbs = self.nonmaximal_suppression(bbs)
 
-        return final_bbs, resmap
+        return final_bbs, resmap, feats, img_resized
 
     def detect_coarse(self, img, fileobj=None, mixcomps=None):
         if mixcomps is None:
             mixcomps = range(self.num_mixtures)
         # Build image pyramid
-        from skimage.transform import pyramid_gaussian 
         min_size = 75
         min_factor = min_size / self.unpooled_kernel_side
 
@@ -376,6 +375,7 @@ class Detector(Saveable):
                 skips += 1
         num_levels = len(factors) + skips
 
+        from skimage.transform import pyramid_gaussian 
         pyramid = list(pyramid_gaussian(img, max_layer=num_levels, downscale=self.scale_factor))[skips:]
 
         # Filter out levels that are below minimum scale
@@ -388,12 +388,12 @@ class Detector(Saveable):
         bbs = []
         for i, factor in enumerate(factors):
             # Prepare the kernel for this mixture component
-            import time
-            start = time.time()
-            start2 = time.time()
+            print i, factor
             sub_kernels = self.prepare_kernels(bkg_pyramid[i])
+            print 'done'
 
             for mixcomp in mixcomps:
+                print 'mixcomp', mixcomp
                 bbsthis, _ = self.detect_coarse_at_factor(small_pyramid[i], sub_kernels, bkg_pyramid[i], factor, mixcomp)
                 bbs += bbsthis
 
@@ -454,6 +454,7 @@ class Detector(Saveable):
     def response_map(self, sub_feats, sub_kernels, back, mixcomp):
         sh = sub_kernels.shape
         padding = (sh[1]//2, sh[2]//2, 0)
+        #padding = (0,)*3
         bigger = ag.util.zeropad(sub_feats, padding)
         #bigger = probpad(sub_feats, padding, back).astype(np.uint8)
         #bigger = ag.util.pad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
@@ -614,7 +615,7 @@ class Detector(Saveable):
             obj.kernel_templates = d['kernel_templates']
             obj.support = d['support']
             # TODO: VERY TEMPORARY!
-            obj.settings['subsample_size'] = (6, 6)
+            #obj.settings['subsample_size'] = (1, 1)
 
             obj._preprocess()
             return obj

@@ -47,14 +47,14 @@ if side is not None:
     #bbs, x, small = detector.detect_coarse_unfiltered_at_scale(grayscale_img, side, mixcomp) 
 
     factor = side/detector.unpooled_kernel_side
-    bbs, x = detector.detect_coarse_single_factor(grayscale_img, factor, mixcomp)
+    bbs, x, feats, img_resized = detector.detect_coarse_single_factor(grayscale_img, factor, mixcomp)
     #bbs = detector.nonmaximal_suppression(bbs)
 
     #print('small', small.shape)
 
     for bb in bbs:
         print(bb)
-    plot_results(detector, img, x, None, mixcomp, bbs)
+    plot_results(detector, img, x, feats, mixcomp, bbs, img_resized=img_resized)
     print('max response', x.max())
 else:
     if mixcomp is None:
