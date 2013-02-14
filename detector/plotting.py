@@ -34,7 +34,7 @@ def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_r
 
     plt.subplot(224)
     if img_resized is not None:
-        plt.imshow(img, interpolation='nearest')
+        plt.imshow(img_resized, interpolation='nearest', cmap=plt.cm.gray)
         
     if 0:
         pass

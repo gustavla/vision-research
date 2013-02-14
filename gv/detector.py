@@ -272,11 +272,6 @@ class Detector(Saveable):
             back_i = np.argmax(backmodel.templates.sum(axis=-1))
             back = backmodel.templates[back_i]
 
-        import pylab as plt
-        plt.hist(back)
-        plt.show()
-        #import pdb; pdb.set_trace() 
-
         eps = self.settings['min_probability']
         # Do not clip it here.
         back = np.clip(back, eps, 1-eps)
@@ -300,7 +295,6 @@ class Detector(Saveable):
             eps = self.settings['min_probability']
             #nospread_back = np.clip(nospread_back, eps, 1-eps)
 
-            #import pdb; pdb.set_trace()
             aa_log = np.log((1 - kernels) - nospread_back * (1-self.support.reshape(self.support.shape+(1,))))
             aa_log = ag.util.multipad(aa_log, (0, spread_radii[0], spread_radii[1], 0), np.log(1-nospread_back))
             integral_aa_log = aa_log.cumsum(1).cumsum(2)
