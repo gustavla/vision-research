@@ -557,6 +557,7 @@ class Detector(Saveable):
                     #print('intersection_area', gv.bb.area(gv.bb.intersection(bb1, bb2)))
                     #print('here', gv.bb.fraction_metric(bb1, bb2))
                     score = gv.bb.fraction_metric(bb1, bb2)
+                    print 'score', score
                     if score >= 0.5:
                         if best_score is None or score > best_score:
                             best_score = score
@@ -629,3 +630,5 @@ class Detector(Saveable):
         d['mixture'] = self.mixture.save_to_dict()
         d['kernel_templates'] = self.kernel_templates
         d['support'] = self.support
+        d['settings'] = self.settings
+        return d

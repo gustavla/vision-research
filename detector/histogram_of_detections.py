@@ -36,7 +36,7 @@ def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
         originals, bbs = gv.voc.load_negative_images_of_size(VOCSETTINGS, 'bicycle', detector.kernel_size, count=50, padding=padding) 
     else:
         profiles = map(int, open('profiles.txt').readlines())
-        originals, bbs = gv.voc.load_object_images_of_size_from_list(VOCSETTINGS, 'bicycle', detector.kernel_size, profiles, padding=padding) 
+        originals, bbs = gv.voc.load_object_images_of_size_from_list(VOCSETTINGS, 'bicycle', detector.unpooled_kernel_size, profiles, padding=padding) 
 
     print "NUMBER OF IMAGES", len(originals)
 

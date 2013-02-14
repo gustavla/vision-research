@@ -26,8 +26,8 @@ def intersection(bb1, bb2):
             min(bb1[2], bb2[2]), min(bb1[3], bb2[3]))
 
 def area(bb):
-    #return max(0, (bb[2] - bb[0])) * max(0, (bb[3] - bb[1]))
-    return (bb[2] - bb[0]) * (bb[3] - bb[1])
+    return max(0, (bb[2] - bb[0])) * max(0, (bb[3] - bb[1]))
+    #return (bb[2] - bb[0]) * (bb[3] - bb[1])
     
 
 def union_area(bb1, bb2):
