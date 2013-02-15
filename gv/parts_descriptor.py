@@ -1,9 +1,10 @@
+from __future__ import absolute_import
 import random
 import copy
 import amitgroup as ag
 import numpy as np
 import gv
-from binary_descriptor import BinaryDescriptor
+from .binary_descriptor import BinaryDescriptor
 
 @BinaryDescriptor.register('parts')
 class PartsDescriptor(BinaryDescriptor):

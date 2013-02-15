@@ -1,8 +1,10 @@
 from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import 
 import amitgroup as ag
 import numpy as np
 import scipy.signal
-from saveable import Saveable
+from .saveable import Saveable
 import gv
 
 def probpad(data, padwidth, prob):
@@ -130,14 +132,19 @@ class Detector(Saveable):
         self.settings['bounding_box_opacity_threshold'] = 0.1
         self.settings['min_probability'] = 0.05
         self.settings['subsample_size'] = (8, 8)
+        self.settings['train_unspread'] = True
         self.settings.update(settings)
+
+    @property
+    def train_unspread(self):
+        return self.settings['train_unspread']
     
     def train_from_images(self, images):
         has_alpha = None#(img.shape[-1] == 4)
         
         shape = None
         output = None
-        unspread_output = None
+        final_output = None
         alpha_maps = []
         resize_to = self.settings.get('image_size')
         for i, img_obj in enumerate(images):
@@ -154,7 +161,10 @@ class Detector(Saveable):
                 img = gv.img.resize(img, resize_to)
                 grayscale_img = gv.img.resize(grayscale_img, resize_to) 
 
-            unspread_edges = self.extract_unspread_features(grayscale_img)
+            if self.train_unspread:
+                final_edges = self.extract_unspread_features(grayscale_img)
+            else:
+                final_edges = self.extract_spread_features(grayscale_img)
             #edges = self.subsample(self.extract_spread_features(grayscale_img))
             edges = _subsample(self.extract_spread_features(grayscale_img), (2, 2))
             #edges = self.descriptor.extract_features(grayscale_img)
@@ -166,12 +176,12 @@ class Detector(Saveable):
             #small = self.descriptor.pool_features(edges)
             if shape is None:
                 shape = edges.shape
-                unspread_output = np.empty((len(images),) + unspread_edges.shape, dtype=np.uint8)
+                final_output = np.empty((len(images),) + final_edges.shape, dtype=np.uint8)
                 output = np.empty((len(images),) + edges.shape, dtype=np.uint8)
                 
             assert edges.shape == shape, "Images must all be of the same size, for now at least"
             output[i] = edges 
-            unspread_output[i] = unspread_edges
+            final_output[i] = final_edges
             if has_alpha:
                 alpha_maps.append((img[...,3] > 0.05).astype(np.uint8))
 
@@ -188,7 +198,9 @@ class Detector(Saveable):
         self.mixture = mixture
 
         # Now create our unspread kernels
-        self.kernel_templates = self.mixture.remix(unspread_output).astype(np.float32)
+        if self.train_unspread:
+            self.kernel_templates = self.mixture.remix(final_output).astype(np.float32)
+        
 
         # Pick out the support, by remixing the alpha channel
         if has_alpha:
@@ -286,7 +298,7 @@ class Detector(Saveable):
 
         kernels = self.kernel_templates.copy()
 
-        if 1:
+        if self.train_unspread:
             spread_radii = self.settings['spread_radii']
             neighborhood_area = ((2*spread_radii[0]+1)*(2*spread_radii[1]+1))
             nospread_back = 1 - (1 - back)**(1/neighborhood_area)
@@ -469,7 +481,7 @@ class Detector(Saveable):
 
         # With larger kernels, the fftconvolve is much faster
         if 1:
-            from fast import multifeature_correlate2d 
+            from .fast import multifeature_correlate2d 
             res = multifeature_correlate2d(bigger, a)
         else:
             areversed = a[::-1,::-1]
@@ -614,7 +626,7 @@ class Detector(Saveable):
 
             obj._preprocess()
             return obj
-        except KeyError, e:
+        except KeyError as e:
             # TODO: Create a new exception for these kinds of problems
             raise Exception("Could not reconstruct class from dictionary. Missing '{0}'".format(e))
 

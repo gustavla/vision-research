@@ -19,7 +19,6 @@ mixcomp = args.mixcomp
 import gv
 import numpy as np
 np.seterr(divide='raise')
-from PIL import Image
 import matplotlib.pylab as plt
 import sys
 from config import VOCSETTINGS
@@ -39,8 +38,6 @@ grayscale_img = img.mean(axis=-1)
 
 #print(fileobj)
 #sys.exit(0)
-
-#img = np.array(Image.open(image_file)).astype(np.float64) / 255.0
 
 if side is not None:
     assert mixcomp is not None

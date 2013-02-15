@@ -52,11 +52,13 @@ def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
             im2 = resize_to_size(im2, new_size)
     return im2
 
-from PIL import Image
+#from PIL import Image
+import skimage.data
 import os.path
 
 def load_image(path):
-    im = np.array(Image.open(path))
+    #im = np.array(Image.open(path))
+    im = skimage.data.load(path)
     return im.astype(np.float64)/255.0
     #_, ext = os.path.splitext(path)
     #if ext.lower() in ['.jpg', '.jpeg']:

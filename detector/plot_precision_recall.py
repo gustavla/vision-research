@@ -1,4 +1,5 @@
 from __future__ import division
+from __future__ import print_function
 import argparse
 
 parser = argparse.ArgumentParser(description='Test response of model')
@@ -20,10 +21,10 @@ for results_file in results_files:
     p = np.r_[[1], p]
     r = np.r_[[0], r]
 
-    print results_file.name
-    print 'AP:', ap
-    print detections[-10:]
-    print
+    print(results_file.name)
+    print('AP:', ap)
+    print(detections[-10:])
+    print()
 
     plt.plot(r, p, label=results_file.name)
     plt.xlabel('Recall')

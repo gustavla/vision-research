@@ -1,5 +1,5 @@
-
-from saveable import Saveable
+from __future__ import absolute_import
+from .saveable import Saveable
 
 _DESCRIPTORS = {}
 
