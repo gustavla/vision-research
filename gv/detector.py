@@ -388,12 +388,9 @@ class Detector(Saveable):
         bbs = []
         for i, factor in enumerate(factors):
             # Prepare the kernel for this mixture component
-            print i, factor
             sub_kernels = self.prepare_kernels(bkg_pyramid[i])
-            print 'done'
 
             for mixcomp in mixcomps:
-                print 'mixcomp', mixcomp
                 bbsthis, _ = self.detect_coarse_at_factor(small_pyramid[i], sub_kernels, bkg_pyramid[i], factor, mixcomp)
                 bbs += bbsthis
 
@@ -502,7 +499,6 @@ class Detector(Saveable):
 
         overlap_threshold = 0.5
 
-        #print 'bbs length', len(bbs_sorted)
         i = 1
         lo, hi = 1/self.scale_factor-0.01, self.scale_factor+0.01
         while i < len(bbs_sorted):
@@ -518,14 +514,12 @@ class Detector(Saveable):
                     break
 
             i += 1
-        #print 'bbs length', len(bbs_sorted)
         return bbs_sorted
 
     def bounding_box_for_mix_comp(self, k):
         """This returns a bounding box of the support for a given component"""
 
         # Take the bounding box of the support, with a certain threshold.
-        #print self.support
         if self.support is not None:
             supp = self.support[k] 
             supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
@@ -558,7 +552,6 @@ class Detector(Saveable):
                     #print('intersection_area', gv.bb.area(gv.bb.intersection(bb1, bb2)))
                     #print('here', gv.bb.fraction_metric(bb1, bb2))
                     score = gv.bb.fraction_metric(bb1, bb2)
-                    print 'score', score
                     if score >= 0.5:
                         if best_score is None or score > best_score:
                             best_score = score
@@ -567,7 +560,9 @@ class Detector(Saveable):
 
             if best_bbobj is not None:
                 best_bbobj.correct = True
-                tot += 1
+                # Don't count difficult
+                if not best_bbobj.difficult:
+                    tot += 1
                 used_bb.add(best_bb)
 
     def _preprocess(self):

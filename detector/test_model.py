@@ -51,7 +51,7 @@ for fileobj in files[:limit]:
     
     for bbobj in bbs:
         detections.append((bbobj.confidence, bbobj.correct))
-        if bbobj.correct:
+        if bbobj.correct and not bbobj.difficult:
             tp += 1
 
     print("Testing file {0} (tp:{1} tp+fp:{2} tp+fn:{3}".format(fileobj.img_id, tp, tp_fp, tp_fn))
