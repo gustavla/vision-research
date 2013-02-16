@@ -4,6 +4,7 @@ from __future__ import absolute_import
 import amitgroup as ag
 import numpy as np
 import scipy.signal
+import skimage.data
 from .saveable import Saveable
 import gv
 
@@ -142,66 +143,104 @@ class Detector(Saveable):
     def train_from_images(self, images):
         has_alpha = None#(img.shape[-1] == 4)
         
+        real_shape = None
         shape = None
         output = None
         final_output = None
-        alpha_maps = []
+        alpha_maps = None 
+        sparse = True
+        build_sparse = True and sparse
+        feats = None
         resize_to = self.settings.get('image_size')
-        for i, img_obj in enumerate(images):
-            if isinstance(img_obj, str):
-                ag.info(i, "Processing file", img_obj)
-                img = gv.img.load_image(img_obj)
-                grayscale_img = img[...,:3].mean(axis=-1)
-            else:
-                ag.info(i, "Processing image of shape", img_obj.shape)
-                grayscale_img = img_obj.mean(axis=-1)
-    
-            # Resize the image before extracting features
-            if resize_to is not None and resize_to != grayscale_img.shape[:2]:
-                img = gv.img.resize(img, resize_to)
-                grayscale_img = gv.img.resize(grayscale_img, resize_to) 
+
+        def load_img(images):
+            for i, img_obj in enumerate(images):
+                if isinstance(img_obj, str):
+                    img = skimage.data.load(img_obj).astype(np.float64)/255
+                    grayscale_img = img[...,:3].mean(axis=-1)
+                else:
+                    grayscale_img = img_obj.mean(axis=-1)
+
+                # Resize the image before extracting features
+                if resize_to is not None and resize_to != grayscale_img.shape[:2]:
+                    img = gv.img.resize(img, resize_to)
+                    grayscale_img = gv.img.resize(grayscale_img, resize_to) 
+
+                yield i, grayscale_img, img
+
+
+        for i, grayscale_img, img in load_img(images):
+            ag.info(i, "Processing image", i)
+            if has_alpha is None:
+                has_alpha = (img.shape[-1] == 4)
+                alpha_maps = np.empty((len(images),) + img.shape[:2], dtype=np.uint8)
+
+            if has_alpha:
+                alpha_maps[i] = (img[...,3] > 0.05)
 
             if self.train_unspread:
                 final_edges = self.extract_unspread_features(grayscale_img)
             else:
                 final_edges = self.extract_spread_features(grayscale_img)
+            #else:
+                #final_edges = (np.random.random(651264 * 4)>0.5).astype(np.uint8)
             #edges = self.subsample(self.extract_spread_features(grayscale_img))
-            edges = _subsample(self.extract_spread_features(grayscale_img), (2, 2))
+            #import scipy.sparse
+            orig_edges = self.extract_spread_features(grayscale_img)
+            edges = _subsample(orig_edges, (2, 2)).ravel()
+            real_shape = orig_edges.shape
             #edges = self.descriptor.extract_features(grayscale_img)
-
-            if has_alpha is None:
-                has_alpha = (img.shape[-1] == 4)
         
             # Extract the parts, with some pooling 
             #small = self.descriptor.pool_features(edges)
             if shape is None:
                 shape = edges.shape
-                final_output = np.empty((len(images),) + final_edges.shape, dtype=np.uint8)
-                output = np.empty((len(images),) + edges.shape, dtype=np.uint8)
+                if sparse:
+                    if build_sparse:
+                        output = scipy.sparse.dok_matrix((len(images),) + edges.shape, dtype=np.uint8)
+                    else:
+                        output = np.zeros((len(images),) + edges.shape, dtype=np.uint8)
+                else:
+                    output = np.empty((len(images),) + edges.shape, dtype=np.uint8)
                 
-            assert edges.shape == shape, "Images must all be of the same size, for now at least"
-            output[i] = edges 
-            final_output[i] = final_edges
-            if has_alpha:
-                alpha_maps.append((img[...,3] > 0.05).astype(np.uint8))
+            #assert edges.shape == shape, "Images must all be of the same size, for now at least"
+            
+            if build_sparse:
+                for j in np.where(edges==1):
+                    output[i,j] = 1
+            else:
+                output[i] = edges
 
         ag.info("Running mixture model in Detector")
 
+        if build_sparse:
+            output = output.tocsr()
+        elif sparse:
+            output = scipy.sparse.csr_matrix(output)
+        else:
+            output = np.asmatrix(output)
 
         # Train mixture model OR SVM
         mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32)
-        #mixture.run_EM(1e-6, self.settings['min_probability'])
         mixture.run_EM(1e-6, 1e-5)
-        del output
 
-        #self.templates = mixture.templates
         self.mixture = mixture
+        self.mixture.templates = np.empty(0)
 
         # Now create our unspread kernels
-        if self.train_unspread:
-            self.kernel_templates = self.mixture.remix(final_output).astype(np.float32)
+        # Remix it - this iterable will produce each object and then throw it away,
+        # so that we can remix without having to ever keep all mixing data in memory at once
+        def gen():
+            for i, grayscale_img, img in load_img(images):
+                #ag.info("Mixing image {0}".format(i))
+                if self.train_unspread:
+                    final_edges = self.extract_unspread_features(grayscale_img)
+                else:
+                    final_edges = self.extract_spread_features(grayscale_img)
+                yield final_edges
+             
+        self.kernel_templates = np.clip(mixture.remix_iterable(gen()), 1e-5, 1-1e-5)
         
-
         # Pick out the support, by remixing the alpha channel
         if has_alpha:
             self.support = self.mixture.remix(alpha_maps).astype(np.float32)
@@ -298,6 +337,7 @@ class Detector(Saveable):
 
         kernels = self.kernel_templates.copy()
 
+        psize = self.settings['subsample_size']
         if self.train_unspread:
             spread_radii = self.settings['spread_radii']
             neighborhood_area = ((2*spread_radii[0]+1)*(2*spread_radii[1]+1))
@@ -311,7 +351,6 @@ class Detector(Saveable):
             aa_log = ag.util.multipad(aa_log, (0, spread_radii[0], spread_radii[1], 0), np.log(1-nospread_back))
             integral_aa_log = aa_log.cumsum(1).cumsum(2)
 
-            psize = self.settings['subsample_size']
             offsets = [psize[i]//2 for i in xrange(2)]
 
             # Fix kernels

@@ -43,10 +43,7 @@ if limit is not None:
 print "Training on {0} files".format(len(files))
 #files = files[:10]
 
-import time
-start = time.time()
 detector.train_from_images(files)
-end = time.time()
-print 'time', (end-start)
 
 detector.save(dsettings['file'])
+
