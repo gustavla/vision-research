@@ -189,7 +189,7 @@ class Detector(Saveable):
 
 
         # Train mixture model OR SVM
-        mixture = ag.stats.BernoulliMixture(self.num_mixtures, output.astype(np.uint8), float_type=np.float32)
+        mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32)
         #mixture.run_EM(1e-6, self.settings['min_probability'])
         mixture.run_EM(1e-6, 1e-5)
         del output

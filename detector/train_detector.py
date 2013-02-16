@@ -36,9 +36,17 @@ if dsettings['use_voc']:
 else:
     files = glob.glob(os.path.join(dsettings['cad_dir'], "*.png"))
 
+limit = dsettings.get('limit_images')
+if limit is not None:
+    files = files[:limit]
+
 print "Training on {0} files".format(len(files))
 #files = files[:10]
 
+import time
+start = time.time()
 detector.train_from_images(files)
+end = time.time()
+print 'time', (end-start)
 
 detector.save(dsettings['file'])
