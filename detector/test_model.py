@@ -4,12 +4,14 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
+parser.add_argument('obj_class', metavar='<object class>', type=str, help='Object class')
 parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output file')
 parser.add_argument('--limit', nargs=1, type=int, default=[None])
 parser.add_argument('--mini', action='store_true', default=False)
 
 args = parser.parse_args()
 model_file = args.model
+obj_class = args.obj_class
 output_file = args.output
 limit = args.limit[0]
 mini = args.mini
@@ -23,8 +25,10 @@ from config import VOCSETTINGS
 
 detector = gv.Detector.load(model_file)
 
-dataset = ['test', 'train'][mini]
-files, tot = gv.voc.load_files(VOCSETTINGS, 'bicycle', dataset=dataset)
+#dataset = ['val', 'train'][mini]
+#dataset = ['val', 'train'][mini]
+dataset = 'val'
+files, tot = gv.voc.load_files(VOCSETTINGS, obj_class, dataset=dataset)
 
 tot_tp = 0
 tot_tp_fp = 0
@@ -32,11 +36,16 @@ tot_tp_fn = 0
 
 detections = []
 
-for fileobj in files[:limit]:
+if mini:
+    files = filter(lambda x: len(x.boxes) > 0, files)
+files = files[:limit]
+
+fout = open("detections.txt", "w")
+
+def detect(fileobj):
+    detections = []
     img = gv.img.load_image(fileobj.path)
     grayscale_img = img.mean(axis=-1)
-    if mini and len(fileobj.boxes) == 0:
-        continue
 
     tp = tp_fp = tp_fn = 0
 
@@ -50,17 +59,29 @@ for fileobj in files[:limit]:
     tp_fp += len(bbs)
     
     for bbobj in bbs:
-        detections.append((bbobj.confidence, bbobj.correct))
+        #print("{0:06d} {1} {2} {3} {4} {5}".format(fileobj.img_id, bbobj.confidence, int(bbobj.box[0]), int(bbobj.box[1]), int(bbobj.box[2]), int(bbobj.box[3])), file=fout)
+        detections.append((bbobj.confidence, bbobj.correct, bbobj.mixcomp, fileobj.img_id, int(bbobj.box[1]), int(bbobj.box[0]), int(bbobj.box[3]), int(bbobj.box[2])))
+        fout.flush()
         if bbobj.correct and not bbobj.difficult:
             tp += 1
 
-    print("Testing file {0} (tp:{1} tp+fp:{2} tp+fn:{3}".format(fileobj.img_id, tp, tp_fp, tp_fn))
+    print("Testing file {0} (tp:{1} tp+fp:{2} tp+fn:{3})".format(fileobj.img_id, tp, tp_fp, tp_fn))
 
+    return (tp, tp_fp, tp_fn, detections)
+
+# Test threaded
+from multiprocessing import Pool
+p = Pool(7)
+res = p.map(detect, files)
+
+
+for tp, tp_fp, tp_fn, dets in res:
     tot_tp += tp
     tot_tp_fp += tp_fp
     tot_tp_fn += tp_fn
+    detections.extend(dets)
 
-detections = np.array(detections, dtype=[('confidence', float), ('correct', bool)])
+detections = np.array(detections, dtype=[('confidence', float), ('correct', bool), ('mixcomp', int), ('img_id', str), ('left', int), ('top', int), ('right', int), ('bottom', int)])
 detections.sort(order='confidence')
 
 def calc_precision_recall(detections, tp_fn):

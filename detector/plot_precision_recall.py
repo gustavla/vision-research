@@ -4,14 +4,18 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('results', metavar='<file>', nargs='+', type=argparse.FileType('rb'), help='Filename of results file')
+parser.add_argument('--captions', metavar='<caption>', nargs='*', type=str, help='Captions')
 
 args = parser.parse_args()
 results_files = args.results
+captions = args.captions
+if captions:
+    assert len(captions) == len(results_files), "Must supply caption for all"
 
 import numpy as np
 import matplotlib.pylab as plt
 
-for results_file in results_files:
+for i, results_file in enumerate(results_files):
     data = np.load(results_file)
 
     p, r = data['precisions'], data['recalls']
@@ -26,7 +30,11 @@ for results_file in results_files:
     print(detections[-10:])
     print()
 
-    plt.plot(r, p, label=results_file.name)
+    if captions:
+        caption = captions[i]
+    else:
+        caption = results_file.name
+    plt.plot(r, p, label=caption)
     plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.xlim((0, 1))

@@ -4,12 +4,15 @@ from config import VOCSETTINGS
 import os.path
 import argparse
 
-parser = argparse.ArgumentParser(description='List files and number of annotations of bicycles')
+parser = argparse.ArgumentParser(description='List files and number of annotations of a certain object')
+parser.add_argument('object', type=str, help='Object class to list')
 parser.add_argument('-a', '--all', action='store_true', help='List all')
+
 args = parser.parse_args()
+object_class = args.object
 listall = args.all
 
-fileobjs, tot = gv.voc.load_training_files(VOCSETTINGS, 'bicycle', dataset='train')
+fileobjs, tot = gv.voc.load_training_files(VOCSETTINGS, object_class, dataset='train')
 
 print("<filename> <number of boxes> (<number of which are difficult>)")
 for f in fileobjs:

@@ -5,6 +5,7 @@ import argparse
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
 parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
+parser.add_argument('--class', dest='class', nargs=1, default=[None], type=str, help='Object class for marking corrects')
 parser.add_argument('--kernel-size', dest='side', nargs=1, default=[None], metavar='SIDE', type=float, help='Run single side length of kernel')
 
 # TODO: Make into an option 
@@ -18,7 +19,6 @@ mixcomp = args.mixcomp
 
 import gv
 import numpy as np
-np.seterr(divide='raise')
 import matplotlib.pylab as plt
 import sys
 from config import VOCSETTINGS

@@ -26,6 +26,19 @@ def probpad(data, padwidth, prob):
 def subsample_size(data, size):
     return tuple([data.shape[i]//size[i] for i in xrange(2)])
 
+
+def offset_img(img, off):
+    sh = img.shape
+    if sh == (0, 0):
+        return img
+    else:
+        x = np.zeros(sh)
+        x[  max(off[0], 0):min(sh[0]+off[0], sh[0]), \
+            max(off[1], 0):min(sh[1]+off[1], sh[1])] = \
+            img[max(-off[0], 0):min(sh[0]-off[0], sh[0]), \
+                max(-off[1], 0):min(sh[1]-off[1], sh[1])]
+        return x
+
 # TODO: Eventually migrate 
 def max_pooling(data, size):
     # TODO: Remove this later
@@ -134,13 +147,97 @@ class Detector(Saveable):
         self.settings['min_probability'] = 0.05
         self.settings['subsample_size'] = (8, 8)
         self.settings['train_unspread'] = True
+        self.settings['min_size'] = 75
+        self.settings['max_size'] = 450
         self.settings.update(settings)
 
     @property
     def train_unspread(self):
         return self.settings['train_unspread']
-    
+
+    @property
+    def num_features(self):
+        return self.kernel_templates.shape[-1]
+
+    def load_img(self, images, offsets=None):
+        resize_to = self.settings.get('image_size')
+        for i, img_obj in enumerate(images):
+            if isinstance(img_obj, str):
+                img = skimage.data.load(img_obj).astype(np.float64)/255
+                grayscale_img = img[...,:3].mean(axis=-1)
+            else:
+                grayscale_img = img_obj.mean(axis=-1)
+
+            # Resize the image before extracting features
+            if resize_to is not None and resize_to != grayscale_img.shape[:2]:
+                img = gv.img.resize(img, resize_to)
+                grayscale_img = gv.img.resize(grayscale_img, resize_to) 
+
+            # Offset the image
+            if offsets is not None:
+                grayscale_img = offset_img(grayscale_img, offsets[i])
+                img = offset_img(img, offsets[i])
+
+            yield i, grayscale_img, img
+
+    def gen_img(self, images, actual=False):
+        for i, grayscale_img, img in self.load_img(images):
+            #ag.info("Mixing image {0}".format(i))
+            if self.train_unspread and not actual:
+                final_edges = self.extract_unspread_features(grayscale_img)
+            else:
+                final_edges = self.extract_spread_features(grayscale_img)
+                if actual:
+                    final_edges = self.subsample(final_edges)
+            yield final_edges
+
     def train_from_images(self, images):
+        mixture, kernel_templates, support = self._train(images)
+        
+
+        if self.settings.get('recenter'):
+            #mixture.templates = np.empty(0)
+
+            search_size = 5 
+
+            offsets = np.zeros((len(images), 2), dtype=np.int32)
+
+            for i, grayscale_img, img in self.load_img(images):
+                k = mixture.which_component(i)
+
+                # Make abstraction
+                orig_edges = self.extract_spread_features(grayscale_img)
+                edges = _subsample(orig_edges, (2, 2))
+
+                #print(edges.shape)
+
+                padded = ag.util.zeropad(edges, (search_size, search_size, 0))
+                 
+                # Check log-likelihood of that image with different shifts
+                from .fast import multifeature_correlate2d 
+                #import pdb; pdb.set_trace()
+                kernel = mixture.templates[k].reshape(edges.shape[:2] + (-1,)).astype(np.float64)
+                res = multifeature_correlate2d(padded, np.log(kernel))
+                res += multifeature_correlate2d(1-padded, np.log(1-kernel))
+
+                # Get max
+                best = np.unravel_index(np.argmax(res), res.shape)
+                offset = (best[0]-search_size, best[1]-search_size)
+                offsets[i] = offset
+                print(i, 'offset', offset)
+            
+                #print(res)
+
+            # Re-train centered        
+            mixture, kernel_templates, support = self._train(images, offsets)
+
+        self.mixture = mixture
+        self.kernel_templates = kernel_templates
+        self.support = support
+            
+        self._preprocess()
+
+    def _train(self, images, offsets=None):
         has_alpha = None#(img.shape[-1] == 4)
         
         real_shape = None
@@ -151,25 +248,8 @@ class Detector(Saveable):
         sparse = True
         build_sparse = True and sparse
         feats = None
-        resize_to = self.settings.get('image_size')
 
-        def load_img(images):
-            for i, img_obj in enumerate(images):
-                if isinstance(img_obj, str):
-                    img = skimage.data.load(img_obj).astype(np.float64)/255
-                    grayscale_img = img[...,:3].mean(axis=-1)
-                else:
-                    grayscale_img = img_obj.mean(axis=-1)
-
-                # Resize the image before extracting features
-                if resize_to is not None and resize_to != grayscale_img.shape[:2]:
-                    img = gv.img.resize(img, resize_to)
-                    grayscale_img = gv.img.resize(grayscale_img, resize_to) 
-
-                yield i, grayscale_img, img
-
-
-        for i, grayscale_img, img in load_img(images):
+        for i, grayscale_img, img in self.load_img(images, offsets):
             ag.info(i, "Processing image", i)
             if has_alpha is None:
                 has_alpha = (img.shape[-1] == 4)
@@ -224,30 +304,22 @@ class Detector(Saveable):
         mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32)
         mixture.run_EM(1e-6, 1e-5)
 
-        self.mixture = mixture
-        self.mixture.templates = np.empty(0)
+        mixture = mixture
+        #mixture.templates = np.empty(0)
 
         # Now create our unspread kernels
         # Remix it - this iterable will produce each object and then throw it away,
         # so that we can remix without having to ever keep all mixing data in memory at once
-        def gen():
-            for i, grayscale_img, img in load_img(images):
-                #ag.info("Mixing image {0}".format(i))
-                if self.train_unspread:
-                    final_edges = self.extract_unspread_features(grayscale_img)
-                else:
-                    final_edges = self.extract_spread_features(grayscale_img)
-                yield final_edges
              
-        self.kernel_templates = np.clip(mixture.remix_iterable(gen()), 1e-5, 1-1e-5)
+        kernel_templates = np.clip(mixture.remix_iterable(self.gen_img(images)), 1e-5, 1-1e-5)
         
         # Pick out the support, by remixing the alpha channel
         if has_alpha:
-            self.support = self.mixture.remix(alpha_maps).astype(np.float32)
+            support = mixture.remix(alpha_maps).astype(np.float32)
         else:
-            self.support = None#np.ones((self.num_mixtures,) + shape[:2])
-
-        self._preprocess()
+            support = None#np.ones((self.num_mixtures,) + shape[:2])
+    
+        return mixture, kernel_templates, support
 
     def _preprocess_pooled_support(self):
         """
@@ -256,7 +328,7 @@ class Detector(Saveable):
         features.
         """
 
-        if 0:
+        if 1:
             self.small_support = None
             if self.support is not None:
                 num_mix = self.mixture.num_mix
@@ -294,15 +366,18 @@ class Detector(Saveable):
             back[f] = edges[...,f].sum()
         back /= np.prod(edges.shape[:2])
 
+        #back *= 1.5
+        #back[:] = 0.05
+
         if 0:
             #import pylab as plt
             K = 2 
             flat_edges = edges.reshape((np.prod(edges.shape[:2]),-1))
             backmodel = ag.stats.BernoulliMixture(K, flat_edges)
-            backmodel.run_EM(1e-8, 0.05)
+            backmodel.run_EM(1e-4, 0.05)
 
 
-            aa = np.argmax(backmodel.affinities.reshape(edges.shape[:2]+(-1,)), axis=-1)
+            #aa = np.argmax(backmodel.affinities.reshape(edges.shape[:2]+(-1,)), axis=-1)
             if 0:
                 plt.figure(figsize=(8, 5))
                 plt.subplot(1, 2, 1)
@@ -383,6 +458,11 @@ class Detector(Saveable):
         eps = self.settings['min_probability']
         sub_kernels = np.clip(sub_kernels, eps, 1-eps)
 
+        # TEMP: Prepare means
+        #self.means = np.array([ 35.93866455,  38.39765241,  39.96420018,  25.06870656,  32.96915432]) / 30.0
+        self.means = np.apply_over_axes(np.sum, self.support, [1, 2]).ravel()
+        self.means /= self.means.mean()
+
         return sub_kernels
 
     def detect_coarse_single_factor(self, img, factor, mixcomp):
@@ -407,10 +487,10 @@ class Detector(Saveable):
         if mixcomps is None:
             mixcomps = range(self.num_mixtures)
         # Build image pyramid
-        min_size = 75
+        min_size = self.settings['min_size'] 
         min_factor = min_size / self.unpooled_kernel_side
 
-        max_size = 450 
+        max_size = self.settings['max_size'] 
         max_factor = max_size / self.unpooled_kernel_side
 
         num_levels = 2
@@ -442,6 +522,7 @@ class Detector(Saveable):
             sub_kernels = self.prepare_kernels(bkg_pyramid[i])
 
             for mixcomp in mixcomps:
+            #for mixcomp in [1]:
                 bbsthis, _ = self.detect_coarse_at_factor(small_pyramid[i], sub_kernels, bkg_pyramid[i], factor, mixcomp)
                 bbs += bbsthis
 
@@ -458,8 +539,11 @@ class Detector(Saveable):
     def detect_coarse_at_factor(self, sub_feats, sub_kernels, back, factor, mixcomp):
         # Get background level
         resmap = self.response_map(sub_feats, sub_kernels, back, mixcomp)
+        
+        #resmap /= self.means[mixcomp]
 
         th = 5.0  
+        #top_th = resmap.max()#200.0
         top_th = 200.0
         bbs = []
         
@@ -488,7 +572,7 @@ class Detector(Saveable):
                 
                     conf = (score - th) / (top_th - th)
                     conf = np.clip(conf, 0, 1)
-                    dbb = gv.bb.DetectionBB(score=score, box=bb, confidence=conf, scale=factor)
+                    dbb = gv.bb.DetectionBB(score=score, box=bb, confidence=conf, scale=factor, mixcomp=mixcomp)
 
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)
@@ -503,8 +587,8 @@ class Detector(Saveable):
         sh = sub_kernels.shape
         padding = (sh[1]//2, sh[2]//2, 0)
         #padding = (0,)*3
-        bigger = ag.util.zeropad(sub_feats, padding)
-        #bigger = probpad(sub_feats, padding, back).astype(np.uint8)
+        #bigger = ag.util.zeropad(sub_feats, padding)
+        bigger = probpad(sub_feats, padding, back).astype(np.uint8)
         #bigger = ag.util.pad(edges, (sh[1]//2, sh[2]//2, 0), back_kernel[0,0])
         
         #bigger_minus_back = bigger.copy()
@@ -518,8 +602,13 @@ class Detector(Saveable):
         
         a = np.log(sub_kernels[mixcomp] / (1-sub_kernels[mixcomp]) * ((1-back) / back))
 
-        # With larger kernels, the fftconvolve is much faster
+        # With larger kernels, the fftconvolve is much faster. However,
+        # this is not the case for smaller kernels.
         if 1:
+            from .fast import llh
+            res = llh(bigger, sub_kernels[mixcomp], (self.small_support[mixcomp] > 0.2).astype(np.uint8))
+            #res = llh(bigger, sub_kernels[mixcomp], np.empty((0,0), dtype=np.uint8))
+        elif 1:
             from .fast import multifeature_correlate2d 
             res = multifeature_correlate2d(bigger, a)
         else:
@@ -533,15 +622,15 @@ class Detector(Saveable):
                     res = r1
                 else:
                     res += r1
-        
-        # Subtract expected log likelihood
-        res -= (a * back).sum()
 
-        # Standardize 
-        summand = a**2 * (back * (1 - back))
-        Z = np.sqrt(summand.sum())
-        res /= Z
-        
+        # Subtract expected log likelihood
+        if 0:
+            res -= (a * back).sum()
+
+            # Standardize 
+            summand = a**2 * (back * (1 - back))
+            Z = np.sqrt(summand.sum())
+            res /= Z
         return res
 
     def nonmaximal_suppression(self, bbs):
@@ -606,11 +695,12 @@ class Detector(Saveable):
                     if score >= 0.5:
                         if best_score is None or score > best_score:
                             best_score = score
-                            best_bbobj = bb2obj 
+                            best_bbobj = bb1obj 
                             best_bb = bb1
 
             if best_bbobj is not None:
-                best_bbobj.correct = True
+                bb2obj.correct = True
+                bb2obj.difficult = best_bbobj.difficult
                 # Don't count difficult
                 if not best_bbobj.difficult:
                     tot += 1
@@ -660,6 +750,14 @@ class Detector(Saveable):
             obj.settings = d['settings']
             obj.kernel_templates = d['kernel_templates']
             obj.support = d['support']
+
+
+            # TEMP: Temporary
+            if 'min_size' not in obj.settings:
+                obj.settings['min_size'] = 75
+            if 'max_size' not in obj.settings:
+                obj.settings['max_size'] = 450 
+
             # TODO: VERY TEMPORARY!
             #obj.settings['subsample_size'] = (1, 1)
 
@@ -674,7 +772,7 @@ class Detector(Saveable):
         d['num_mixtures'] = self.num_mixtures
         d['descriptor_name'] = self.descriptor.name
         d['descriptor'] = self.descriptor.save_to_dict()
-        d['mixture'] = self.mixture.save_to_dict()
+        d['mixture'] = self.mixture.save_to_dict(save_affinities=True)
         d['kernel_templates'] = self.kernel_templates
         d['support'] = self.support
         d['settings'] = self.settings
