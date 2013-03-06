@@ -169,7 +169,7 @@ class PartsDescriptor(BinaryDescriptor):
 
         #tau = self.settings.get('tau')
         #if self.settings.get('tau'):
-        #    parts = partprobs.argmax(axis=-1)
+        parts = partprobs.argmax(axis=-1)
 
         # Pad with background (TODO: maybe incorporate as an option to code_parts?)
         # This just makes things a lot easier, and we don't have to match for instance the
