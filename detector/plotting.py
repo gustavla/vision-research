@@ -11,9 +11,12 @@ def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_r
     #print small.shape
 
     plt.clf()
-    plt.subplot(221)
+    if small is None and x is None:
+        plt.subplot(111)
+    else:
+        plt.subplot(221)
     plt.title('Input image')
-    plt.imshow(img)
+    plt.imshow(img, cmap=plt.cm.gray)
 
     for dbb in bounding_boxes[::-1]:
         bb = dbb.box
@@ -32,8 +35,9 @@ def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_r
         plt.imshow(small.sum(axis=-1), interpolation='nearest')
         plt.colorbar()
 
-    plt.subplot(224)
     if img_resized is not None:
+        plt.subplot(224)
+        plt.title('Resized image')
         plt.imshow(img_resized, interpolation='nearest', cmap=plt.cm.gray)
         
     if 0:

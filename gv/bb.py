@@ -6,7 +6,7 @@ def _repr(tup):
     return "("+(", ".join(["{"+str(i)+":0.1f}" for i in xrange(4)])).format(*tup)+")"
 
 class DetectionBB(object):
-    def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, truncated=False, scale=0, mixcomp=None):
+    def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, truncated=False, scale=0, mixcomp=None, plusscore=None):
         self.score = score
         self.box = box
         self.confidence = confidence
@@ -15,6 +15,7 @@ class DetectionBB(object):
         self.truncated = truncated
         self.scale = scale
         self.mixcomp = mixcomp
+        self.plusscore = plusscore
 
     def __repr__(self):
         return "DetectionBB(score={0:.2f}, box={1}, correct={2}, confidence={3:.2f}, mixcomp={4})".format(self.score, _repr(self.box), self.correct, self.confidence, self.mixcomp)
@@ -42,6 +43,9 @@ def box_sticks_out(bb_smaller, bb_bigger):
 
 def inflate(bb, amount):
     return (bb[0] - amount, bb[1] - amount, bb[2] + amount, bb[3] + amount)
+
+def center(bb):
+    return ((bb[0]+bb[2])//2, (bb[1]+bb[3])//2)
 
 def expand_to_square(bb):
     """Expands a bounding box to square"""

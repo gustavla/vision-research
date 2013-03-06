@@ -2,6 +2,7 @@ from __future__ import division
 import numpy as np
 import scipy.misc
 import amitgroup as ag
+from skimage.transform.pyramids import pyramid_reduce
 
 def resize_to_size(im, new_size):
     return scipy.misc.imresize((im*255).astype(np.uint8), new_size).astype(np.float64)/255
@@ -25,13 +26,27 @@ def resize_with_factor(im, factor, preserve_aspect_ratio=True, prefilter=True):
     new_size = [int(im.shape[i] * factor) for i in xrange(2)]
     return resize(im, new_size, preserve_aspect_ratio=preserve_aspect_ratio, prefilter=prefilter)
 
-import scipy.misc
 def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
     """
     This is a not-very-rigorous function to do image resizing, with
     pre-filtering.
     """
     factors = [new_size[i] / im.shape[i] for i in xrange(2)]
+
+    assert factors[0] == factors[1], "Must have same factor for now"
+    f = factors[0] 
+    
+    if f < 1:
+        im2 = pyramid_reduce(im, downscale=1/f)
+    elif f > 1:
+        # Implement 
+        assert 0, "Implement this using pyramid_expand"
+
+    assert im2.shape[:2] == new_size, "{0} != {1}".format(im2.shape, new_size)
+     
+    return im2
+
+def old_resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
 
     if max(factors) > 1.0:
         # Just do resize
@@ -51,6 +66,12 @@ def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
         if size != new_size:
             im2 = resize_to_size(im2, new_size)
     return im2
+
+def asgray(im):
+    if im.ndim == 2:
+        return im
+    else:
+        return im[...,:3].mean(axis=-1)
 
 #from PIL import Image
 import skimage.data

@@ -12,7 +12,6 @@ def calc_precision_recall(detections, tp_fn):
     for i in xrange(N):
         indx = indices[i]
         if i==0 or indices[i-1] != indx-1:
-            print('indx', indx)
             arr = detections['correct'][indx:]
             tp = arr.sum()
             tp_fp = arr.size

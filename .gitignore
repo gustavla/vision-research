@@ -9,6 +9,7 @@ detector/config.py
 *.so
 .*.sw[o]
 *~.skp
+*.ini
 
 # Packages
 *.egg

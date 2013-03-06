@@ -14,6 +14,7 @@ dsettings = sett['detector']
 
 import gv
 import glob
+import os
 import os.path
 import amitgroup as ag
 
@@ -34,9 +35,13 @@ detector = gv.Detector(dsettings['num_mixtures'], descriptor, dsettings)
 if dsettings['use_voc']:
     files = gv.voc.load_object_images_of_size(sett['voc'], 'bicycle', dsettings['image_size'], dataset='train')
 else:
-    files = glob.glob(os.path.join(dsettings['cad_dir'], "*.png"))
+    base_path = ''
+    if 'base_path' in dsettings:
+        base_path = os.environ[dsettings['base_path']]
+    path = os.path.join(base_path, dsettings['train_dir'])
+    files = glob.glob(path)
 
-limit = dsettings.get('limit_images')
+limit = dsettings.get('train_limit')
 if limit is not None:
     files = files[:limit]
 

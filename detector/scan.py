@@ -5,8 +5,9 @@ import argparse
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
 parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
-parser.add_argument('--class', dest='class', nargs=1, default=[None], type=str, help='Object class for marking corrects')
+parser.add_argument('--class', dest='obj_class', nargs=1, default=[None], type=str, help='Object class for marking corrects')
 parser.add_argument('--kernel-size', dest='side', nargs=1, default=[None], metavar='SIDE', type=float, help='Run single side length of kernel')
+parser.add_argument('--contest', type=str, choices=('voc', 'uiuc'), default='voc', help='Contest to try on')
 
 # TODO: Make into an option 
 parser.add_argument('mixcomp', metavar='<mixture component>', nargs='?', type=int, help='mix comp')
@@ -16,24 +17,34 @@ model_file = args.model
 img_id = args.img_id
 side = args.side[0]
 mixcomp = args.mixcomp
+obj_class = args.obj_class[0]
+contest = args.contest
 
 import gv
 import numpy as np
 import matplotlib.pylab as plt
 import sys
 from config import VOCSETTINGS
+import skimage.data
 
 from plotting import plot_results
 
 detector = gv.Detector.load(model_file)
 
-fileobj = gv.voc.load_training_file(VOCSETTINGS, 'bicycle', img_id)
+print(obj_class)
+
+if contest == 'voc':
+    fileobj = gv.voc.load_training_file(VOCSETTINGS, obj_class, img_id)
+elif contest == 'uiuc':
+    assert obj_class is None or obj_class == 'car', "Can't set object class for uiuc data"
+    fileobj = gv.uiuc.load_testing_file(img_id)
+
 if fileobj is None:
     print("Could not find image", file=sys.stderr)
     sys.exit(0)
-img = gv.img.load_image(fileobj.path)
-
-grayscale_img = img.mean(axis=-1)
+img = skimage.data.load(fileobj.path).astype(np.float64)/255
+grayscale_img = gv.img.asgray(img)
+print("Image size:", grayscale_img.shape)
 #img = np.random.random(img.shape)
 
 #print(fileobj)
@@ -43,7 +54,8 @@ if side is not None:
     assert mixcomp is not None
     #bbs, x, small = detector.detect_coarse_unfiltered_at_scale(grayscale_img, side, mixcomp) 
 
-    factor = side/detector.unpooled_kernel_side
+    factor = side/max(detector.orig_kernel_size)
+    print(factor)
     bbs, x, feats, img_resized = detector.detect_coarse_single_factor(grayscale_img, factor, mixcomp)
     #bbs = detector.nonmaximal_suppression(bbs)
 

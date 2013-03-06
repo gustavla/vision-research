@@ -20,7 +20,7 @@ class PartsDescriptor(BinaryDescriptor):
         self.settings['threshold'] = 4 
         self.settings['threaded'] = False 
         self.settings['samples_per_image'] = 500 
-        self.settings['min_probability'] = 0.05
+        self.settings['min_probability'] = 0.005
 
         # Or maybe just do defaults?
         # self.settings['bedges'] = {}
@@ -38,7 +38,7 @@ class PartsDescriptor(BinaryDescriptor):
         # LEAVE-BEHIND
         if 1:
             img = gv.img.load_image(filename)
-            img = img[...,:3].mean(axis=-1)
+            img = gv.img.asgray(img)
             edges = ag.features.bedges(img, **self.settings['bedges'])
         else:
             edges, img = ag.features.bedges_from_image(filename, return_original=True, **self.settings['bedges'])
@@ -60,7 +60,10 @@ class PartsDescriptor(BinaryDescriptor):
                 # Return grayscale patch and edges patch
                 edgepatch = edges[selection]
                 #edgepatch_nospread = edges_nospread[selection]
-                num = edgepatch[fr:-fr,fr:-fr].sum()
+                if fr == 0:
+                    num = edgepatch.sum()
+                else:
+                    num = edgepatch[fr:-fr,fr:-fr].sum()
                 if num >= self.settings['threshold']: 
                     the_patches.append(edgepatch)
                     #the_patches.append(edgepatch_nospread)
@@ -87,14 +90,16 @@ class PartsDescriptor(BinaryDescriptor):
 
         # TODO: Have an amitgroup / vision-research setting for "allow threading"
         if 0:
-            if self.settings['threaded']:
+            if True:#self.settings['threaded']:
                 from multiprocessing import Pool
-                p = Pool(8) # Should not be hardcoded
+                p = Pool(7) # Should not be hardcoded
                 mapfunc = p.map
             else:
                 mapfunc = map
 
-        ret = map(self._get_patches, filenames)
+        mapfunc = map
+
+        ret = mapfunc(self._get_patches, filenames)
 
         for patches, originals in ret:
             raw_patches.extend(patches)
@@ -161,13 +166,24 @@ class PartsDescriptor(BinaryDescriptor):
     def extract_parts(self, edges, settings={}):
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
                                            self.settings['threshold'], self.settings['patch_frame'])
-        parts = partprobs.argmax(axis=-1)
+
+        #tau = self.settings.get('tau')
+        #if self.settings.get('tau'):
+        #    parts = partprobs.argmax(axis=-1)
 
         # Pad with background (TODO: maybe incorporate as an option to code_parts?)
         # This just makes things a lot easier, and we don't have to match for instance the
         # support which will be bigger if we don't do this.
         # TODO: If we're not using a support, this could be extremely detrimental!
-        parts = ag.util.zeropad(parts, (self._log_parts.shape[1]//2, self._log_parts.shape[2]//2))
+
+        if settings.get('preserve_size'):
+            parts = ag.util.zeropad(parts, (self._log_parts.shape[1]//2, self._log_parts.shape[2]//2))
+
+            # TODO: This is a bit of a hack. This makes it handle even-sized parts
+            if self._log_parts.shape[1] % 2 == 0:
+                parts = parts[:-1]
+            if self._log_parts.shape[2] % 2 == 0:
+                parts = parts[:,:-1]
         
         sett = self.settings.copy()
         sett.update(settings)
