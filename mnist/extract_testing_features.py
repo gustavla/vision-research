@@ -8,7 +8,7 @@ parser.add_argument('-k', nargs=1, default=[5], choices=range(1, 7), type=int, h
 parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), default=(0, -1), type=int, help='Range of frames, FROM (incl) and TO (excl)')
 parser.add_argument('--save-originals', dest='graylevel', action='store_true', help='Store original graylevel images as well')
 parser.add_argument('--radius', metavar='RADIUS', nargs=1, default=[1], type=int, help='Inflation radius')
-parser.add_argument('--kernel', metavar='KERNEL', nargs=1, default=['box'], type=str, choices=('box', 'along'), help='Kernel shape of inflation')
+parser.add_argument('--kernel', metavar='KERNEL', nargs=1, default=['box'], type=str, choices=('box', 'orthogonal'), help='Kernel shape of inflation')
 
 args = parser.parse_args()
 dataset = args.dataset
@@ -34,7 +34,7 @@ digits, labels = ag.io.load_mnist(dataset, selection=slice(n0, n1))
 #digits_padded[:,2:-2,2:-2] = digits
 digits_padded = ag.util.zeropad(digits, (0, 2, 2))
 
-features = ag.features.bedges(digits_padded, k=k, inflate=inflation_type, radius=inflation_radius, first_axis=True)
+features = ag.features.bedges(digits_padded, k=k, spread=inflation_type, radius=inflation_radius, first_axis=True)
 digit_features["features"] = features
 digit_features["labels"] = labels
 

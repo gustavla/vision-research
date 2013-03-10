@@ -7,10 +7,10 @@ fi
 
 KERNEL=$1
 RADIUS=$2
-DIR="d-$KERNEL-$RADIUS"
+DIR="/var/tmp/local/mnist-experiments/d-$KERNEL-$RADIUS"
 
 rm -rf $DIR
-mkdir $DIR
+mkdir -p $DIR
 
 echo "Extracting training features..."
 python extract_training_features.py -k 5 -r 0 100 --save-originals --kernel $KERNEL --radius $RADIUS training $DIR/training-feat.npz

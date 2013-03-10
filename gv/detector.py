@@ -186,8 +186,19 @@ class Detector(Saveable):
 
         if self.settings.get('recenter'):
             #mixture.templates = np.empty(0)
+            radii = (2, 2)
+            psize = (2, 2)
 
-            search_size = 5 
+            fix_bkg = self.settings.get('fixed_background_probability')
+            bkg = 1 - (1 - fix_bkg)**((2 * radii[0] + 1) * (2 * radii[1] + 1))
+
+            search_size = 10 
+
+            # TODO: This is a hack. Refactor.
+            self.kernel_templates = kernel_templates
+            self.support = support
+
+            kernels = self.prepare_kernels(np.ones(kernel_templates.shape[-1])*bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
             offsets = np.zeros((len(images), 2), dtype=np.int32)
 
@@ -195,24 +206,27 @@ class Detector(Saveable):
                 k = mixture.which_component(i)
 
                 # Make abstraction
-                orig_edges = self.extract_spread_features(grayscale_img)
-                edges = gv.sub.subsample(orig_edges, (2, 2))
+                orig_feats = self.extract_spread_features(grayscale_img, dict(spread_radii=radii))
+                feats = gv.sub.subsample(orig_feats, psize)
 
-                #print(edges.shape)
+                #print(feats.shape)
 
-                padded = ag.util.zeropad(edges, (search_size, search_size, 0))
+                padded = ag.util.zeropad(feats, (search_size, search_size, 0))
                  
                 # Check log-likelihood of that image with different shifts
                 from .fast import multifeature_correlate2d 
-                kernel = mixture.templates[k].reshape(edges.shape[:2] + (-1,)).astype(np.float64)
-                res = multifeature_correlate2d(padded, np.log(kernel))
-                res += multifeature_correlate2d(1-padded, np.log(1-kernel))
+                kernel = mixture.templates[k].reshape(feats.shape[:2] + (-1,)).astype(np.float64)
+                #res = multifeature_correlate2d(padded, np.log(kernel))
+                res = multifeature_correlate2d(padded, np.log(kernel/(1-kernel) * ((1-bkg)/bkg)))
+                #res += multifeature_correlate2d(1-padded, np.log(1-kernel))
  
                 # Get max
                 best = np.unravel_index(np.argmax(res), res.shape)
                 offset = (best[0]-search_size, best[1]-search_size)
                 offsets[i] = offset
-                #print(i, 'offset', offset)
+                print(i, 'offset', offset)
+
+                #import pudb; pudb.set_trace()
             
                 #print(res)
 
@@ -333,9 +347,13 @@ class Detector(Saveable):
         # Pick out the support, by remixing the alpha channel
         if self.use_alpha:
             support = mixture.remix(alpha_maps).astype(np.float32)
+            # TODO: Temporary fix
+            support = support[:,4:-4,4:-4]
         else:
             support = None#np.ones((self.num_mixtures,) + shape[:2])
 
+        # TODO: Figure this out.
+        self.support = support
 
         # Determine the log likelihood of the training data
         fix_bkg = self.settings.get('fixed_background_probability')
@@ -572,7 +590,9 @@ class Detector(Saveable):
                 supp = (1-self.support.reshape(self.support.shape+(1,)))
             else:
                 supp = 0
-            aa_log = np.log((1 - kernels) - nospread_back * supp)
+            #import pudb; pudb.set_trace()
+            #aa_log = np.log((1 - kernels) - nospread_back * supp)
+            aa_log = np.log(np.clip((1 - kernels) - nospread_back * supp, 0.005, 1-0.005))
             aa_log = ag.util.multipad(aa_log, (0, radii[0], radii[1], 0), np.log(1-nospread_back))
             integral_aa_log = aa_log.cumsum(1).cumsum(2)
 
@@ -612,6 +632,10 @@ class Detector(Saveable):
         #self.means = np.array([ 35.93866455,  38.39765241,  39.96420018,  25.06870656,  32.96915432]) / 30.0
         #self.means = np.apply_over_axes(np.sum, self.support, [1, 2]).ravel()
         #self.means /= self.means.mean()
+        K = self.settings.get('quantize_bins')
+        if K is not None:
+            sub_kernels = np.round(1+sub_kernels*(K-2))/K
+
 
         return sub_kernels
 
@@ -626,7 +650,6 @@ class Detector(Saveable):
         else:
             img_resized = pyramid_reduce(img, downscale=factor)
 
-        toplevel = self.settings['levels'][-1]
         #sh = gv.sub.subsample_size(img, (toplevel[0],)*2)
         # TODO: This is hack to make sub_ok same size as resmap. Investigate closer instead!
         ok = np.ones(tuple(np.asarray(img.shape)+2*np.ones(2)))
@@ -634,6 +657,8 @@ class Detector(Saveable):
         last_resmap = None
 
         sold = self.settings.copy()
+
+        resmaps = []
 
         # Coarse to fine structure
         levels = self.settings['levels']
@@ -670,14 +695,18 @@ class Detector(Saveable):
             ok_sub = gv.sub.subsample(ok, psize)
 
             resmap, resplus = self.response_map(feats, sub_kernels, bkg, mixcomp, level=i, ok=ok_sub)
+            
+            resmaps.append(resmap)
 
             #print('ok', ok.shape)
             #print('resmap', resmap.shape)
             #print('psize', psize)
-            if i != len(levels) - 1:
-                gv.sub.erase(ok, resmap > -5, psize)
-                if i == 0:
-                    gv.sub.erase(ok, resplus > -5, psize)
+            # Do not actually run CTF
+            if 0:
+                if i != len(levels) - 1:
+                    gv.sub.erase(ok, resmap > -5, psize)
+                    if i == 0:
+                        gv.sub.erase(ok, resplus > -5, psize)
 
             if 0:
                 import matplotlib.pylab as plt
@@ -692,7 +721,11 @@ class Detector(Saveable):
             
         self.settings = sold
         psize = self.settings['subsample_size']
+        radii = self.settings['spread_radii']
 
+        def extract(image):
+            #return self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], preserve_size=True))
+            return self.descriptor.extract_features(image, dict(spread_radii=radii, preserve_size=True))
         # Last psize
         ok_sub = gv.sub.subsample(ok, psize)
 
@@ -704,7 +737,7 @@ class Detector(Saveable):
 
         #import sys
         #sys.exit(0)
-        bbs, resmap = self.detect_coarse_at_factor(feats, sub_kernels, bkg, factor, mixcomp, ok=ok_sub)
+        bbs, resmap = self.detect_coarse_at_factor(feats, sub_kernels, bkg, factor, mixcomp, ok=ok_sub, resmaps=resmaps)
 
         # Eliminate bounding boxes outside "ok"
         if 0:
@@ -804,7 +837,7 @@ class Detector(Saveable):
 
         return final_bbs
 
-    def detect_coarse_at_factor(self, sub_feats, sub_kernels, back, factor, mixcomp, ok=None):
+    def detect_coarse_at_factor(self, sub_feats, sub_kernels, back, factor, mixcomp, ok=None, resmaps=None):
         # Get background level
         resmap, resplus = self.response_map(sub_feats, sub_kernels, back, mixcomp, level=-1, ok=ok)
 
@@ -824,6 +857,11 @@ class Detector(Saveable):
         #top_th = resmap.max()#200.0
         top_th = 200.0
         bbs = []
+
+        nn_resmaps = np.zeros((2,) + resmap.shape)
+        if resmaps is not None:
+            nn_resmaps[0] = ag.util.nn_resample2d(resmaps[0], resmap.shape)
+            nn_resmaps[1] = ag.util.nn_resample2d(resmaps[1], resmap.shape)
         
         psize = self.settings['subsample_size']
         agg_factors = tuple([psize[i] * factor for i in xrange(2)])
@@ -848,11 +886,15 @@ class Detector(Saveable):
 
                     # Clip to bb_bigger 
                     bb = gv.bb.intersection(bb, bb_bigger)
-                
+    
+                    score0 = nn_resmaps[0,i,j]
+                    score1 = nn_resmaps[1,i,j]
+
                     conf = score
                     #conf = (score - th) / (top_th - th)
                     #conf = np.clip(conf, 0, 1)
-                    dbb = gv.bb.DetectionBB(score=score, plusscore=resplus[i,j], box=bb, confidence=conf, scale=factor, mixcomp=mixcomp)
+                    #plusscore=resplus[i,j], 
+                    dbb = gv.bb.DetectionBB(score=score, box=bb, confidence=conf, scale=factor, mixcomp=mixcomp, score0=score0, score1=score1)
 
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)
@@ -893,6 +935,7 @@ class Detector(Saveable):
             from .fast import llh
             res = llh(bigger, sub_kernels[mixcomp], (self.small_support[mixcomp] > 0.2).astype(np.uint8))
             #res = llh(bigger, sub_kernels[mixcomp], np.empty((0,0), dtype=np.uint8))
+            resplus = None
         else:
     
             #a = np.log(sub_kernels[mixcomp] / (1-sub_kernels[mixcomp]) * ((1-back) / back))
@@ -997,6 +1040,7 @@ class Detector(Saveable):
         """This returns a bounding box of the support for a given component"""
 
         # Take the bounding box of the support, with a certain threshold.
+        #print("Using alpha", self.use_alpha, "support", self.support)
         if self.use_alpha and self.support is not None:
             supp = self.support[k] 
             supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
@@ -1088,6 +1132,7 @@ class Detector(Saveable):
             obj.settings = d['settings']
             obj.orig_kernel_size = d['orig_kernel_size']
             obj.kernel_templates = d['kernel_templates']
+            obj.use_alpha = d['use_alpha']
             obj.support = d['support']
 
             # TODO: Temporary?
@@ -1108,6 +1153,7 @@ class Detector(Saveable):
         d['mixture'] = self.mixture.save_to_dict(save_affinities=True)
         d['orig_kernel_size'] = self.orig_kernel_size
         d['kernel_templates'] = self.kernel_templates
+        d['use_alpha'] = self.use_alpha
         d['support'] = self.support
         d['settings'] = self.settings
 

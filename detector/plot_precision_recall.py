@@ -54,5 +54,8 @@ if use_other_style:
     plt.legend(loc=4)
 else:
     plt.legend(loc=3)
+plt.grid()
+#plt.xticks(np.arange(0, 1+0.001, 0.05))
+#plt.yticks(np.arange(0, 1+0.001, 0.05))
 plt.show()
 

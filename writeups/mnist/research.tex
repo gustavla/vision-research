@@ -171,7 +171,7 @@ where $\eta$ is a fairly arbitrarily scaled penalty term and $\rho > 0$ is a smo
 \subsection{Experiments}
 Classification can be done without deformation, using only the mixture model (NoDeform) or with deformations (Deform). As a speed optimization, you can also employ deformation only if there are other prototypes within a factor $\alpha$ of the minimum cost without deformations, in which case all those become contendors and are deformed (SelDeform).
 
-The MNIST dataset consists of images of size $28 \times 28$ with gray-level intensities. The images are zero-padded to $32 \times 32$ to work better with the wavelet transform. Each pixel is then converted to 8 binary features. The directed edge features are described in Yali Amit's book (Chapter 5.4) and we use $k=5$ with feature inflation (the 8 neighbors of an edge are also reported as edges).
+The MNIST dataset consists of images of size $28 \times 28$ with gray-level intensities. The images are zero-padded to $32 \times 32$ to work better with the wavelet transform. Each pixel is then converted to 8 binary features. The directed edge features are described in Yali Amit's book (Chapter 5.4) and we use $k=5$ with feature spreading (the 8 neighbors of an edge are also reported as edges).
 
 \subsection{Conjugate prior}
 % surplus1.npz:  python run_classifier.py -d edges -a 1.2 --test-conjugate 0 0.0001 100.0 200 -l 100 --rho 1 -s surplus1.npz c/eval-feat.npz c/mixtures.npz c/coefs.npz  
@@ -494,10 +494,10 @@ Employing a method we will call SelDeform (Intensities) with $N=100, M=5, \eta=1
 \section{Conclusion}
 Running the experiments with intensities, as opposed to edge features, gives comparable results (testing set still too small to state enough for sure). Because we set $\epsilon=0.05$, we got a range of $\lambda'$ that spanned less than a factor 2. This suggests that we are likely get similar results if we use a single value for $\lambda'$. However, without $\epsilon$, or with a much smaller $\epsilon$, the precision of the likelihood would change drastically, and so could the results.
 
-\chapter{Feature inflation}
+\chapter{Feature spreading}
 
 \section{Introduction}
-In the first chapter, we inflated the number of edge features, by spreading a feature to its 8 neighbors. If we see this as the result of convolving with a $3\times 3$ inflation kernel of all ones, we can try a few more things. It was implemented by regular convolution and disallowing values to be greater than 1. 
+In the first chapter, we dilated the edge map, by spreading each detected feature to its 8 neighbors. If we see this as the result of binary OR-convolution with a $3\times 3$ dilation kernel of all ones, we can try a few more things. It was implemented by regular convolution and disallowing values to be greater than 1. 
 
 The kernels used are seen in fig.~\ref{fig:kernels}. The kernels "along" are displayed for edges going NE and SW, and are rotated so that they follow {\em along} with the edge.
 
@@ -547,7 +547,7 @@ Employing SelDeform+Iter with $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=
 \begin{figure}
     \centering
     \includegraphics[width=0.8\textwidth]{figs/kernels.pdf}
-    \caption{Kernels used to inflate binary edge features with direction NE and SW.} \label{fig:kernels}
+    \caption{Kernels used to spread binary edge features with direction NE and SW.} \label{fig:kernels}
 \end{figure}
 
 
@@ -566,7 +566,7 @@ Employing SelDeform+Iter with $N=100, M=5, \eta=100, \rho=1, S_0=1, S=3, \delta=
                 \caption{along1}
                 \label{fig:mix9along1}
         \end{subfigure}
-        \caption{Gray-level average of mixture components of 9 for two different inflation kernels.}\label{fig:kernelmix}
+        \caption{Gray-level average of mixture components of 9 for two different dilation kernels.}\label{fig:kernelmix}
 \end{figure}
 
 \section{Conclusion}

@@ -9,7 +9,7 @@ parser.add_argument('-r', dest='range', nargs=2, metavar=('FROM', 'TO'), default
 #parser.add_argument('--no-inflate', dest='inflate', action='store_false', help='Do not inflate the featured pixels to neigbhors')
 parser.add_argument('--save-originals', dest='graylevel', action='store_true', help='Store original graylevel images as well')
 parser.add_argument('--radius', metavar='RADIUS', nargs=1, default=[1], type=int, help='Inflation radius')
-parser.add_argument('--kernel', metavar='KERNEL', nargs=1, default=['box'], type=str, choices=('box', 'along'), help='Kernel shape of inflation')
+parser.add_argument('--kernel', metavar='KERNEL', nargs=1, default=['box'], type=str, choices=('box', 'orthogonal'), help='Kernel shape of inflation')
 
 args = parser.parse_args()
 dataset = args.dataset
@@ -48,7 +48,7 @@ for d in range(10):
     min_index = min(min_index, indices[0])
     max_index = max(max_index, indices[-1])
 
-    features = ag.features.bedges(digits, k=k, inflate=inflation_type, radius=inflation_radius, first_axis=True)
+    features = ag.features.bedges(digits, k=k, spread=inflation_type, radius=inflation_radius, first_axis=True)
 
     #digit_features[str(d)] = features
     all_features[d] = features 

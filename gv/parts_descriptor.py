@@ -178,12 +178,15 @@ class PartsDescriptor(BinaryDescriptor):
 
         if settings.get('preserve_size'):
             parts = ag.util.zeropad(parts, (self._log_parts.shape[1]//2, self._log_parts.shape[2]//2))
+            partprobs = ag.util.zeropad(partprobs, (self._log_parts.shape[1]//2, self._log_parts.shape[2]//2, 0))
 
             # TODO: This is a bit of a hack. This makes it handle even-sized parts
             if self._log_parts.shape[1] % 2 == 0:
                 parts = parts[:-1]
+                partprobs = partprobs[:-1]
             if self._log_parts.shape[2] % 2 == 0:
-                parts = parts[:,:-1]
+                parts = partprobs[:,:-1]
+                partprobs = partprobs[:,:-1]
         
         sett = self.settings.copy()
         sett.update(settings)
@@ -192,7 +195,11 @@ class PartsDescriptor(BinaryDescriptor):
         radii = sett['spread_radii']
         #radii = (0, 0)
         #if max(radii) > 0:
-        spread_parts = ag.features.spread_patches(parts, radii[0], radii[1], self.num_parts)
+        #spread_parts = ag.features.spread_patches(parts, radii[0], radii[1], self.num_parts)
+        #print(partprobs.shape)
+        #import pudb; pudb.set_trace()
+        
+        spread_parts = ag.features.spread_patches_new(partprobs.astype(np.float32), radii[0], radii[1], 0.0)
         return spread_parts 
         #else:
             # TODO: Maybe not this way.

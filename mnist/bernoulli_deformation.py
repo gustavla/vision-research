@@ -19,10 +19,10 @@ def main():
 
         x, y = np.mgrid[0:32, 0:32] 
         Fraw = norm2(x, y)
-        F = ag.features.bedges(Fraw, k=6, inflate=True, first_axis=True)
+        F = ag.features.bedges(Fraw, k=6, radius=1, first_axis=True)
         F = np.rollaxis(F, axis=2).astype(float)
         Iraw = norm2b(x, y)
-        I = ag.features.bedges(Iraw, k=6, inflate=True, first_axis=True)
+        I = ag.features.bedges(Iraw, k=6, radius=1, first_axis=True)
         I = np.rollaxis(I, axis=2).astype(float)
         for j in range(8):
             F[j] = ag.util.blur_image(F[j].astype(float), 4)
@@ -41,12 +41,12 @@ def main():
         I = np.load('a-nine-features.npy')
         I = np.rollaxis(I, axis=2)
         Iraw = ag.util.zeropad(ag.io.load_example('mnist')[2], 2)
-        I = ag.features.bedges(Iraw, k=5, inflate=True, first_axis=True)
+        I = ag.features.bedges(Iraw, k=5, radius=1, first_axis=True)
         I = np.rollaxis(I, axis=2)
         b = 0
         if b:
             Iraw = ag.util.blur_image(Iraw, b)
-            I = ag.features.bedges(Iraw, k=5, inflate=True, first_axis=True)
+            I = ag.features.bedges(Iraw, k=5, radius=1, first_axis=True)
             I = np.rollaxis(I, axis=2)
             ag.plot.images([Iraw]+list(I))
         
