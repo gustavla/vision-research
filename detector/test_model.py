@@ -8,7 +8,7 @@ parser.add_argument('obj_class', metavar='<object class>', type=str, help='Objec
 parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output file')
 parser.add_argument('--limit', nargs=1, type=int, default=[None])
 parser.add_argument('--mini', action='store_true', default=False)
-parser.add_argument('--contest', type=str, choices=('voc', 'uiuc'), default='voc', help='Contest to try on')
+parser.add_argument('--contest', type=str, choices=('voc', 'uiuc', 'uiuc-multiscale'), default='voc', help='Contest to try on')
 
 args = parser.parse_args()
 model_file = args.model
@@ -35,6 +35,8 @@ if contest == 'voc':
     files, tot = gv.voc.load_files(VOCSETTINGS, obj_class, dataset=dataset)
 elif contest == 'uiuc':
     files, tot = gv.uiuc.load_testing_files()
+elif contest == 'uiuc-multiscale':
+    files, tot = gv.uiuc.load_testing_files(single_scale=False)
 
 tot_tp = 0
 tot_tp_fp = 0
@@ -46,15 +48,12 @@ if mini:
     files = filter(lambda x: len(x.boxes) > 0, files)
 files = files[:limit]
 
-fout = open("detections.txt", "w")
+#fout = open("detections.txt", "w")
 
 def detect(fileobj):
     detections = []
-    img = skimage.data.load(fileobj.path).astype(np.float64)/255
-    if img.ndim == 3:
-        grayscale_img = img.mean(axis=-1)
-    else:
-        grayscale_img = img
+    img = gv.img.load_image(fileobj.path)
+    grayscale_img = gv.img.asgray(img)
 
     tp = tp_fp = tp_fn = 0
 
@@ -70,7 +69,7 @@ def detect(fileobj):
     for bbobj in bbs:
         #print("{0:06d} {1} {2} {3} {4} {5}".format(fileobj.img_id, bbobj.confidence, int(bbobj.box[0]), int(bbobj.box[1]), int(bbobj.box[2]), int(bbobj.box[3])), file=fout)
         detections.append((bbobj.confidence, bbobj.score0, bbobj.score1, bbobj.plusscore, bbobj.correct, bbobj.mixcomp, fileobj.img_id, int(bbobj.box[1]), int(bbobj.box[0]), int(bbobj.box[3]), int(bbobj.box[2])))
-        fout.flush()
+        #fout.flush()
         if bbobj.correct and not bbobj.difficult:
             tp += 1
 
@@ -78,10 +77,15 @@ def detect(fileobj):
 
     return (tp, tp_fp, tp_fn, detections)
 
-# Test threaded
-from multiprocessing import Pool
-p = Pool(7)
-res = p.map(detect, files)
+
+if 1:
+    from multiprocessing import Pool
+    p = Pool(7)
+    mapf = p.map
+else:
+    mapf = map
+
+res = mapf(detect, files)
 
 
 for tp, tp_fp, tp_fn, dets in res:

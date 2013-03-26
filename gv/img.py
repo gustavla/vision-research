@@ -42,7 +42,7 @@ def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
         # Implement 
         assert 0, "Implement this using pyramid_expand"
 
-    assert im2.shape[:2] == new_size, "{0} != {1}".format(im2.shape, new_size)
+    assert im2.shape[:2] == tuple(new_size), "{0} != {1}".format(im2.shape, new_size)
      
     return im2
 
@@ -73,6 +73,11 @@ def asgray(im):
     else:
         return im[...,:3].mean(axis=-1)
 
+def crop(im, size):
+    diff = [im.shape[index] - size[index] for index in (0, 1)]
+    im2 = im[diff[0]//2:diff[0]//2 + size[0], diff[1]//2:diff[1]//2 + size[1]]
+    return im2
+
 #from PIL import Image
 import skimage.data
 import os.path
@@ -88,6 +93,7 @@ def load_image(path):
         #return im
 
 def save_image(im, path):
+    from PIL import Image
     pil_im = Image.fromarray((im*255).astype(np.uint8))
     pil_im.save(path)
 

@@ -7,7 +7,7 @@ parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'
 parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
 parser.add_argument('--class', dest='obj_class', nargs=1, default=[None], type=str, help='Object class for marking corrects')
 parser.add_argument('--kernel-size', dest='side', nargs=1, default=[None], metavar='SIDE', type=float, help='Run single side length of kernel')
-parser.add_argument('--contest', type=str, choices=('voc', 'uiuc'), default='voc', help='Contest to try on')
+parser.add_argument('--contest', type=str, choices=('voc', 'uiuc', 'uiuc-multiscale'), default='voc', help='Contest to try on')
 
 # TODO: Make into an option 
 parser.add_argument('mixcomp', metavar='<mixture component>', nargs='?', type=int, help='mix comp')
@@ -38,6 +38,10 @@ if contest == 'voc':
 elif contest == 'uiuc':
     assert obj_class is None or obj_class == 'car', "Can't set object class for uiuc data"
     fileobj = gv.uiuc.load_testing_file(img_id)
+
+elif contest == 'uiuc-multiscale':
+    assert obj_class is None or obj_class == 'car', "Can't set object class for uiuc data"
+    fileobj = gv.uiuc.load_testing_file(img_id, single_scale=False)
 
 if fileobj is None:
     print("Could not find image", file=sys.stderr)

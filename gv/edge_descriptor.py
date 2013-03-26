@@ -13,9 +13,11 @@ class EdgeDescriptor(BinaryDescriptor):
         self.settings['minimum_contrast'] = 0.1
         self.settings.update(settings)
 
-    def extract_features(self, img):
+    def extract_features(self, img, settings={}):
         #return ag.features.bedges_from_image(img, **self.settings)
-        return ag.features.bedges(img, **self.settings)
+        sett = self.settings.copy()
+        sett.update(settings)
+        return ag.features.bedges(img, **sett)
 
     def save_to_dict(self):
         return self.settings

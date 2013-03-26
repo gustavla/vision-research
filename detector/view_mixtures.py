@@ -15,12 +15,11 @@ import gv
 detector = gv.Detector.load(model_file)
 
 data = None
-if detector.support is None:
+if detector.support is None or 1:
     # Visualize feature activity if the support does not exist
     #assert 0, "This is broken since refactoring"
-    data = detector.kernel_templates.sum(axis=-1) / detector.kernel_templates.shape[-1] 
+    data = detector.kernel_templates.sum(axis=-1)# / detector.kernel_templates.shape[-1] 
 else:
     data = detector.support
 
-import pdb; pdb.set_trace()
 ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}: max: {1:.02} (w: {2:.02})".format(i, im.max(), detector.mixture.weights[i]))

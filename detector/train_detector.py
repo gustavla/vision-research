@@ -4,6 +4,7 @@ from settings import argparse_settings
 sett = argparse_settings("Train detector")
 dsettings = sett['detector']
 
+
 #import argparse
 
 #parser = argparse.ArgumentParser(description='Train mixture model on edge data')
@@ -39,7 +40,7 @@ else:
     if 'base_path' in dsettings:
         base_path = os.environ[dsettings['base_path']]
     path = os.path.join(base_path, dsettings['train_dir'])
-    files = glob.glob(path)
+    files = sorted(glob.glob(path))
 
 limit = dsettings.get('train_limit')
 if limit is not None:

@@ -145,6 +145,50 @@ Incorrect and undeformed: 11.46%
 Turned correct, incorrect: 0.00%, 0.00%
 Miss rate: 11.46% (573/5000)
 
+# NEW TESTS exp.sh with b = 1.0005, testing on training data 2000-7000
+
+box1
+Deformed: 70.02%
+Average contendors: 11.76
+Incorrect and undeformed: 0.02%
+Turned correct, incorrect: 7.22%, 1.20%
+Miss rate: 3.68% (184/5000)
+
+box2
+Deformed: 57.92%
+Average contendors: 8.93
+Incorrect and undeformed: 0.08%
+Turned correct, incorrect: 6.66%, 1.44%
+Miss rate: 4.60% (230/5000)
+
+box3
+Deformed: 58.74%
+Average contendors: 8.28
+Incorrect and undeformed: 0.08%
+Turned correct, incorrect: 6.92%, 1.34%
+Miss rate: 5.12% (256/5000)
+
+orthogonal1
+Deformed: 75.92%
+Average contendors: 14.53
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 6.94%, 1.26%
+Miss rate: 3.62% (181/5000)
+
+orthogonal2
+Deformed: 64.34%
+Average contendors: 10.79
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 5.00%, 0.98%
+Miss rate: 3.48% (174/5000)
+
+orthogonal3
+Deformed: 61.58%
+Average contendors: 10.03
+Incorrect and undeformed: 0.00%
+Turned correct, incorrect: 4.56%, 1.08%
+Miss rate: 4.10% (205/5000)
+
 
 ############# INTENSITY ONLY STUFF
 
