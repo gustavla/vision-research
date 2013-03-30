@@ -10,6 +10,11 @@ detector/config.py
 .*.sw[o]
 *~.skp
 *.ini
+*.aux
+*.log
+*.out
+*.pdf
+.nfs*
 
 # Packages
 *.egg

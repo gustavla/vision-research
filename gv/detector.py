@@ -202,8 +202,8 @@ class Detector(Saveable):
                 print('img size: ', grayscale_img.shape, ' alpha size:', alpha.shape)
                 #alpha = None
                 final_edges = self.extract_unspread_features(grayscale_img, support_mask=alpha)
-                if final_edges[-1].mean() > 0.5:
-                    import pdb; pdb.set_trace()
+                #if final_edges[-1].mean() > 0.5:
+                #    import pdb; pdb.set_trace()
                 print('edge row:', final_edges[-1].mean())
                 yield final_edges
         elif 0:
@@ -429,6 +429,7 @@ class Detector(Saveable):
         if self.use_alpha: #TODO: Temp2
             support = mixture.remix(alpha_maps).astype(np.float32)
             # TODO: Temporary fix
+            self.full_support = support
             support = support[:,6:-6,6:-6]
         else:
             support = None#np.ones((self.num_mixtures,) + shape[:2])
@@ -604,13 +605,19 @@ class Detector(Saveable):
         radii = sett['spread_radii']
         #print("radii", radii)
         back = np.empty(num_features)
+        for f in xrange(num_features):
+            back[f] = edges[...,f].sum()
+        back /= np.prod(edges.shape[:2])
+
         if fix_bkg is not None:
-            back[:] = 1 - (1 - fix_bkg)**((2 * radii[0] + 1) * (2 * radii[1] + 1))
+            test_back = 1 - (1 - fix_bkg)**((2 * radii[0] + 1) * (2 * radii[1] + 1))
+            back[:] = test_back
 
         else:
-            for f in xrange(num_features):
-                back[f] = edges[...,f].sum()
-            back /= np.prod(edges.shape[:2])
+            test_back = back
+            #for f in xrange(num_features):
+                #back[f] = edges[...,f].sum()
+            #back /= np.prod(edges.shape[:2])
 
         if 0:
             #import pylab as plt
@@ -644,15 +651,17 @@ class Detector(Saveable):
         eps = sett['min_probability']
         # Do not clip it here.
         back = np.clip(back, eps, 1-eps)
+        test_back = np.clip(test_back, eps, 1-eps)
         #back[:] = 0.05
     
-        return back
+        return back, test_back
 
     def subsample(self, edges):
         return gv.sub.subsample(edges, self.settings['subsample_size'])
 
     def prepare_kernels(self, back, settings={}):
-        num_features = back.size
+        #print('..............',back)
+        num_features = self.kernel_templates.shape[-1] 
         sett = self.settings.copy()
         sett.update(settings) 
 
@@ -663,6 +672,119 @@ class Detector(Saveable):
 
         eps = sett['min_probability']
         psize = sett['subsample_size']
+
+        def weighted_choice(x):
+            xcum = np.cumsum(x) 
+            r = np.random.uniform(0, xcum[-1])
+            return np.where(r < xcum)[0][0]
+
+        def weighted_choice_unit(x):
+            xcum = np.cumsum(x) 
+            r = np.random.random()
+            w = np.where(r < xcum)[0]
+            if w.size == 0:
+                return -1
+            else:
+                return w[0]
+            return 
+
+        part_size = self.descriptor.settings['part_size']
+
+        # First, translate kernel
+        DO_NEW = self.settings.get('do_new', False)# TODO: New stuff
+        if DO_NEW: # Translate kernel to incorporate background model
+            do_it = False
+            try:
+                kernels = np.load('kernel_cache.npy')
+            except IOError: 
+                do_it = True 
+
+            if do_it:
+                np.save('kernel_before.npy', kernels)
+
+                offsets = gv.sub.subsample_offset(kernels[0], psize)#[psize[i]//2 for i in xrange(2)]
+                sh = kernels.shape[1:3]
+                # Number of samples
+                N = 1000
+                part_counts = np.zeros(num_features)
+                num_edges = self.descriptor.parts.shape[-1]
+
+                old_kernels = kernels
+
+                if 0:
+                    good_back_spread = np.load('bkg.npy')
+                    radii = sett['spread_radii']
+                    neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
+                    #back = np.load('bkg.npy')
+                    good_back = 1 - (1 - good_back_spread)**(1/neighborhood_area)
+                else:
+                    good_back = np.load('bkg2_nospread.npy')
+
+
+                def get_probs(f):
+                    if f == -1:
+                        return 0
+                    else:
+                        return self.descriptor.parts[f]
+                
+                print("Doing one") 
+                for mixcomp in xrange(self.num_mixtures):
+                    # Note, we are going in strides of psize, given a a certain offset, since
+                    # we will be subsampling anyway, so we don't need to do the rest.
+                    for i in xrange(sh[0]):# (offsets[0], sh[0], psize[0]):
+                        for j in xrange(sh[1]):#(offsets[1], sh[1], psize[1]):
+                            print("Doing pixel {0}/{1}, {2}/{3}".format(i, sh[0], j, sh[1]))
+                            # TODO: Part_size is hard-coded. Clean up.
+                            p_alpha = self.full_support[mixcomp, 6+i-4:6+i+5, 6+j-4:6+j+5]
+                            p_kernel = kernels[mixcomp,i,j]
+                            alpha_ij = self.full_support[mixcomp, 6+i, 6+j]
+                            p_back = good_back 
+
+                            if True: #0 < p_alpha.mean() < 0.99:
+                                part_counts = np.zeros(num_features)
+                                for loop in xrange(N):
+                                    #import pudb; pudb.set_trace()
+                                    f_obj = weighted_choice_unit(p_kernel)
+                                    probs_obj = get_probs(f_obj)
+                                    if alpha_ij > 0:
+                                        probs_obj /= alpha_ij 
+
+                                    f_bkg = weighted_choice_unit(good_back)
+                                    probs_bkg = get_probs(f_bkg) 
+
+                                    #import pudb; pudb.set_trace()
+                                    
+                                    if f_obj == -1 and f_bkg == -1:
+                                        pass # Add nothing
+                                    elif f_obj == -1 and f_bkg != -1:
+                                        part_counts[f_bkg] += 1
+                                    elif f_obj != -1 and f_bkg == -1:
+                                        part_counts[f_obj] += 1 
+                                    else:
+                                        # Draw from the alpha
+                                        A = (np.random.random(p_alpha.shape) < p_alpha).astype(np.uint8) 
+                                        AA = A.reshape(A.shape + (1,))
+
+                                        probs_mixed = AA * probs_obj + (1 - AA) * probs_bkg 
+
+                                        # Draw samples from the mixture components
+                                        X = (np.random.random(probs_mixed.shape) < probs_mixed).astype(np.uint8)
+                    
+                                        # Check which part this is most similar to
+                                        scores = np.apply_over_axes(np.sum, X * np.log(self.descriptor.parts) + (1 - X) * np.log(1 - self.descriptor.parts), [1, 2, 3]).ravel()
+                                        f_best = np.argmax(scores)
+                                        #f_best = np.argmax(np.apply_over_axes(np.sum, np.fabs(self.descriptor.parts - X), [1, 2, 3]).ravel())
+                                        part_counts[f_best] += 1
+                                        
+                                        #p = _integrate(integral_aa_log[mixcomp], i, j, i+istep, j+jstep)
+
+                                kernels[mixcomp,i,j] = part_counts / N
+
+                print("Done")
+            
+                np.save('kernel_cache.npy', kernels)
+                 
+
         #if not self.use_alpha:
             # Do not correct for background
             #pass
@@ -670,15 +792,23 @@ class Detector(Saveable):
         if self.train_unspread:
             radii = sett['spread_radii']
             neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
+            #back = np.load('bkg.npy')
             nospread_back = 1 - (1 - back)**(1/neighborhood_area)
             
             # Clip nospread_back, since we didn't clip it before
             #nospread_back = np.clip(nospread_back, eps, 1-eps)
 
+            #print('self.support.shape', self.support.shape) 
+            #print('kernels', kernels.shape) 
+
             if self.use_alpha:
                 invsupp = (1-self.support.reshape(self.support.shape+(1,)))
             else:
                 invsupp = 0
+
+            if DO_NEW:
+                invsupp = 0
+
             #aa_log = np.log((1 - kernels) - nospread_back * supp)
             aa_log = np.log(np.clip((1 - kernels) - nospread_back * invsupp, 0.00001, 1-0.00001))
             aa_log = ag.util.multipad(aa_log, (0, radii[0], radii[1], 0), np.log(1-nospread_back))
@@ -774,7 +904,7 @@ class Detector(Saveable):
 
                 up_feats = extract(img_resized)
                 #print('up_feats', up_feats.shape) 
-                bkg = self.background_model(up_feats, settings=dict(spread_radii=radii))
+                bkg, test_bkg = self.background_model(up_feats, settings=dict(spread_radii=radii))
             
                 #print('bkg', bkg[0])
                 #feats = self.subsample(up_feats, ) 
@@ -793,7 +923,7 @@ class Detector(Saveable):
 
                 ok_sub = gv.sub.subsample(ok, psize)
 
-                resmap, resplus = self.response_map(feats, sub_kernels, bkg, mixcomp, level=i, ok=ok_sub)
+                resmap, resplus = self.response_map(feats, sub_kernels, test_bkg, mixcomp, level=i, ok=ok_sub)
                 
                 resmaps.append(resmap)
 
@@ -832,13 +962,13 @@ class Detector(Saveable):
 
         up_feats = extract(img_resized)
         #print('up_feats', up_feats.shape) 
-        bkg = self.background_model(up_feats, settings=dict(spread_radii=radii))
+        bkg, test_bkg = self.background_model(up_feats, settings=dict(spread_radii=radii))
         feats = gv.sub.subsample(up_feats, psize) 
         sub_kernels = self.prepare_kernels(bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
         #import sys
         #sys.exit(0)
-        bbs, resmap = self.detect_coarse_at_factor(feats, sub_kernels, bkg, factor, mixcomp, ok=ok_sub, resmaps=resmaps)
+        bbs, resmap = self.detect_coarse_at_factor(feats, sub_kernels, test_bkg, factor, mixcomp, ok=ok_sub, resmaps=resmaps)
 
         final_bbs = bbs
         #print(len(bbs), '->', len(final_bbs))
@@ -921,12 +1051,12 @@ class Detector(Saveable):
         for i, factor in enumerate(factors):
             # Prepare the kernel for this mixture component
             ag.info("Prepare kernel", i, "factor", factor)
-            sub_kernels = self.prepare_kernels(bkg_pyramid[i])
+            sub_kernels = self.prepare_kernels(bkg_pyramid[i][0])
 
             for mixcomp in mixcomps:
                 ag.info("Detect for mixture component", mixcomp)
             #for mixcomp in [1]:
-                bbsthis, _ = self.detect_coarse_at_factor(small_pyramid[i], sub_kernels, bkg_pyramid[i], factor, mixcomp)
+                bbsthis, _ = self.detect_coarse_at_factor(small_pyramid[i], sub_kernels, test_bkg_pyramid[i][1], factor, mixcomp)
                 bbs += bbsthis
 
         ag.info("Maximal suppression")
@@ -1042,7 +1172,6 @@ class Detector(Saveable):
             #res = llh(bigger, sub_kernels[mixcomp], np.empty((0,0), dtype=np.uint8))
             resplus = None
         else:
-    
             #a = np.log(sub_kernels[mixcomp] / (1-sub_kernels[mixcomp]) * ((1-back) / back))
             #a2 = np.log(sub_kernels[mixcomp] / (1-sub_kernels[mixcomp]) * ((1-back) / back))
 

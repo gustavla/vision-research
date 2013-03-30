@@ -35,7 +35,7 @@ for detector in detectors:
     radii = detector.settings['spread_radii']
 
     # Assumes fixed background model
-    bkg = detector.background_model(np.ones((1, 1, 1)))
+    bkg, bkg_test = detector.background_model(np.ones((1, 1, 1)))
     sub_kernels = detector.prepare_kernels(bkg, settings=dict(spread_radii=radii, subsample_size=psize))
         
     bkgs.append(bkg)
