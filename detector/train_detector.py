@@ -21,16 +21,7 @@ import amitgroup as ag
 
 ag.set_verbose(True)
 
-#patch_dict = gv.PatchDictionary.load(patches_file)
-des_name = dsettings['descriptor']
-descriptor_filename = sett[des_name].get('file')
-descriptor_cls = gv.BinaryDescriptor.getclass(des_name)
-if descriptor_filename is None:
-    # If there is no descriptor filename, we'll just build it from the settings
-    descriptor = descriptor_cls.load_from_dict(sett[des_name])
-else:
-    descriptor = descriptor_cls.load(descriptor_filename)
-
+descriptor = gv.load_descriptor(sett)
 detector = gv.Detector(dsettings['num_mixtures'], descriptor, dsettings)
 
 if dsettings['use_voc']:

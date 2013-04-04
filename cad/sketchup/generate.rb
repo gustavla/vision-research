@@ -7,7 +7,7 @@ Sketchup.send_action "showRubyPanel:"
 UI.menu("Plugins").add_item("Generate data") {
 
   prompts = ['Name of this model?']
-  defaults = ['bicycleN']
+  defaults = ['carN']
   input = UI.inputbox prompts, defaults, 'Give us some info'
 
   outputname = input[0]
@@ -27,6 +27,8 @@ UI.menu("Plugins").add_item("Generate data") {
   model = Sketchup.active_model
   view = model.active_view
   N = 40 
+  #dist = 140 # Bike
+  dist = 450 
 
   range = (0..N).map { |i| -1 + 2.0 * i/N.to_f } 
   # step(0.1) does not work in SketchUp's Ruby version
@@ -37,9 +39,9 @@ UI.menu("Plugins").add_item("Generate data") {
     # Do only half
     (0...36).each do |azimuth_index|
       azimuth = azimuth_index * 10.0 * Math::PI / 180.0
-      x = 140 * Math.sin(elevation) * Math.cos(azimuth)
-      y = 140 * Math.sin(elevation) * Math.sin(azimuth) 
-      z = 140 * Math.cos(elevation) 
+      x = dist * Math.sin(elevation) * Math.cos(azimuth)
+      y = dist * Math.sin(elevation) * Math.sin(azimuth) 
+      z = dist * Math.cos(elevation) 
 
       (-1..1).each do |outofplane_index|
         rotation = outofplane_index * 10.0 * Math::PI / 180.0
@@ -51,7 +53,7 @@ UI.menu("Plugins").add_item("Generate data") {
           Math.sin(rotation) * Math.sin(azimuth + Math::PI / 2.0), 
           Math.cos(rotation)
         ]
-        filename = "/Users/slimgee/git/data/newbike3/#{outputname}_#{i}.png"
+        filename = "/Users/slimgee/git/data/car/#{outputname}_#{i}.png"
         if x != 0 or y != 0 then
           if not File.exists? filename then
             camera = Sketchup::Camera.new eye, target, up

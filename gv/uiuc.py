@@ -1,7 +1,6 @@
 from __future__ import division
 import os.path
 import numpy as np
-import skimage.data
 import re
 import gv
 from .voc import ImgFile

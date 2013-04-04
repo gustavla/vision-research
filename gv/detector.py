@@ -3,8 +3,8 @@ from __future__ import print_function
 from __future__ import absolute_import 
 
 # TODO: Temporary
-import matplotlib
-matplotlib.use("Agg")
+#import matplotlib
+#matplotlib.use("Agg")
 import matplotlib.pylab as plt
 
 import amitgroup as ag

@@ -3,6 +3,7 @@ import numpy as np
 import scipy.misc
 import amitgroup as ag
 from skimage.transform.pyramids import pyramid_reduce
+import sys
 
 def resize_to_size(im, new_size):
     return scipy.misc.imresize((im*255).astype(np.uint8), new_size).astype(np.float64)/255
@@ -79,18 +80,32 @@ def crop(im, size):
     return im2
 
 #from PIL import Image
-import skimage.data
+import skimage.io
 import os.path
 
 def load_image(path):
     #im = np.array(Image.open(path))
-    im = skimage.data.load(path)
+    im = skimage.io.imread(path)
     return im.astype(np.float64)/255.0
     #_, ext = os.path.splitext(path)
     #if ext.lower() in ['.jpg', '.jpeg']:
         #return im#[::-1]
     #else:
         #return im
+
+def load_image_binarized_alpha(path, threshold=0.2):
+    im = load_image(path)
+    assert im.ndim == 3, "Assumes RGB or RGBA"
+    if im.shape[2] == 3:
+        return im, None
+    else:
+        alpha = (im[...,3] > threshold)
+        # im uses premultiplied alphas, so I need to fix this
+
+        eps = sys.float_info.epsilon
+        imrgb = (im[...,:3]+eps)/(im[...,3:4]+eps)
+        
+        return imrgb * alpha.reshape(alpha.shape+(1,)), alpha
 
 def save_image(im, path):
     from PIL import Image

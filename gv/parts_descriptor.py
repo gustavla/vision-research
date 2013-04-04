@@ -165,7 +165,7 @@ class PartsDescriptor(BinaryDescriptor):
     
     def extract_parts(self, edges, settings={}, support_mask=None):
         if support_mask is not None: 
-            print "edges", edges.shape, "mask", support_mask.shape
+            #print "edges", edges.shape, "mask", support_mask.shape
             partprobs = ag.features.code_parts_support_mask(edges, self._log_parts, self._log_invparts, 
                                                self.settings['threshold'], support_mask[2:-2,2:-2], self.settings['patch_frame'])
         else:
@@ -197,7 +197,7 @@ class PartsDescriptor(BinaryDescriptor):
         sett.update(settings)
 
         # Do spreading
-        radii = sett['spread_radii']
+        radii = sett.get('spread_radii', (0, 0))
         #radii = (0, 0)
         #if max(radii) > 0:
         #spread_parts = ag.features.spread_patches(parts, radii[0], radii[1], self.num_parts)

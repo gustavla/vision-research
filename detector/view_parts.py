@@ -26,11 +26,11 @@ originals = parts_descriptor.visparts
 parts = parts_descriptor.parts
 
 if inspect_component is not None:
-    if inspect_component == 0:
-        print "Can't plot background part"
-        sys.exit(1)
+    #if inspect_component == 0:
+    #    print "Can't plot background part"
+    #    sys.exit(1)
     #ag.plot.images
-    p = np.rollaxis(parts[inspect_component-1], axis=2)
+    p = np.rollaxis(parts[inspect_component], axis=2)
     print "{5} Min/max/avg/std/median probabilities: {0:.2f} {1:.2f} {2:.2f} {3:.2f} {4:.2f}".format(p.min(), p.max(), p.mean(), p.std(), np.median(p), inspect_component)
     ag.plot.images(p)
 else:

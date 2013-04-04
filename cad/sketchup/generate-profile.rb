@@ -4,10 +4,10 @@ require 'sketchup.rb'
 
 Sketchup.send_action "showRubyPanel:"
 
-UI.menu("Plugins").add_item("Generate data") {
+UI.menu("Plugins").add_item("Generate profile data") {
 
   prompts = ['Name of this model?']
-  defaults = ['profileN']
+  defaults = ['carN']
   input = UI.inputbox prompts, defaults, 'Give us some info'
 
   outputname = input[0]
@@ -27,33 +27,33 @@ UI.menu("Plugins").add_item("Generate data") {
   model = Sketchup.active_model
   view = model.active_view
   N = 40 
+  #dist = 140 # Bike
+  dist = 450 
 
   range = (0..N).map { |i| -1 + 2.0 * i/N.to_f } 
   # step(0.1) does not work in SketchUp's Ruby version
   i = 0
 
-
-  #(0..2).each do |elevation_index|
-  (-1..2).each do |elevation_index|
-    #elevation = (90 - elevation_index * 20.0) * Math::PI / 180.0
+  (0..1).each do |elevation_index|
     elevation = (90 - elevation_index * 10.0) * Math::PI / 180.0
     # Do only half
-    #(0..18).each do |azimuth_index|
-    (-1..1).each do |azimuth_index|
-      #azimuth = azimuth_index * 10.0 * Math::PI / 180.0
-      azimuth = (90.0 + azimuth_index * 15.0) * Math::PI / 180.0
-      x = 140 * Math.sin(elevation) * Math.cos(azimuth)
-      z = 140 * Math.cos(elevation) 
-      y = 140 * Math.sin(elevation) * Math.sin(azimuth) 
+    [0, 30, -1, 1, 29, 31].each do |azimuth_index|
+      azimuth = azimuth_index * 6.0 * Math::PI / 180.0
+      x = dist * Math.sin(elevation) * Math.cos(azimuth)
+      y = dist * Math.sin(elevation) * Math.sin(azimuth) 
+      z = dist * Math.cos(elevation) 
 
-      eye = [x, y, z]
-      target = [0, 0, 0]
+      [0, -1, 1].each do |outofplane_index|
+        rotation = outofplane_index * 3.0 * Math::PI / 180.0
 
-
-      (-1..1).each do |up_index|
-        
-        up= [up_index * 0.04, 0, 1]
-        filename = "/Users/slimgee/git/data/newbike/test/#{outputname}_#{i}.png"
+        eye = [x, y, z]
+        target = [0, 0, 0]
+        up= [
+          Math.sin(rotation) * Math.cos(azimuth + Math::PI / 2.0), 
+          Math.sin(rotation) * Math.sin(azimuth + Math::PI / 2.0), 
+          Math.cos(rotation)
+        ]
+        filename = "/Users/slimgee/git/data/profile-car-new/view%03d_%s.png" % [i, outputname]
         if x != 0 or y != 0 then
           if not File.exists? filename then
             camera = Sketchup::Camera.new eye, target, up
