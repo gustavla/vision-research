@@ -12,6 +12,7 @@ import numpy as np
 import scipy.signal
 from .saveable import Saveable
 import gv
+import sys
 
 def _along_kernel(direction, radius):
     d = direction%4
@@ -192,22 +193,37 @@ class Detector(Saveable):
                 grayscale_img = offset_img(grayscale_img, offsets[i])
                 img = offset_img(img, offsets[i])
 
-            yield i, grayscale_img, img
+            # Now, binarize the support in a clever way (notice that we have to adjust for pre-multiplied alpha)
+
+            alpha = (img[...,3] > 0.2)
+
+            eps = sys.float_info.epsilon
+            imrgb = (img[...,:3]+eps)/(img[...,3:4]+eps)
+            
+            new_img = imrgb * alpha.reshape(alpha.shape+(1,))
+
+            new_grayscale_img = new_img[...,:3].mean(axis=-1)
+            #, alpha
+
+            yield i, grayscale_img, img, alpha
 
     def gen_img(self, images, actual=False, use_mask=False): #TODO: temp2
         if use_mask:
-            for i, grayscale_img, img in self.load_img(images):
+            for i, grayscale_img, img, alpha in self.load_img(images):
                 #ag.info("Mixing image {0}".format(i))
-                alpha = (img[...,3] > 0.05).astype(np.uint8)
-                print('img size: ', grayscale_img.shape, ' alpha size:', alpha.shape)
+                #alpha = (img[...,3] > 0.2).astype(np.uint8)
+
+                # Dilate alpha here
+                #alpha = ag.util.inflate2d(alpha, np.ones((5, 5))) 
+
                 #alpha = None
-                final_edges = self.extract_unspread_features(grayscale_img, support_mask=alpha)
+                final_feats = self.extract_unspread_features(grayscale_img, support_mask=alpha)
                 #if final_edges[-1].mean() > 0.5:
                 #    import pdb; pdb.set_trace()
-                print('edge row:', final_edges[-1].mean())
-                yield final_edges
+
+                yield final_feats
         elif 0:
-            for i, grayscale_img, img in self.load_img(images):
+            for i, grayscale_img, img, alpha in self.load_img(images):
 
                 # First, extract unspread edges
                 bsett = self.descriptor.bedges_settings()
@@ -243,7 +259,7 @@ class Detector(Saveable):
 
                 yield feats 
         else:
-            for i, grayscale_img, img in self.load_img(images):
+            for i, grayscale_img, img, alpha in self.load_img(images):
                 #ag.info("Mixing image {0}".format(i))
                 if self.train_unspread and not actual:
                     final_edges = self.extract_unspread_features(grayscale_img)
@@ -276,7 +292,7 @@ class Detector(Saveable):
 
             offsets = np.zeros((len(images), 2), dtype=np.int32)
 
-            for i, grayscale_img, img in self.load_img(images):
+            for i, grayscale_img, img, alpha in self.load_img(images):
                 k = mixture.which_component(i)
 
                 # Make abstraction
@@ -329,7 +345,7 @@ class Detector(Saveable):
         orig_output = None
         psize = self.settings['subsample_size']
 
-        for i, grayscale_img, img in self.load_img(images, offsets):
+        for i, grayscale_img, img, alpha in self.load_img(images, offsets):
             ag.info(i, "Processing image", i)
             if self.use_alpha is None:
                 self.use_alpha = (img.ndim == 3 and img.shape[-1] == 4)
@@ -423,7 +439,8 @@ class Detector(Saveable):
         # Remix it - this iterable will produce each object and then throw it away,
         # so that we can remix without having to ever keep all mixing data in memory at once
              
-        kernel_templates = np.clip(mixture.remix_iterable(self.gen_img(images, use_mask=False)), 1e-5, 1-1e-5) # TDOO: Temp2
+        use_mask = False 
+        kernel_templates = np.clip(mixture.remix_iterable(self.gen_img(images, use_mask=use_mask)), 1e-5, 1-1e-5) # TDOO: Temp2
 
         # Pick out the support, by remixing the alpha channel
         if self.use_alpha: #TODO: Temp2
@@ -476,7 +493,7 @@ class Detector(Saveable):
 
                 orig_output = None
                 # Get images with the right amount of spreading
-                for j, grayscale_img, img in self.load_img(images, offsets):
+                for j, grayscale_img, img, alpha in self.load_img(images, offsets):
                     orig_edges = self.extract_spread_features(grayscale_img, settings=dict(spread_radii=radii))
                     if orig_output is None:
                         orig_output = np.empty((len(images),) + orig_edges.shape, dtype=np.uint8)

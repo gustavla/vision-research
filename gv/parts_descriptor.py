@@ -167,7 +167,7 @@ class PartsDescriptor(BinaryDescriptor):
         if support_mask is not None: 
             #print "edges", edges.shape, "mask", support_mask.shape
             partprobs = ag.features.code_parts_support_mask(edges, self._log_parts, self._log_invparts, 
-                                               self.settings['threshold'], support_mask[2:-2,2:-2], self.settings['patch_frame'])
+                                               self.settings['threshold'], support_mask[2:-2,2:-2].astype(np.uint8), self.settings['patch_frame'])
         else:
             partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
                                                self.settings['threshold'], self.settings['patch_frame'])
