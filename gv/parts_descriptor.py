@@ -14,6 +14,7 @@ class PartsDescriptor(BinaryDescriptor):
 
         self.parts = None
         self.unspread_parts = None
+        self.unspread_parts_padded = None
         self.visparts = None
 
         self.settings = {}
@@ -33,6 +34,7 @@ class PartsDescriptor(BinaryDescriptor):
         fr = self.settings['patch_frame']
         the_patches = []
         the_unspread_patches = []
+        the_unspread_patches_padded = []
         the_originals = []
         ag.info("Extracting patches from", filename)
         #edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=False, return_original=True, lastaxis=True)
@@ -48,9 +50,12 @@ class PartsDescriptor(BinaryDescriptor):
         else:
             unspread_edges, img = ag.features.bedges_from_image(filename, return_original=True, **self.settings['bedges'])
 
+        unspread_edges_padded = ag.util.zeropad(unspread_edges, (radius, radius, 0))
+
         # Spread the edges
         edges = ag.features.bspread(unspread_edges, spread=setts['spread'], radius=radius)
 
+        
         #s = self.settings['bedges'].copy()
         #if 'radius' in s:
         #    del s['radius']
@@ -65,6 +70,7 @@ class PartsDescriptor(BinaryDescriptor):
             for tries in xrange(20):
                 x, y = random.randint(0, w-1), random.randint(0, h-1)
                 selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
+                selection_padded = [slice(x, x+radius*2+self.patch_size[0]), slice(y, y+radius*2+self.patch_size[1])]
                 # Return grayscale patch and edges patch
                 edgepatch = edges[selection]
                 #edgepatch_nospread = edges_nospread[selection]
@@ -78,6 +84,9 @@ class PartsDescriptor(BinaryDescriptor):
     
                     the_unspread_patch = unspread_edges[selection]
                     the_unspread_patches.append(the_unspread_patch)
+
+                    the_unspread_patch_padded = unspread_edges_padded[selection_padded]
+                    the_unspread_patches_padded.append(the_unspread_patch_padded)
         
                     # The following is only for clearer visualization of the 
                     # patches. However, normalizing like this might be misleading
@@ -93,11 +102,12 @@ class PartsDescriptor(BinaryDescriptor):
                     the_originals.append(vispatch)
                     break
 
-        return the_patches, the_unspread_patches, the_originals
+        return the_patches, the_unspread_patches, the_unspread_patches_padded, the_originals
 
     def random_patches_from_images(self, filenames):
         raw_patches = []
         raw_unspread_patches = []
+        raw_unspread_patches_padded = []
         raw_originals = [] 
 
         # TODO: Have an amitgroup / vision-research setting for "allow threading"
@@ -113,21 +123,23 @@ class PartsDescriptor(BinaryDescriptor):
 
         ret = mapfunc(self._get_patches, filenames)
 
-        for patches, unspread_patches, originals in ret:
+        for patches, unspread_patches, unspread_patches_padded, originals in ret:
             raw_patches.extend(patches)
             raw_unspread_patches.extend(unspread_patches)
+            raw_unspread_patches_padded.extend(unspread_patches_padded)
             raw_originals.extend(originals) 
 
         raw_patches = np.asarray(raw_patches)
         raw_unspread_patches = np.asarray(raw_unspread_patches)
+        raw_unspread_patches_padded = np.asarray(raw_unspread_patches_padded)
         raw_originals = np.asarray(raw_originals)
-        return raw_patches, raw_unspread_patches, raw_originals
+        return raw_patches, raw_unspread_patches, raw_unspread_patches_padded, raw_originals
 
     def bedges_settings(self):
         return self.settings['bedges']
 
     def train_from_images(self, filenames):
-        raw_patches, raw_unspread_patches, raw_originals = self.random_patches_from_images(filenames)
+        raw_patches, raw_unspread_patches, raw_unspread_patches_padded, raw_originals = self.random_patches_from_images(filenames)
         if len(raw_patches) == 0:
             raise Exception("No patches found, maybe your thresholds are too strict?")
         mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0)
@@ -154,9 +166,11 @@ class PartsDescriptor(BinaryDescriptor):
 
         # Unspread parts
         unspread_parts_all = mixture.remix(raw_unspread_patches) 
+        unspread_parts_padded_all = mixture.remix(raw_unspread_patches_padded) 
         
         self.parts = mixture.templates[scores > 1]
         self.unspread_parts = unspread_parts_all[scores > 1]
+        self.unspread_parts_padded = unspread_parts_padded_all[scores > 1]
         self.visparts = visparts[scores > 1]
         self.num_parts = self.parts.shape[0]
         
@@ -238,6 +252,7 @@ class PartsDescriptor(BinaryDescriptor):
         obj.parts = d['parts']
         # TODO: Experimental
         obj.unspread_parts = d['unspread_parts']
+        obj.unspread_parts_padded = d['unspread_parts_padded']
         obj.visparts = d['visparts']
         obj.settings = d['settings']
         obj._preprocess_logs()
@@ -246,5 +261,5 @@ class PartsDescriptor(BinaryDescriptor):
     def save_to_dict(self):
         # TODO: Experimental
         #return dict(num_parts=self.num_parts, patch_size=self.patch_size, parts=self.parts, visparts=self.visparts, settings=self.settings)
-        return dict(num_parts=self.num_parts, patch_size=self.patch_size, parts=self.parts, unspread_parts=self.unspread_parts, visparts=self.visparts, settings=self.settings)
+        return dict(num_parts=self.num_parts, patch_size=self.patch_size, parts=self.parts, unspread_parts=self.unspread_parts, unspread_parts_padded=self.unspread_parts_padded, visparts=self.visparts, settings=self.settings)
 
