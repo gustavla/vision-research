@@ -4,8 +4,6 @@ import numpy as np
 import amitgroup as ag
 import gv
 from itertools import product
-# TODO: During development
-import ipdb
 
 def composite(fg_img, bg_img, alpha):
     return fg_img * alpha + bg_img * (1 - alpha) 
@@ -36,6 +34,66 @@ def get_probs(theta, f):
         return 0
     else:
         return theta[f]
+
+def _process_file_full(fn, sh, descriptor, detector):
+    counts = np.zeros((1, sh[0], sh[1], descriptor.num_parts))
+
+    ag.info("Processing file", fn)
+
+    # Which mixture component does this image belong to?
+    # TODO: Temporary until multicomp
+    mixcomp = 0#np.argmax(detector.affinities
+
+    # Binarize support and Extract alpha
+    color_img, alpha = gv.img.load_image_binarized_alpha(fn)
+    img = gv.img.asgray(color_img) 
+
+    alpha_pad = ag.util.zeropad(alpha, padding)
+    inv_alpha_pad_expanded = np.expand_dims(~alpha_pad, -1)
+
+    # Iterate every duplicate
+    for loop in xrange(num_duplicates):
+        ag.info("Iteration {0}/{1}".format(loop+1, num_duplicates)) 
+        # Superimpose onto gray background
+        graymap = create_graymap(img.shape, loop / (num_duplicates - 1), prnds[0])
+
+        # Composite
+        img_with_gray = composite(img, graymap, alpha)
+
+        # Retrieve unspread edges (with a given background gray level) 
+        edges = ag.features.bedges(img_with_gray, **bsettings)
+
+        # Pad the edges
+        edges_pad = ag.util.zeropad(edges, (padding, padding, 0)) 
+
+        for i, j in product(locations0, locations1):
+            selection = [slice(i, i+X_pad_size[0]), slice(j, j+X_pad_size[1])]
+            X_pad = edges_pad[selection].copy()
+            nA_pad = inv_alpha_pad_expanded[selection]
+
+            # Draw background part from categorical distribution
+            f_bkg = weighted_choice_unit(bkg, prnds[1])
+            probs_bkg = get_probs(padded_theta, f_bkg)
+            probs = nA_pad * probs_bkg
+        
+            # Iterate over all locations
+            
+            # Draw from background edge probability over ~alpha 
+            X_pad |= (prnds[2].rand(*probs.shape) < probs)
+
+            # Do spreading
+            X_pad_spread = ag.features.bspread(X_pad, spread=bsettings['spread'], radius=radius)
+
+            # De-pad
+            X_spread = X_pad_spread[padding:-padding,padding:-padding]
+
+            # Code parts 
+            parts = descriptor.extract_parts(X_spread.astype(np.uint8))
+
+            # Accumulate and return
+            counts[mixcomp,i,j] += parts[0,0]
+
+    return counts
 
 def background_adjust_model(settings, bkg, seed=0):
     offset = settings['detector'].get('train_offset', 0)
@@ -77,7 +135,6 @@ def background_adjust_model(settings, bkg, seed=0):
 
     X_pad_size = padded_theta.shape[1:3]
 
-    # Iterate images
     for fn in files:
         ag.info("Processing file", fn)
 
@@ -103,7 +160,7 @@ def background_adjust_model(settings, bkg, seed=0):
 
             # Retrieve unspread edges (with a given background gray level) 
             edges = ag.features.bedges(img_with_gray, **bsettings)
-    
+
             # Pad the edges
             edges_pad = ag.util.zeropad(edges, (padding, padding, 0)) 
 
@@ -111,7 +168,7 @@ def background_adjust_model(settings, bkg, seed=0):
                 selection = [slice(i, i+X_pad_size[0]), slice(j, j+X_pad_size[1])]
                 X_pad = edges_pad[selection].copy()
                 nA_pad = inv_alpha_pad_expanded[selection]
-    
+
                 # Draw background part from categorical distribution
                 f_bkg = weighted_choice_unit(bkg, prnds[1])
                 probs_bkg = get_probs(padded_theta, f_bkg)
@@ -133,6 +190,23 @@ def background_adjust_model(settings, bkg, seed=0):
 
                 # Accumulate and return
                 counts[mixcomp,i,j] += parts[0,0]
+
+    """
+    if 0:
+        from multiprocessing import Pool
+        p = Pool(7)
+        mapf = p.map
+    else:
+        mapf = map
+    def _process_file(fn): 
+        return _process_file_full(fn, sh, descriptor, detector)
+
+    # Iterate images
+    all_counts = mapf(_process_file, files)
+
+    for counti in all_counts:
+        counts += counti
+    """
 
     # Divide accmulate to get new distribution
     counts /= num_files * num_duplicates
