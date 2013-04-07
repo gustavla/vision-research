@@ -2,6 +2,8 @@ from __future__ import division
 from settings import load_settings
 
 PLOT = False
+BUF = 3 
+PAD = 2+BUF 
 
 if __name__ == '__main__':
     import argparse
@@ -49,7 +51,7 @@ def generate_random_patches(filenames, size, seed=0):
             yield img[x:x+size[0], y:y+size[1]]
 
 def get_bkg(filenames, N, seed=0):
-    gen = generate_random_patches(filenames, (15, 15), seed=seed)
+    gen = generate_random_patches(filenames, (9+PAD*2, 9+PAD*2), seed=seed)
     tots = np.zeros(descriptor.num_parts)
     for i in xrange(N):
         img = gen.next()
@@ -63,11 +65,11 @@ neg_filenames= sorted(glob.glob(os.path.join(os.environ['UIUC_DIR'], 'TrainImage
 
 def load_and_crop(fn, pos):
     img, alpha = gv.img.load_image_binarized_alpha(fn)
-    img0 = img[pos[0]:pos[0]+15,pos[1]:pos[1]+15]
+    img0 = img[pos[0]:pos[0]+9+PAD*2,pos[1]:pos[1]+9+PAD*2]
     if alpha is None or alpha.mean() > 0.9:
         alpha0 = None
     else: 
-        alpha0 = alpha[pos[0]:pos[0]+15,pos[1]:pos[1]+15]
+        alpha0 = alpha[pos[0]:pos[0]+9+PAD*2,pos[1]:pos[1]+9+PAD*2]
 
     gray = gv.img.asgray(img0)
     # Blur the gray level a bit
@@ -108,7 +110,10 @@ def arrange_model(pos, settings, config, offset=None, mods=None):
     else:
         all_alphas = np.asarray(map(itemgetter(0), alpha_and_images))
         #all_alphas = np.asarray(map(lambda x: x[0], alpha_and_images))
-        alpha = all_alphas[:,7-4:8+4,7-4:8+4].mean(axis=0)
+        side = 9+PAD*2
+        alpha_padded = all_alphas[:,2:-2,2:-2].mean(axis=0)
+        alphas_padded = all_alphas[:,2:-2,2:-2]
+        alpha = all_alphas[:,side//2-4:side//2+1+4,side//2-4:side//2+1+4].mean(axis=0)
 
     if 0 and PLOT and alpha is not None:
         plt.clf()
@@ -118,16 +123,18 @@ def arrange_model(pos, settings, config, offset=None, mods=None):
     
     images = np.asarray(map(itemgetter(1), alpha_and_images))
 
+    size = (9+PAD*2,)*2
+
     if config.startswith('bkg'):
         seed = int(config[3:])
-        neg_gen = generate_random_patches(neg_filenames, (15, 15), seed=seed)
+        neg_gen = generate_random_patches(neg_filenames, size, seed=seed)
         for i in xrange(len(images)):
             # Superimpose it onto the negative patch
             images[i] = neg_gen.next()
         
     elif config.startswith('sup'):
         seed = int(config[3:])
-        neg_gen = generate_random_patches(neg_filenames, (15, 15), seed=seed)
+        neg_gen = generate_random_patches(neg_filenames, size, seed=seed)
         for i in xrange(len(images)):
             # Superimpose it onto the negative patch
             images[i] = composite(images[i], neg_gen.next(), all_alphas[i])
@@ -150,11 +157,10 @@ def arrange_model(pos, settings, config, offset=None, mods=None):
     if nospreading:
         setts['radius'] = 0
         all_edges_unspread = ag.features.bedges(images, **setts)
-        edge_patch_unspread = all_edges_unspread[:,1:-1,1:-1].astype(np.bool)
+        edge_patch_unspread = all_edges_unspread[:,BUF:-BUF,BUF:-BUF].astype(np.bool)
     else:
         edge_patch_unspread = None
     all_edges = ag.features.bedges(images, **settings['edges'])
-    edgy = all_edges[0,1:-1,1:-1]
     #edgies = ag.features.bedges(images, **settings['edges'])[:,1:-1,1:-1]
 
     #edges = ag.features.bedges(images, **settings['edges'])
@@ -165,7 +171,7 @@ def arrange_model(pos, settings, config, offset=None, mods=None):
     
     #feats = np.asarray(map(descriptor.extract_features, images))
 
-    edge_patch = all_edges[:,1:-1,1:-1]
+    edge_patch = all_edges[:,BUF:-BUF,BUF:-BUF]
 
     #if mods is not None:
         #blackout = np.load('_blackout.npy')
@@ -198,7 +204,8 @@ def arrange_model(pos, settings, config, offset=None, mods=None):
         'settings': settings, 
         'theta': feats[:,0,0].mean(axis=0), 
         'alpha': alpha,
-        'edgy': edgy,
+        'alpha_padded': alpha_padded,
+        'alphas_padded': alphas_padded,
         'edges': edge_patch.astype(np.bool),
         'edges_unspread': edge_patch_unspread,
     }
@@ -231,16 +238,17 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
     settings = model['settings']
     feats = model['theta']
     alpha = model['alpha']
-    edgy = model['edgy']
+    alpha_padded = model['alpha_padded']
     descriptor = gv.load_descriptor(settings)
     N = settings['detector']['train_limit'] * settings['detector']['duplicate']
     num_features = feats.size
     part_counts = np.zeros(num_features)
     num_edges = 4 
 
-    USE_UNSPREAD = 0#True
+    USE_UNSPREAD = True 
     if USE_UNSPREAD:
-        edges = model['edges_unspread']
+        #edges = model['edges_unspread']
+        edges = model['edges']
     else:
         edges = model['edges']
 
@@ -248,6 +256,7 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
     if alpha is None:
         alpha = np.ones((9, 9))
     p_alpha = alpha
+    p_alpha_padded = alpha_padded
     p_kernel = feats 
     if bkg is not None:
         good_back = p_back = bkg
@@ -264,10 +273,11 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
     #bm = ag.stats.BernoulliMixture.load('_mix.npy') 
     #mods = np.load('_mods.npy') 
 
-    neg_gen = generate_random_patches(neg_filenames, (15, 15), seed=seed)
+
+    neg_gen = generate_random_patches(neg_filenames, (9+PAD*2, 9+PAD*2), seed=seed)
 
     if USE_UNSPREAD:
-        theta = descriptor.parts
+        #theta = descriptor.parts
         """
         new_theta = np.ones(descriptor.parts.shape)
         #theta = 1 - (1 - descriptor.parts)**(1/9)
@@ -287,13 +297,18 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
         plt.savefig('outs/debug.png')
         """
         #theta = new_theta
-        theta = 1 - (1 - theta)**(1/9)
+        #  theta = 1 - (1 - theta)**(1/9)
+        padding = settings['edges']['radius']
+        #padded_theta = ag.util.border_value_pad(descriptor.unspread_parts, (0, padding, padding, 0))
+        padded_theta = descriptor.unspread_parts_padded
     else:
         theta = descriptor.parts
 
     cumX = None
 
     IN = 10 # Inner loop
+
+    #import ipdb; ipdb.set_trace()
 
     FIXED_OBJ = True
     for loop in xrange(N): 
@@ -320,21 +335,28 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
 
             #import pdb; pdb.set_trace()
             f_bkg = weighted_choice_unit(good_back, randgen)
-            probs_bkg = get_probs(theta, f_bkg) 
+            if USE_UNSPREAD:
+                probs_bkg = get_probs(padded_theta, f_bkg) 
+            else:
+                probs_bkg = get_probs(theta, f_bkg) 
 
     
             if 1:
                 # Draw from the alpha
                 #A = (randgen2.rand(*p_alpha.shape) < p_alpha).astype(np.uint8) 
                 #print p_alpha
-                A = (randgen2.rand() < p_alpha)
+                if USE_UNSPREAD:
+                    #A = (randgen2.rand() < p_alpha_padded)
+                    A = model['alphas_padded'][loop]
+                else:
+                    A = (randgen2.rand() < p_alpha)
                 #A = (0.5 < p_alpha).astype(np.uint8)
 
 
                 #if FIXED_OBJ:
                     #A = ~ag.util.inflate2d(~A, np.ones((3, 3)))         
 
-                AA = A.reshape(A.shape + (1,)).astype(np.bool)
+                #AA = A.reshape(A.shape + (1,)).astype(np.bool)
 
                 #print 'AA:', AA.sum()
 
@@ -346,13 +368,26 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
                 """
 
                 if FIXED_OBJ:
-                    A = ~ag.util.inflate2d(~A, np.ones((3, 3))).astype(np.bool)
+                    if not USE_UNSPREAD:
+                         
+                        #A = ~ag.util.inflate2d(~A, np.ones((3, 3))).astype(np.bool)
+                        Ab = np.tile(np.expand_dims(A, -1), 4)
+                        Ab = ~ag.features.bspread(~Ab, spread=settings['edges']['spread'], radius=settings['edges']['radius']).astype(np.bool)
+                        AA = Ab
+                    else:
+                        AA = np.expand_dims(A, -1).astype(np.bool)
 
-                AA = A.reshape(A.shape + (1,)).astype(np.bool)
+                if USE_UNSPREAD:
+                    #AApad = ag.util.border_value_pad(AA, (padding, padding, 0))
+                    AApad = AA
+
 
                 if FIXED_OBJ:
                     #probs_mixed = ag.util.inflate2d(~AA, np.ones((17, 17))) * probs_bkg 
-                    probs_mixed = ~AA * probs_bkg
+                    if USE_UNSPREAD:
+                        probs_mixed = ~AApad * probs_bkg
+                    else:
+                        probs_mixed = ~AA * probs_bkg
                     #probs_mixed = ~AA * probs_bkg
                 else:
                     probs_mixed = AA * probs_obj + ~AA * probs_bkg 
@@ -374,7 +409,10 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
                         X = (randgen3.rand(*probs_mixed.shape) < probs_mixed)
 
                     else:
-                        X = np.zeros(edges.shape[1:], dtype=np.bool)
+                        if USE_UNSPREAD:
+                            X = np.zeros((9+padding*2, 9+padding*2, 4), dtype=np.bool)
+                        else:
+                            X = np.zeros(edges.shape[1:], dtype=np.bool)
                         X0 = X.copy()
         
                         if 0:
@@ -390,7 +428,7 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
                             #X = (randgen3.rand() < probs_mixed).astype(np.uint8)
                             #X = (1 - AA) * ag.features.bedges(neg_gen.next(), **settings['edges'])[1:-1,1:-1] 
                             X0 = X.copy()
-                        X |= edges[loop] 
+                        #X[1:-1,1:-1] |= edges[loop] 
 
                     #X *= (1 - ealpha)
                     #r = randgen4.uniform(0, 0.5)
@@ -434,10 +472,24 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
                     #X &= ~((blackout > 0) | (blackin > 0)) 
                     #X &= ~((blackin > 0)) 
 
+                    if loop == 0:
+                        plt.clf()
+                        ag.plot.images(np.rollaxis(X, 2))
+                        plt.savefig('outs/pre-{0}.png'.format(inner_loop))
                     
                     # Now, do edge spreading!
                     if USE_UNSPREAD:
                         X = ag.features.bspread(X, spread=settings['edges']['spread'], radius=settings['edges']['radius'])
+
+                        # Now, take the window
+                        X = X[padding:-padding,padding:-padding]
+                    
+                    X |= edges[loop]
+
+                    if loop == 0:
+                        plt.clf()
+                        ag.plot.images(np.rollaxis(X, 2))
+                        plt.savefig('outs/post-{0}.png'.format(inner_loop))
 
                     #if PLOT:
                     #    Xs.append(X)    
@@ -483,7 +535,7 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
 
     if PLOT:
         plt.clf()
-        ag.plot.images(np.rollaxis(cumX, 2)/(N*IN))
+        ag.plot.images(np.rollaxis(cumX, 2)/(N * IN))
         plt.savefig('outs/mean-cor.png')
 
     if PLOT and 0:
@@ -497,6 +549,7 @@ def correct_model(model, bkg=None, model_bkg=None, seed=0, mods=None):
     new_model = model.copy()
     new_model['theta'] = new_feats
     new_model['alpha'] = None
+    new_model['alpha_padded'] = None
     return new_model
 
 def test_model(offset, seed=1):
@@ -622,9 +675,9 @@ if __name__ == '__main__':
         
         if 0:
             L = 1
-            posses = [(10, 10)]
+            posses = [(11-BUF, 11-BUF)]
         else:
-            posses = [(10, 10), (12, 13), (13, 7), (12, 13), (25, 3), (10, 35), (13, 20), (0, 0)]
+            posses = map(lambda x: (x[0]+1-BUF, x[1]+1-BUF), [(10, 10), (12, 13), (13, 7), (12, 13), (21, 3), (10, 32), (13, 20), (3, 3)])
             L = len(posses)
         scores = np.zeros(L) 
 
@@ -642,6 +695,14 @@ if __name__ == '__main__':
                         N = settings_objs[i]['detector']['duplicate'] * settings_objs[i]['detector']['train_limit']
                         bkg = get_bkg(neg_filenames, N, seed=seed)
                         models[i] = correct_model(models[i], bkg=bkg, seed=seed)
+                    elif configs[i].startswith('sup'):
+                        # Just plot it
+                        if PLOT:
+                            plt.clf()
+                            edges_sup = models[i]['edges'] 
+                            ag.plot.images(np.rollaxis(edges_sup.mean(axis=0), 2) )
+                            plt.savefig('outs/mean-sup.png')
+                        
 
             if 0:
                 settings, feats, alpha = models[0] 

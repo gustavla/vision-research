@@ -13,6 +13,7 @@ import scipy.signal
 from .saveable import Saveable
 import gv
 import sys
+from copy import deepcopy
 
 def _along_kernel(direction, radius):
     d = direction%4
@@ -166,6 +167,9 @@ class Detector(Saveable):
         self.settings['min_size'] = 75
         self.settings['max_size'] = 450
         self.settings.update(settings)
+    
+    def copy(self):
+        return deepcopy(self)
 
     @property
     def train_unspread(self):
