@@ -22,14 +22,22 @@ pi = np.zeros(parts_descriptor.num_parts)
 tot = 0
 cut = 4
 
+intensities = np.array([])
+
 for f in files:
     print 'Processing', f
     im = gv.img.load_image(f)
+    gray_img = gv.img.asgray(im)
+    intensities = np.concatenate((intensities, gray_img.ravel())) 
 
-    feats = parts_descriptor.extract_features(im, settings=dict(spread_radii=(2, 2), subsample_size=(2, 2)))
+    feats = parts_descriptor.extract_features(im, settings=dict(spread_radii=(0, 0), subsample_size=(1, 1)))
     x = np.rollaxis(feats[cut:-cut,cut:-cut], 2).reshape((parts_descriptor.num_parts, -1))
     tot += x.shape[1]
     pi += x.sum(axis=1)
+
+import pylab as plt
+plt.hist(intensities, 50)
+plt.show()
     
 bkg = pi / tot
 print bkg.shape
