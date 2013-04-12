@@ -15,7 +15,7 @@ def create_graymap(size, shade, prnd):
     # Add gaussian noise, to stimulate different edge activity
     # It has to be well below the minimum contrast threshold though,
     # so that we don't stimulate edges outside the object.                  
-    graymap = np.clip(graymap + prnd.randn(*size) * 0.0001, 0, 1)
+    graymap = np.clip(graymap + prnd.randn(*size) * 0.02, 0, 1)
 
     return graymap
      

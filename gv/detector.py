@@ -187,6 +187,10 @@ class Detector(Saveable):
                 img = gv.img.load_image(img_obj)
             grayscale_img = gv.img.asgray(img)
 
+            # TODO: Experimental
+            # Blur the grayscale_img
+            grayscale_img = ag.util.blur_image(grayscale_img, 0.05)
+
             # Resize the image before extracting features
             if resize_to is not None and resize_to != grayscale_img.shape[:2]:
                 img = gv.img.resize(img, resize_to)
@@ -816,6 +820,9 @@ class Detector(Saveable):
             #back = np.load('bkg.npy')
             nospread_back = 1 - (1 - back)**(1/neighborhood_area)
             
+            # TODO: Use this background instead.
+            nospread_back = np.load('bkg.npy')
+
             # Clip nospread_back, since we didn't clip it before
             #nospread_back = np.clip(nospread_back, eps, 1-eps)
 
@@ -842,7 +849,7 @@ class Detector(Saveable):
             jstep = 2*radii[1]
             sh = kernels.shape[1:3]
             for mixcomp in xrange(self.num_mixtures):
-                # Note, we are going in strides of psize, given a a certain offset, since
+                # Note, we are going in strides of psize, given a certain offset, since
                 # we will be subsampling anyway, so we don't need to do the rest.
                 for i in xrange(offsets[0], sh[0], psize[0]):
                     for j in xrange(offsets[1], sh[1], psize[1]):

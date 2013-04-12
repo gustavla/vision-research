@@ -54,6 +54,9 @@ def detect(fileobj):
     detections = []
     img = gv.img.load_image(fileobj.path)
     grayscale_img = gv.img.asgray(img)
+    
+    # TODO: Experimental
+    grayscale_img = ag.util.blur_image(grayscale_img, 0.05)
 
     tp = tp_fp = tp_fn = 0
 
