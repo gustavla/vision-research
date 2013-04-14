@@ -19,6 +19,10 @@ class EdgeDescriptor(BinaryDescriptor):
         sett.update(settings)
         return ag.features.bedges(img, **sett)
 
+    @property
+    def num_features(self):
+        return 4 if self.settings['contrast_insensitive'] else 8
+
     def save_to_dict(self):
         return self.settings
 

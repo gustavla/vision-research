@@ -39,12 +39,12 @@ if __name__ == '__main__':
     
     descriptor = gv.load_descriptor(settings)
 
-def generate_random_patches(filenames, size, seed=0):
+def generate_random_patches(filenames, size, seed=0, per_image=100):
     randgen = np.random.RandomState(seed)
     for fn in filenames:
         img = gv.img.asgray(gv.img.load_image(fn))
         # Random position
-        for l in xrange(100):
+        for l in xrange(per_image):
             x = randgen.randint(img.shape[0]-size[0]-1) 
             #y = 20+np.random.randint(2)*10#np.random.randint(img.shape[1]-size[1]-1)
             y = randgen.randint(img.shape[1]-size[1]-1)

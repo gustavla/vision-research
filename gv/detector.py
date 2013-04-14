@@ -155,6 +155,7 @@ class Detector(Saveable):
         self.mixture = None
         self.log_kernels = None
         self.log_invkernels = None
+        self.kernel_basis = None
 
         self.use_alpha = None
 
@@ -189,7 +190,7 @@ class Detector(Saveable):
 
             # TODO: Experimental
             # Blur the grayscale_img
-            grayscale_img = ag.util.blur_image(grayscale_img, 0.05)
+            #grayscale_img = ag.util.blur_image(grayscale_img, 0.05)
 
             # Resize the image before extracting features
             if resize_to is not None and resize_to != grayscale_img.shape[:2]:
@@ -686,14 +687,17 @@ class Detector(Saveable):
 
     def prepare_kernels(self, back, settings={}):
         #print('..............',back)
-        num_features = self.kernel_templates.shape[-1] 
+        num_features = self.descriptor.num_features
         sett = self.settings.copy()
         sett.update(settings) 
 
         # TODO: Very temporary
         #back = np.load('bkg.npy')
 
-        kernels = self.kernel_templates.copy()
+        if self.use_basis:
+            pass
+        else:
+            kernels = self.kernel_templates.copy()
 
         eps = sett['min_probability']
         psize = sett['subsample_size']
@@ -821,7 +825,11 @@ class Detector(Saveable):
             nospread_back = 1 - (1 - back)**(1/neighborhood_area)
             
             # TODO: Use this background instead.
-            nospread_back = np.load('bkg.npy')
+            #nospread_back = np.load('bkg.npy')
+
+            if self.use_basis:
+                C = self.kernel_basis * np.expand_dims(nospread_back, -1)
+                kernels = C.sum(axis=-2) / self.kernel_basis_samples
 
             # Clip nospread_back, since we didn't clip it before
             #nospread_back = np.clip(nospread_back, eps, 1-eps)
@@ -1250,11 +1258,14 @@ class Detector(Saveable):
 
     
             #print("level", level, self.train_mean[level])
-            res -= self.train_mean[level]
-            res /= self.train_std[level]
+            if 0:
+                res -= self.train_mean[level]
+                res /= self.train_std[level]
 
-            resplus -= self.train_mean[level]
-            resplus /= self.train_std[level]
+                resplus -= self.train_mean[level]
+                resplus /= self.train_std[level]
+            else:
+                assert self.num_mixtures == 1, "Need to standardize!"
 
             if 0:
                 import pylab as plt
@@ -1384,6 +1395,10 @@ class Detector(Saveable):
         slider.on_changed(update)
         plt.show()
 
+    # TODO: Experimental
+    @property
+    def use_basis(self):
+        return self.kernel_basis is not None
 
     @classmethod
     def load_from_dict(cls, d):
@@ -1397,13 +1412,15 @@ class Detector(Saveable):
             obj.mixture = ag.stats.BernoulliMixture.load_from_dict(d['mixture'])
             obj.settings = d['settings']
             obj.orig_kernel_size = d['orig_kernel_size']
-            obj.kernel_templates = d['kernel_templates']
+            obj.kernel_basis = d.get('kernel_basis')
+            obj.kernel_basis_samples = d.get('kernel_basis_samples')
+            obj.kernel_templates = d.get('kernel_templates')
             obj.use_alpha = d['use_alpha']
-            obj.support = d['support']
+            obj.support = d.get('support')
 
             # TODO: Temporary?
-            obj.train_std = d['train_std'] 
-            obj.train_mean = d['train_mean'] 
+            obj.train_std = d.get('train_std')
+            obj.train_mean = d.get('train_mean')
 
             obj._preprocess()
             return obj
@@ -1419,11 +1436,16 @@ class Detector(Saveable):
         d['mixture'] = self.mixture.save_to_dict(save_affinities=True)
         d['orig_kernel_size'] = self.orig_kernel_size
         d['kernel_templates'] = self.kernel_templates
+        d['kernel_basis'] = self.kernel_basis
+        d['kernel_basis_samples'] = self.kernel_basis_samples
         d['use_alpha'] = self.use_alpha
         d['support'] = self.support
         d['settings'] = self.settings
 
         # TODO: Temporary?
-        d['train_std'] = self.train_std
-        d['train_mean'] = self.train_mean
+        try:
+            d['train_std'] = self.train_std
+            d['train_mean'] = self.train_mean
+        except AttributeError:
+            pass
         return d

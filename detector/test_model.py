@@ -56,7 +56,7 @@ def detect(fileobj):
     grayscale_img = gv.img.asgray(img)
     
     # TODO: Experimental
-    grayscale_img = ag.util.blur_image(grayscale_img, 0.05)
+    #grayscale_img = ag.util.blur_image(grayscale_img, 0.05)
 
     tp = tp_fp = tp_fn = 0
 
@@ -84,11 +84,11 @@ def detect(fileobj):
 if 1:
     from multiprocessing import Pool
     p = Pool(7)
-    mapf = p.map
+    imapf = p.imap_unordered
 else:
-    mapf = map
+    from itertools import imap as imapf
 
-res = mapf(detect, files)
+res = imapf(detect, files)
 
 
 for tp, tp_fp, tp_fn, dets in res:
@@ -112,4 +112,4 @@ print('----------------')
 #    print('Precision', tot_tp / tot_tp_fp)
 #if tot_tp_fn:
 #    print('Recall', tot_tp / tot_tp_fn)
-print('AP', ap)
+print('AP {0:.2f}% ({1})'.format(100*ap, ap))

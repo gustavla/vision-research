@@ -29,6 +29,10 @@ class PartsDescriptor(BinaryDescriptor):
         self.settings['bedges'] = dict(k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True, max_edges=2)
         self.settings.update(settings)
 
+    @property
+    def num_features(self):
+        return self.num_parts
+
     def _get_patches(self, filename):
         samples_per_image = self.settings['samples_per_image']
         fr = self.settings['patch_frame']

@@ -81,6 +81,19 @@ def background_adjust_model(settings, bkg, seed=0):
 
     neg_filenames= sorted(glob.glob(os.path.join(os.environ['UIUC_DIR'], 'TrainImages', 'neg-*.pgm')))
 
+    gen_raw = generate_random_patches(neg_filenames, X_pad_size, seed)
+    # Pre-generate a bunch of background patches and loop them.
+    bkgs = [gen_raw.next() for i in xrange(2000)]
+    def new_gen():
+        i = 0
+        while True:
+            yield bkgs[i]
+            i += 1
+            if i == 2000:
+                i = 0
+
+    gen = new_gen()
+
     for seed, fn in enumerate(files):
         ag.info("Processing file", fn)
 
@@ -97,20 +110,19 @@ def background_adjust_model(settings, bkg, seed=0):
         alpha_pad = ag.util.zeropad(alpha, pad)
         inv_alpha_pad_expanded = np.expand_dims(~alpha_pad, -1)
 
-        gen = generate_random_patches(neg_filenames, X_pad_size, seed)
-
         # Iterate every duplicate
 
         #ag.info("Iteration {0}/{1}".format(loop+1, num_duplicates)) 
         #ag.info("Iteration")
         for i, j in product(locations0, locations1):
-            for loop in xrange(num_duplicates):
-                selection = [slice(i, i+X_pad_size[0]), 
-                             slice(j, j+X_pad_size[1])]
-                #X_pad = edges_pad[selection].copy()
-                patch = img_pad[selection]
-                alpha_patch = alpha_pad[selection]
+            selection = [slice(i, i+X_pad_size[0]), 
+                         slice(j, j+X_pad_size[1])]
+            #X_pad = edges_pad[selection].copy()
+            patch = img_pad[selection]
+            alpha_patch = alpha_pad[selection]
 
+            #ag.info("Position {0} {1}".format(i, j))
+            for loop in xrange(num_duplicates):
                 bkgmap = gen.next()
 
                 # Composite
