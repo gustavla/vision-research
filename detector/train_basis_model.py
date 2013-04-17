@@ -8,6 +8,8 @@ import sys
 from itertools import product
 from superimpose_experiment import generate_random_patches
 
+
+# TODO: Temporary
 sh = (28, 88)
 
 
@@ -275,6 +277,10 @@ if __name__ == '__main__':
     detector.kernel_basis = counts
     detector.kernel_basis_samples = total
     detector.use_alpha = False
+    # TODO: Temporary
+    detector.orig_kernel_size = (40, 100)
     detector.save(output_file)
+
+    
 
     #np.save(output_file, counts)

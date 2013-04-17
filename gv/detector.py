@@ -156,6 +156,9 @@ class Detector(Saveable):
         self.log_kernels = None
         self.log_invkernels = None
         self.kernel_basis = None
+        self.kernel_basis_samples = None
+        self.kernel_templates = None
+        self.support = None
 
         self.use_alpha = None
 
@@ -574,7 +577,7 @@ class Detector(Saveable):
         if self.use_alpha:
             self.small_support = None
             if self.support is not None:
-                num_mix = self.mixture.num_mix
+                num_mix = self.num_mixtures
                 for k in xrange(num_mix):
                     p = mean_pooling(self.support[k], self.settings['subsample_size'])
                     if self.small_support is None:
@@ -825,7 +828,7 @@ class Detector(Saveable):
             nospread_back = 1 - (1 - back)**(1/neighborhood_area)
             
             # TODO: Use this background instead.
-            #nospread_back = np.load('bkg.npy')
+            nospread_back = np.load('bkg.npy')
 
             if self.use_basis:
                 C = self.kernel_basis * np.expand_dims(nospread_back, -1)
@@ -1267,6 +1270,13 @@ class Detector(Saveable):
             else:
                 assert self.num_mixtures == 1, "Need to standardize!"
 
+                a = weights
+
+                # Do some normalization
+                res -= (kern * a).sum()
+                res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
+                #resplus -= (kern * np.log(kern/back) + (1 - kern) * np.log((1 - kern)/(1 - back))).sum()
+
             if 0:
                 import pylab as plt
                 plt.subplot(121)
@@ -1409,9 +1419,13 @@ class Detector(Saveable):
                 raise Exception("The descriptor class {0} is not registered".format(d['descriptor_name'])) 
             descriptor = descriptor_cls.load_from_dict(d['descriptor'])
             obj = cls(num_mixtures, descriptor)
-            obj.mixture = ag.stats.BernoulliMixture.load_from_dict(d['mixture'])
+            mix_dict = d.get('mixture')
+            if mix_dict is not None:
+                obj.mixture = ag.stats.BernoulliMixture.load_from_dict(d['mixture'])
+            else:
+                obj.mixture = None
             obj.settings = d['settings']
-            obj.orig_kernel_size = d['orig_kernel_size']
+            obj.orig_kernel_size = d.get('orig_kernel_size')
             obj.kernel_basis = d.get('kernel_basis')
             obj.kernel_basis_samples = d.get('kernel_basis_samples')
             obj.kernel_templates = d.get('kernel_templates')
@@ -1433,7 +1447,8 @@ class Detector(Saveable):
         d['num_mixtures'] = self.num_mixtures
         d['descriptor_name'] = self.descriptor.name
         d['descriptor'] = self.descriptor.save_to_dict()
-        d['mixture'] = self.mixture.save_to_dict(save_affinities=True)
+        if self.mixture is not None:
+            d['mixture'] = self.mixture.save_to_dict(save_affinities=True)
         d['orig_kernel_size'] = self.orig_kernel_size
         d['kernel_templates'] = self.kernel_templates
         d['kernel_basis'] = self.kernel_basis
