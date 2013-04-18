@@ -1,10 +1,4 @@
-from __future__ import division
-from __future__ import print_function
-from __future__ import absolute_import 
 
-# TODO: Temporary
-#import matplotlib
-#matplotlib.use("Agg")
 import matplotlib.pylab as plt
 
 import amitgroup as ag
@@ -219,67 +213,15 @@ class Detector(Saveable):
 
             yield i, grayscale_img, img, alpha
 
-    def gen_img(self, images, actual=False, use_mask=False): #TODO: temp2
-        if use_mask:
-            for i, grayscale_img, img, alpha in self.load_img(images):
-                #ag.info("Mixing image {0}".format(i))
-                #alpha = (img[...,3] > 0.2).astype(np.uint8)
-
-                # Dilate alpha here
-                #alpha = ag.util.inflate2d(alpha, np.ones((5, 5))) 
-
-                #alpha = None
-                final_feats = self.extract_unspread_features(grayscale_img, support_mask=alpha)
-                #if final_edges[-1].mean() > 0.5:
-                #    import pdb; pdb.set_trace()
-
-                yield final_feats
-        elif 0:
-            for i, grayscale_img, img, alpha in self.load_img(images):
-
-                # First, extract unspread edges
-                bsett = self.descriptor.bedges_settings()
-                sett = bsett.copy()
-
-# self.settings['parts']['edges'].copy()
-                sett['radius'] = 0
-                front_edges = ag.features.bedges(grayscale_img, **sett) 
-
-                # Now, inject more edges
-                bkg_edges = (np.random.random(front_edges.shape) < 0.35)
-            
-                alpha = (img[...,3] > 0.1)
-                alpha = alpha[2:-2,2:-2]
-                alpha = alpha.reshape(alpha.shape + (1,))
-        
-                edges = alpha * front_edges + (1 - alpha) * bkg_edges
-    
-                # Now do the spreading
-
-
-                # Dump to file
-                plt.clf()
-                ag.plot.images(np.rollaxis(edges, axis=2)) 
-                plt.savefig('dumpy/img-{0}.png'.format(i))
-
-                # Propagate the feature along the edge 
-                for j in xrange(bkg_edges.shape[-1]):
-                    kernel = _along_kernel(j, bsett['radius'])
-                    edges[...,j] = ag.util.inflate2d(edges[...,j], kernel)
-                
-                feats = self.descriptor.extract_parts(edges.astype(np.uint8), settings={'spread_radii': (0, 0)})
-
-                yield feats 
-        else:
-            for i, grayscale_img, img, alpha in self.load_img(images):
-                #ag.info("Mixing image {0}".format(i))
-                if self.train_unspread and not actual:
-                    final_edges = self.extract_unspread_features(grayscale_img)
-                else:
-                    final_edges = self.extract_spread_features(grayscale_img)
-                    if actual:
-                        final_edges = self.subsample(final_edges)
-                yield final_edges
+    def gen_img(self, images, actual=False):
+        for i, grayscale_img, img, alpha in self.load_img(images):
+            if self.train_unspread and not actual:
+                final_edges = self.extract_unspread_features(grayscale_img)
+            else:
+                final_edges = self.extract_spread_features(grayscale_img)
+                if actual:
+                    final_edges = self.subsample(final_edges)
+            yield final_edges
 
     def train_from_images(self, images):
         self.orig_kernel_size = None
@@ -361,17 +303,11 @@ class Detector(Saveable):
             ag.info(i, "Processing image", i)
             if self.use_alpha is None:
                 self.use_alpha = (img.ndim == 3 and img.shape[-1] == 4)
-                #self.use_alpha = False # TODO: Temp2
                 if self.use_alpha:
                     alpha_maps = np.empty((len(images),) + img.shape[:2], dtype=np.uint8)
 
             if self.use_alpha:
                 a = (img[...,3] > 0.05).astype(np.uint8)
-
-                # Erode the alpha map
-                #import skimage.morphology
-                #a = skimage.morphology.erosion(a, np.ones((9, 9), dtype=np.uint8))
-
                 alpha_maps[i] = a
 
             if self.train_unspread:
@@ -451,8 +387,7 @@ class Detector(Saveable):
         # Remix it - this iterable will produce each object and then throw it away,
         # so that we can remix without having to ever keep all mixing data in memory at once
              
-        use_mask = False 
-        kernel_templates = np.clip(mixture.remix_iterable(self.gen_img(images, use_mask=use_mask)), 1e-5, 1-1e-5) # TDOO: Temp2
+        kernel_templates = np.clip(mixture.remix_iterable(self.gen_img(images)), 1e-5, 1-1e-5)
 
         # Pick out the support, by remixing the alpha channel
         if self.use_alpha: #TODO: Temp2
