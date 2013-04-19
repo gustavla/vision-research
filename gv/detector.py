@@ -1,3 +1,4 @@
+from __future__ import division
 
 # TODO
 #import matplotlib
@@ -409,6 +410,7 @@ class Detector(Saveable):
 
         else:
             raise ValueError("Specified background model not available")
+
     def subsample(self, edges):
         return gv.sub.subsample(edges, self.settings['subsample_size'])
 
@@ -429,8 +431,6 @@ class Detector(Saveable):
             #nospread_back = 1 - (1 - back)**(1/neighborhood_area)
             nospread_back = back
             print back.min(), back.max()
-
-                
 
             #radii = self.settings['spread_radii']
             #neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
@@ -721,7 +721,8 @@ class Detector(Saveable):
         # model to spread
         radii = self.settings['spread_radii']
         neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
-        spread_back = 1 - (1 - back)**neighborhood_area
+        #spread_back = 1 - (1 - back)**neighborhood_areah
+        spread_back = back
 
         weights = np.log(kern/(1-kern) * ((1-spread_back)/spread_back))
 
@@ -729,19 +730,20 @@ class Detector(Saveable):
 
         #print("level", level, self.train_mean[level])
         testing_type = self.settings.get('testing_type', 'object-model')
-        if testing_type == 'fixed':
-            res -= self.fixed_train_mean[level]
-            res /= self.fixed_train_std[level]
-        elif testing_type == 'object-model':
-            assert self.num_mixtures == 1, "Need to standardize!"
-            a = weights
-            res -= (kern * a).sum()
-            res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
-        elif testing_type == 'background-model':
-            assert self.num_mixtures == 1, "Need to standardize!"
-            a = weights
-            res -= (spread_back * a).sum()
-            res /= np.sqrt((a**2 * spread_back * (1 - spread_back)).sum())
+        if 0:
+            if testing_type == 'fixed':
+                res -= self.fixed_train_mean[level]
+                res /= self.fixed_train_std[level]
+            elif testing_type == 'object-model':
+                assert self.num_mixtures == 1, "Need to standardize!"
+                a = weights
+                res -= (kern * a).sum()
+                res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
+            elif testing_type == 'background-model':
+                assert self.num_mixtures == 1, "Need to standardize!"
+                a = weights
+                res -= (spread_back * a).sum()
+                res /= np.sqrt((a**2 * spread_back * (1 - spread_back)).sum())
 
         return res
 
