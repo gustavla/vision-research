@@ -1,5 +1,8 @@
 
-import matplotlib.pylab as plt
+# TODO
+#import matplotlib
+#matplotlib.use('Agg')
+#import matplotlib.pylab as plt
 
 import amitgroup as ag
 import numpy as np
@@ -385,6 +388,9 @@ class Detector(Saveable):
         """
         bkg_type = self.settings.get('bkg_type')
 
+        #return np.clip(np.load('bkg2.npy'), 1e-10, 1-1e-10)
+        return np.clip(np.load('bkg.npy'), 1e-10, 1-1e-10)
+
         if bkg_type == 'constant':
             bkg_value = self.settings['fixed_bkg']
             return np.ones(self.num_features) * bkg_value 
@@ -395,7 +401,7 @@ class Detector(Saveable):
         elif bkg_type == 'per-image-average':
             bkg = edges.reshape((-1, self.num_features)).mean(axis=0)
             #eps = self.settings['min_probability']
-            eps = 1e-8
+            eps = 1e-10
             return np.clip(bkg, eps, 1 - eps)
 
         elif bkg_type == 'smoothed':
@@ -423,20 +429,55 @@ class Detector(Saveable):
             #nospread_back = 1 - (1 - back)**(1/neighborhood_area)
             nospread_back = back
             print back.min(), back.max()
+
+                
+
+            #radii = self.settings['spread_radii']
+            #neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
+            #nospread_back = 1 - (1 - back)**neighborhood_area
             
             # TODO: Use this background instead.
             #nospread_back = np.load('bkg.npy')
             #nospread_back = np.ones(self.num_features) * 0.003
 
             if self.use_basis:
-                C = self.kernel_basis * np.expand_dims(nospread_back, -1)
-                kernels = C.sum(axis=-2) / self.kernel_basis_samples
+                d = gv.Detector.load('fa1ming2-cad02.npy')
+                cad_kernels = d.kernel_templates.copy()
+                back2 = nospread_back# / nospread_back.sum() 
+                a = 1 - nospread_back.sum()
+                #a = 0
+
+                C = self.kernel_basis * np.expand_dims(back2, -1)
+                kernels = a * cad_kernels + C.sum(axis=-2) / self.kernel_basis_samples
+        
+                # Print comparisons
+                if 0:
+                    d = gv.Detector.load('fa1ming2-model03.npy')
+                    kern2 = d.kernel_templates
+
+                    import pylab as plt
+                    for f in xrange(self.num_features):
+                        plt.clf()
+                        plt.subplot(3, 1, 1)
+                        plt.imshow(kern2[0,...,f])
+                        plt.title('Real data')
+                        plt.colorbar()
+                        plt.subplot(3, 1, 2)
+                        plt.imshow(cad_kernels[0,...,f])
+                        plt.title('CAD data')
+                        plt.colorbar()
+                        plt.subplot(3, 1, 3)
+                        plt.imshow(kernels[0,...,f])
+                        plt.title('object-over-background')
+                        plt.colorbar()
+                        plt.savefig('comparisons/{0}.png'.format(f))
 
             print self.kernel_basis_samples
             print kernels.min(), kernels.max()
 
             aa_log = np.log(1 - kernels)
             aa_log = ag.util.multipad(aa_log, (0, radii[0], radii[1], 0), np.log(1-nospread_back))
+
             #aa_log = ag.util.zeropad(aa_log, (0, radii[0], radii[1], 0))
             integral_aa_log = aa_log.cumsum(1).cumsum(2)
 
@@ -454,11 +495,15 @@ class Detector(Saveable):
                         p = _integrate(integral_aa_log[mixcomp], i, j, i+istep, j+jstep)
                         kernels[mixcomp,i,j] = 1 - np.exp(p)
 
+            
 
         # Subsample kernels
         sub_kernels = gv.sub.subsample(kernels, psize, skip_first_axis=True)
 
         sub_kernels = np.clip(sub_kernels, eps, 1-eps)
+
+
+
 
         K = self.settings.get('quantize_bins')
         if K is not None:
@@ -670,7 +715,15 @@ class Detector(Saveable):
         from .fast import multifeature_correlate2d
 
         kern = sub_kernels[mixcomp]
-        weights = np.log(kern/(1-kern) * ((1-back)/back))
+
+
+        # Since the kernel is spread, we need to convert the background
+        # model to spread
+        radii = self.settings['spread_radii']
+        neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
+        spread_back = 1 - (1 - back)**neighborhood_area
+
+        weights = np.log(kern/(1-kern) * ((1-spread_back)/spread_back))
 
         res = multifeature_correlate2d(bigger, weights) 
 
@@ -682,18 +735,13 @@ class Detector(Saveable):
         elif testing_type == 'object-model':
             assert self.num_mixtures == 1, "Need to standardize!"
             a = weights
-            print '---------'
-            print res.max()
             res -= (kern * a).sum()
             res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
-            print (kern * a).sum()
-            print np.sqrt((a**2 * kern * (1 - kern)).sum())
-            print res.max()
         elif testing_type == 'background-model':
             assert self.num_mixtures == 1, "Need to standardize!"
             a = weights
-            res -= (back * a).sum()
-            res /= np.sqrt((a**2 * back * (1 - back)).sum())
+            res -= (spread_back * a).sum()
+            res /= np.sqrt((a**2 * spread_back * (1 - spread_back)).sum())
 
         return res
 
