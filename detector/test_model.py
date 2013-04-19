@@ -9,6 +9,7 @@ parser.add_argument('output', metavar='<output file>', type=argparse.FileType('w
 parser.add_argument('--limit', nargs=1, type=int, default=[None])
 parser.add_argument('--mini', action='store_true', default=False)
 parser.add_argument('--contest', type=str, choices=('voc', 'uiuc', 'uiuc-multiscale'), default='voc', help='Contest to try on')
+parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
 
 args = parser.parse_args()
 model_file = args.model
@@ -16,6 +17,7 @@ obj_class = args.obj_class
 output_file = args.output
 limit = args.limit[0]
 mini = args.mini
+threading = not args.no_threading
 contest = args.contest
 
 import gv
@@ -55,9 +57,6 @@ def detect(fileobj):
     img = gv.img.load_image(fileobj.path)
     grayscale_img = gv.img.asgray(img)
     
-    # TODO: Experimental
-    #grayscale_img = ag.util.blur_image(grayscale_img, 0.05)
-
     tp = tp_fp = tp_fn = 0
 
     # Count tp+fn
@@ -81,7 +80,7 @@ def detect(fileobj):
     return (tp, tp_fp, tp_fn, detections)
 
 
-if 1:
+if threading:
     from multiprocessing import Pool
     p = Pool(7)
     imapf = p.imap_unordered
