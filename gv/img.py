@@ -112,3 +112,37 @@ def save_image(im, path):
     pil_im = Image.fromarray((im*255).astype(np.uint8))
     pil_im.save(path)
 
+def integrate(ii, r0, c0, r1, c1):
+    """Use an integral image to integrate over a given window.
+
+    Parameters
+    ----------
+    ii : ndarray
+    Integral image.
+    r0, c0 : int
+    Top-left corner of block to be summed.
+    r1, c1 : int
+    Bottom-right corner of block to be summed.
+
+    Returns
+    -------
+    S : int
+    Integral (sum) over the given window.
+
+    """
+    # This line is modified
+    S = np.zeros(ii.shape[-1]) 
+
+    S += ii[r1, c1]
+
+    if (r0 - 1 >= 0) and (c0 - 1 >= 0):
+        S += ii[r0 - 1, c0 - 1]
+
+    if (r0 - 1 >= 0):
+        S -= ii[r0 - 1, c1]
+
+    if (c0 - 1 >= 0):
+        S -= ii[r1, c0 - 1]
+
+    return S
+

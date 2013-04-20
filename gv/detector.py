@@ -1,10 +1,5 @@
 from __future__ import division
 
-# TODO
-#import matplotlib
-#matplotlib.use('Agg')
-#import matplotlib.pylab as plt
-
 import amitgroup as ag
 import numpy as np
 import scipy.signal
@@ -12,6 +7,9 @@ from .saveable import Saveable
 import gv
 import sys
 from copy import deepcopy
+
+# TODO: Build into train_basis_...
+cad_kernels = np.load('cad_kernel.npy')
 
 def offset_img(img, off):
     sh = img.shape
@@ -24,40 +22,6 @@ def offset_img(img, off):
             img[max(-off[0], 0):min(sh[0]-off[0], sh[0]), \
                 max(-off[1], 0):min(sh[1]-off[1], sh[1])]
         return x
-
-def _integrate(ii, r0, c0, r1, c1):
-    """Use an integral image to integrate over a given window.
-
-    Parameters
-    ----------
-    ii : ndarray
-    Integral image.
-    r0, c0 : int
-    Top-left corner of block to be summed.
-    r1, c1 : int
-    Bottom-right corner of block to be summed.
-
-    Returns
-    -------
-    S : int
-    Integral (sum) over the given window.
-
-    """
-    # This line is modified
-    S = np.zeros(ii.shape[-1]) 
-
-    S += ii[r1, c1]
-
-    if (r0 - 1 >= 0) and (c0 - 1 >= 0):
-        S += ii[r0 - 1, c0 - 1]
-
-    if (r0 - 1 >= 0):
-        S -= ii[r0 - 1, c1]
-
-    if (c0 - 1 >= 0):
-        S -= ii[r1, c0 - 1]
-
-    return S
 
 class Detector(Saveable):
     """
@@ -389,9 +353,6 @@ class Detector(Saveable):
         """
         bkg_type = self.settings.get('bkg_type')
 
-        #return np.clip(np.load('bkg2.npy'), 1e-10, 1-1e-10)
-        return np.clip(np.load('bkg.npy'), 1e-10, 1-1e-10)
-
         if bkg_type == 'constant':
             bkg_value = self.settings['fixed_bkg']
             return np.ones(self.num_features) * bkg_value 
@@ -401,7 +362,7 @@ class Detector(Saveable):
 
         elif bkg_type == 'per-image-average':
             bkg = edges.reshape((-1, self.num_features)).mean(axis=0)
-            #eps = self.settings['min_probability']
+            # TODO: min_probability is too high here
             eps = 1e-10
             return np.clip(bkg, eps, 1 - eps)
 
@@ -414,7 +375,7 @@ class Detector(Saveable):
     def subsample(self, edges):
         return gv.sub.subsample(edges, self.settings['subsample_size'])
 
-    def prepare_kernels(self, back, settings={}):
+    def prepare_kernels(self, bkg, settings={}):
         sett = self.settings.copy()
         sett.update(settings) 
 
@@ -427,58 +388,19 @@ class Detector(Saveable):
         if self.train_unspread:
             radii = sett['spread_radii']
             neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
-            #back = np.load('bkg.npy')
-            #nospread_back = 1 - (1 - back)**(1/neighborhood_area)
-            nospread_back = back
-            print back.min(), back.max()
-
-            #radii = self.settings['spread_radii']
-            #neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
-            #nospread_back = 1 - (1 - back)**neighborhood_area
-            
-            # TODO: Use this background instead.
-            #nospread_back = np.load('bkg.npy')
-            #nospread_back = np.ones(self.num_features) * 0.003
 
             if self.use_basis:
-                d = gv.Detector.load('fa1ming2-cad02.npy')
-                cad_kernels = d.kernel_templates.copy()
-                back2 = nospread_back# / nospread_back.sum() 
-                a = 1 - nospread_back.sum()
-                #a = 0
+                global cad_kernels
+                a = 1 - bkg.sum()
 
-                C = self.kernel_basis * np.expand_dims(back2, -1)
+                C = self.kernel_basis * np.expand_dims(bkg, -1)
                 kernels = a * cad_kernels + C.sum(axis=-2) / self.kernel_basis_samples
+
+            nospread_back = 1 - (1 - bkg)**50
         
-                # Print comparisons
-                if 0:
-                    d = gv.Detector.load('fa1ming2-model03.npy')
-                    kern2 = d.kernel_templates
-
-                    import pylab as plt
-                    for f in xrange(self.num_features):
-                        plt.clf()
-                        plt.subplot(3, 1, 1)
-                        plt.imshow(kern2[0,...,f])
-                        plt.title('Real data')
-                        plt.colorbar()
-                        plt.subplot(3, 1, 2)
-                        plt.imshow(cad_kernels[0,...,f])
-                        plt.title('CAD data')
-                        plt.colorbar()
-                        plt.subplot(3, 1, 3)
-                        plt.imshow(kernels[0,...,f])
-                        plt.title('object-over-background')
-                        plt.colorbar()
-                        plt.savefig('comparisons/{0}.png'.format(f))
-
-            print self.kernel_basis_samples
-            print kernels.min(), kernels.max()
-
             aa_log = np.log(1 - kernels)
             aa_log = ag.util.multipad(aa_log, (0, radii[0], radii[1], 0), np.log(1-nospread_back))
 
-            #aa_log = ag.util.zeropad(aa_log, (0, radii[0], radii[1], 0))
             integral_aa_log = aa_log.cumsum(1).cumsum(2)
 
             offsets = gv.sub.subsample_offset(kernels[0], psize)
@@ -492,7 +414,7 @@ class Detector(Saveable):
                 # we will be subsampling anyway, so we don't need to do the rest.
                 for i in xrange(offsets[0], sh[0], psize[0]):
                     for j in xrange(offsets[1], sh[1], psize[1]):
-                        p = _integrate(integral_aa_log[mixcomp], i, j, i+istep, j+jstep)
+                        p = gv.img.integrate(integral_aa_log[mixcomp], i, j, i+istep, j+jstep)
                         kernels[mixcomp,i,j] = 1 - np.exp(p)
 
             
@@ -501,8 +423,6 @@ class Detector(Saveable):
         sub_kernels = gv.sub.subsample(kernels, psize, skip_first_axis=True)
 
         sub_kernels = np.clip(sub_kernels, eps, 1-eps)
-
-
 
 
         K = self.settings.get('quantize_bins')
@@ -536,7 +456,7 @@ class Detector(Saveable):
         def extract(image):
             return self.descriptor.extract_features(image, dict(spread_radii=radii, preserve_size=True))
         def extract2(image):
-            return self.descriptor.extract_features(image, dict(spread_radii=(0, 0), preserve_size=True))
+            return self.descriptor.extract_features(image, dict(spread_radii=(0, 0), preserve_size=False))
 
         # Last psize
 
@@ -544,10 +464,8 @@ class Detector(Saveable):
         unspread_feats = extract2(img_resized)
         bkg = self.bkg_model(unspread_feats)
         feats = gv.sub.subsample(up_feats, psize) 
-        print bkg.sum()
         sub_kernels = self.prepare_kernels(bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
-        print "Running here"
         bbs, resmap = self.detect_coarse_at_factor(feats, sub_kernels, bkg, factor, mixcomp, resmaps=resmaps)
 
         final_bbs = bbs
@@ -644,28 +562,13 @@ class Detector(Saveable):
         # Get background level
         resmap = self.response_map(sub_feats, sub_kernels, back, mixcomp, level=-1)
 
-        #print('resmap', resmap.shape)
-
         # TODO: Remove edges
         sh = sub_kernels.shape[1:3]
-        #resmap2 = resmap.min()*np.ones(resmap.shape)
-        #resmap2[sh[0]//2:-sh[0]//2, sh[1]//2:-sh[1]//2] = resmap[sh[0]//2:-sh[0]//2, sh[1]//2:-sh[1]//2]
-        #resmap = resmap2
-
-        #resmap /= self.means[mixcomp]
-
-        #prin
 
         th = -np.inf
-        #top_th = resmap.max()#200.0
         top_th = 200.0
         bbs = []
 
-        #nn_resmaps = np.zeros((2,) + resmap.shape)
-        #if resmaps is not None:
-        #    nn_resmaps[0] = ag.util.nn_resample2d(resmaps[0], resmap.shape)
-        #    nn_resmaps[1] = ag.util.nn_resample2d(resmaps[1], resmap.shape)
-        
         psize = self.settings['subsample_size']
         agg_factors = tuple([psize[i] * factor for i in xrange(2)])
         bb_bigger = (0.0, 0.0, sub_feats.shape[0] * agg_factors[0], sub_feats.shape[1] * agg_factors[1])
@@ -673,9 +576,6 @@ class Detector(Saveable):
             for j in xrange(resmap.shape[1]):
                 score = resmap[i,j]
                 if score >= th:
-                    #ix = i * psize[0]
-                    #iy = j * psize[1]
-
                     i_corner = i-sub_kernels.shape[1]//2
                     j_corner = j-sub_kernels.shape[2]//2
 
@@ -721,8 +621,8 @@ class Detector(Saveable):
         # model to spread
         radii = self.settings['spread_radii']
         neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
-        #spread_back = 1 - (1 - back)**neighborhood_areah
-        spread_back = back
+        spread_back = 1 - (1 - back)**neighborhood_area
+        #spread_back = back
 
         weights = np.log(kern/(1-kern) * ((1-spread_back)/spread_back))
 
@@ -735,15 +635,16 @@ class Detector(Saveable):
                 res -= self.fixed_train_mean[level]
                 res /= self.fixed_train_std[level]
             elif testing_type == 'object-model':
-                assert self.num_mixtures == 1, "Need to standardize!"
                 a = weights
                 res -= (kern * a).sum()
                 res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
+                print (kern * a).sum(), np.sqrt((a**2 * kern * (1 - kern)).sum())
             elif testing_type == 'background-model':
-                assert self.num_mixtures == 1, "Need to standardize!"
                 a = weights
                 res -= (spread_back * a).sum()
                 res /= np.sqrt((a**2 * spread_back * (1 - spread_back)).sum())
+
+        print 'max', res.max()
 
         return res
 
