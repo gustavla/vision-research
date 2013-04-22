@@ -20,6 +20,9 @@ mini = args.mini
 threading = not args.no_threading
 contest = args.contest
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pylab as plt
 import gv
 import amitgroup as ag
 import numpy as np
@@ -64,7 +67,7 @@ def detect(fileobj):
         if not bbobj.difficult:
             tp_fn += 1 
 
-    bbs = detector.detect_coarse(grayscale_img, fileobj=fileobj)
+    bbs = detector.detect(grayscale_img, fileobj=fileobj)
 
     tp_fp += len(bbs)
     
@@ -89,13 +92,28 @@ else:
 
 res = imapf(detect, files)
 
+per_file_dets = []
 
 for tp, tp_fp, tp_fn, dets in res:
     tot_tp += tp
     tot_tp_fp += tp_fp
     tot_tp_fn += tp_fn
     detections.extend(dets)
+    per_file_dets.append(dets)
 
+
+if 1:
+    from operator import itemgetter
+    plt.clf()
+    for i, file_dets in enumerate(per_file_dets):
+        scores = map(itemgetter(0), file_dets)
+        corrects = map(itemgetter(4), file_dets)
+        colors = map(lambda x: ['r', 'g'][x], corrects)
+        plt.scatter([i+1]*len(file_dets), scores, c=colors, s=50, alpha=0.75)
+
+    plt.savefig('detvis.png')
+    
+    
 detections = np.array(detections, dtype=[('confidence', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int)])
 detections.sort(order='confidence')
 
