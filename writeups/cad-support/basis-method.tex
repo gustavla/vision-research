@@ -1,0 +1,209 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{pifont}
+\usepackage{color}
+\usepackage{graphics, epstopdf}
+\usepackage[pdftex]{graphicx}
+\usepackage[pdftex]{hyperref}
+\usepackage{verbatim}
+\usepackage{amsthm}
+\usepackage{cleveref}
+\usepackage{caption}
+\usepackage{subcaption}
+\urlstyle{same}
+
+\newcommand{\com}[1]{
+	\vspace{0.2cm}
+	\noindent
+	\emph{#1}
+}
+\newcommand{\Bern}[1]{\text{Bern}(#1)}
+
+\def\vb{\mathbf{b}}
+
+\definecolor{gray}{gray}{0.5}
+\hypersetup{colorlinks, citecolor=black, filecolor=black, linkcolor=black, urlcolor=gray}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\newtheorem{mydef}{Definition}
+    
+\begin{document}
+
+%\title{Support handling}
+
+%\author{Gustav Larsson}
+
+\section{Support handling}
+One of the advantages of training a Bernoulli mixture model of an object from CAD images (in RGB$\alpha$), is that in each image we know the support of the image. This document is a treatment of how to incorporate this knowledge of the support into the model.
+%
+%Using wavelet deformations of mixture component templates, to 
+%Classifying well-posed handwritten digits (MNIST) using binary edge features and wavelet-based deformations. 
+%
+%\keywords{score following, real-time score alignment, automatic accompaniment}
+%
+%\chapter{Support handling}
+
+%\section{Introduction}
+
+\subsection{Object model}
+Suppose we have a Bernoulli mixture model with parameters $\theta \in [0, 1]^{K \times L \times F}$, where $K$ is the number of mixture components, $L$ is the number of spatial locations, and $F$ is the number of binary features per location.% Suppose also that each component is associated with a binary support, which is governed by yet another Bernoulli mixture model with parameters $\alpha \in [0, 1]^{K \times M}$.
+
+We model the objects as drawn from a mixture model (generally with uniform distribution between the components) with the following distribution:
+\begin{align*}
+    Z &\sim \text{Cat}(\{\pi_1, \dots, \pi_K\}) \\
+    X_{x,f} | Z = k &\sim \Bern{\theta_{k,x,f}}
+\end{align*}
+%
+The $L$ pixel locations are defined on an evenly spaced rectangular grid. However, all objects that we are interested in have a non-rectangular support, which means that the probabilities outside must be drawn from a background distribution. This background distribution can vary, so we would like to consider $\theta$ as a function of a background distribution over the features, $b \in [0, 1]^F$. If we consider the parameters for each $(k,x)$ separately, we have 
+\[  
+    \theta_{k,x} : [0, 1]^F \mapsto [0, 1]^F
+\]
+%
+Instead of thinking of only $\theta$ as an object model, we shall now think of $\theta(b)$ as an object-over-background model given by the background distribution $b$.
+
+Now, experiments have suggested that it is very difficult to recover such a mapping from just inspection of the support or through sampling. This is largely due to the fact that each feature is extracted from a local neighborhood around its spatial location. In a parts-based model with parts of size $S = 9 \times 9$ and 3-pixel edge spreading, in addition to an extra 2 pixels due to the spatial neighborhood of each edge, the complete neighborhood of influence for a feature is $S_c = 19 \times 19$. In my current training data, the object is around $30 \times 90$ pixels, so there is actually not a single spatial location inside the object that is completely unaffected by the background model.
+
+\subsection{Training the mapping}
+Superimposing CAD images of our object onto random background images performs well, and it seems to be difficult to capture this process well through sampling methods. However, this gives us the model for a single background model, so we will be adjusting this method a bit.
+
+First, we collect $N_b$ negative patches of size $S_c$ for each feature. That is, we iterate through background patches (negative training data), code them into a single binary feature, and continue until we have about $N_b$ original background images for each feature (part). So far I have used $N_b = 20$, and allowing some parts to go below this, if they are rare.
+
+We pre-train a mixture component of our object, to get a partition of our training data. For each cluster component, $k$, and spatial location, $x$, we run the following:
+
+\begin{itemize}
+\item Iterate over each image patch of size $S_c$ centered over a spatial location $x$. This will be part of a CAD-generated image, with an $\alpha$ channel specifying its support.
+
+\item Iterate over all the different parts, $f$.
+
+\item Uniformly draw $N_d$ samples of the background from the patches of negatives corresponding to part $f$.
+
+\item Superimpose the CAD image patch onto each of the drawn background patches using alpha compositing.
+
+\item For each background patch, code the part of the new image patch as $f_n$, letting $f_n = 0$ denote when no part is coded. Add a single count to $C_{k,x,f_n,f}$, where $C \in \mathbb{N}_0^{K \times L \times (F+1) \times (F+1)}$ is intialized to all zeros before start.
+\end{itemize}
+
+Finally, let's say $N(k)$ denotes the number of training samples for component $k$, then normalize $C$ and for each $(k,x)$ form a matrix $A^{(k,x)} \in [0, 1]^{(F+1) \times (F+1)}$ as follows (let $A$ be zero-indexed to allow $f$ and $f_n$ to be 0):
+\[
+    (A^{(k,x)})_{f_n,f} = \frac{C_{k,x,f_n,f}}{N(k) \cdot N_d}
+\]
+The column vector $f$ of $A^{(k,x)}$ now represents what the resulting feature distribution will be if you superimpose our object at $(k,x)$ with original background patches that code to part $f$. Far enough outside the object, $A$ should be the identity matrix. Completely inside the support of object, all column vectors of $A$ should be the same. Note that if we only code one part per location, then $A$ will be a right stochastic matrix.
+
+%The vector $\hat \psi_{k,x,f} \in [0, 1]^F$ now represents an estimate of $\psi_{k,i,f}$, which explains the resulting probability distrubtion at cluster $k$ and position $i$ given a background model that is entirely concentrated at $f$.
+
+\subsection{Back to $\theta$}
+Assuming all samples are independent, we can now reconstruct an appropriate object-over-background model $\theta$, given a certain background model $b \in [0, 1]^F$, by
+\[
+    \theta_{k,x}(b) = A^{(k,x)} b
+\]
+which is fast to compute. The problem reduces to picking the right background model $b$, which can be considered separately. Note that we can use different values for $b$ for each $(k,x)$. 
+
+
+\section{Feature spreading}
+\newcommand{\neigh}[1]{\text{Ne}(#1)}
+\newcommand{\Ne}{\text{Ne}}
+\newcommand{\spr}[1]{#1^{\text{(spr)}}}
+\newcommand{\raw}[1]{#1^{\text{(raw)}}}
+
+Feature spreading is done by OR:ing a neighborhood of features $X$. Let $\neigh{x}$ denote a set of all spatial indices in some neighborhood around $x$. Let us regard the result after spreading as a set of new random variables, $\spr{X}$, by the following
+\[
+    \spr{X}_{x,f} = \bigvee_{x' \in \neigh{x}} X_{x',f}
+\]
+%
+We want to express this as $\spr{X}_{x,f} | Z = k \sim \Bern{\spr{\theta}_{k,x,f}}$, where $\spr{\theta}$ will represent the spread object-over-background model. We assume all $X$ are independent, so we can simplify as follows 
+\begin{align*}
+    \spr{\theta}_{k,x,f} &= \Pr(\spr{X}_{x,f} = 1 | Z = k) = \Pr(\bigcup_{x' \in \neigh{x}} X_{x',f} = 1 | Z = k) \\
+    &= 1 - \Pr(\bigcap_{x' \in \neigh{x}} X_{x',f} = 0 | Z = k) \\
+    &= 1 - \prod_{x' \in \neigh{x}} \Pr(X_{x',f} = 0 | Z = k) = 1 - \prod_{x' \in \neigh{x}} (1 - \theta_{k,x',f} ),
+\end{align*}
+or simply
+\[
+    \spr{\theta}_{k,x,f} = 1 - \prod_{x' \in \neigh{x}} (1 - \theta_{k,x',f}).
+\]
+
+We could do the same to translate a homogenous background model as
+\[
+    \spr{b}_f = 1 - (1 - b_f)^{|\Ne|}.
+\]
+
+\noindent
+NOTE: I have recently discovered that this does not give good results and that $\spr{b}$ should be experimentally determined instead. It shouldn't work any better for $\spr{\theta}$, so I probably need to change that as well. In the results below, I determine $\spr{b}$ experimentally but $\spr{\theta}$ analytically, so there might be room for improvement.
+
+
+\section{Testing}
+In this section, we operate entirely on spread features, but to spare notation I will omit (spr) from notation. In other words, $X \rightarrow \spr{X}$, $\theta \rightarrow \spr{\theta}$ and $b \rightarrow \spr{b}$.
+
+Detection is done through a likelihood ratio test between the object-over-background model and the background model. Considering each component $k$ separately, we have
+\begin{align*}
+    R = \ell(\theta; X) - \ell(b; X) &= \sum_x^L \sum_f^F \left[ X_{x,f} \log \left(\frac{\theta_{x,f}}{b_{x,f}}\right) + (1 - X_{x,f})\log\left( \frac{1 - \theta_{x,f}}{1 - b_{x,f}}\right)\right] \\
+    &= \sum_x^L X_x \sum_f^F \log \left(\frac{\theta_{x,f}}{1-\theta_{x,f}} \frac{1 - b_{x,f}}{b_{x,f}}\right) + \sum_x^L \sum_f^F \log\left(\frac{1 - \theta_{x,f}}{1 - b_{x,f}}\right) \\
+    &\equiv \beta_1^T X + \beta_0 
+\end{align*}
+where $\beta_1 \in \mathbb{R}^{LF}$ (column vector of length $LF$) and $\beta_0 \in \mathbb{R}$. Note that in this notation $X$ is flattened to $X = (X_{1,1}, X_{1,2}, \dots, X_{L,F})$. 
+
+\subsection{Standardization}
+
+These results can be standardized in several ways. We will call the resulting value our final response score, $\bar R$.
+
+\subsubsection{No standardization}
+We will consider no standardization, using the LRT as is:
+\[
+    \bar R = R 
+\]
+
+\subsubsection{Object-over-background model}
+Standardize with the object-over-background model:
+\[
+    \bar R = \frac{R - \mathbb{E}_{X \sim \theta}(R)}{\sqrt{\mathbb{V}_{X \sim \theta}(R)}} = \frac{(\beta_1 - \theta)^T X}{\sqrt{\sum_x^L \beta_{1,x}^2 \theta_x (1 - \theta_x)}}
+\]
+\subsubsection{Background model}
+We can also standardize with the background model:
+\[
+    \bar R = \frac{R - \mathbb{E}_{X \sim b}(R)}{\sqrt{\mathbb{V}_{X \sim b}(R)}} = \frac{(\beta_1 - b)^T X}{\sqrt{\sum_x^L \beta_{1,x}^2 b_x (1 - b_x)}}
+\]
+\subsubsection{Zero model}
+One method that yields good results for a single component, is simply subtracting the mean if $X$ is drawn from all zeros. This does not have a variance, so we can't do a real standardization, and instead use only 
+\[
+    \bar R = R - \mathbb{E}_{X \sim 0}(R) = \beta_1^T X
+\]
+
+%\subsection{Comparison}
+%Here are some experimental comparisons of the different standardization methods when used with a single component ($K = 1$) and a single background model per image (taking the average):
+
+\section{Results}
+A comparison of the different standardization methods can be seen in tab.~\ref{tab:standardization}. A few different models altogether are compared in tab.~\ref{tab:comp}.
+%Here are some results using a single mixture component and 100 real or CAD images.
+
+\begin{table}
+    \centering
+    \begin{tabular}{|l|l|}
+        \hline
+        Standardization method & AP (\%) \\
+        \hline 
+        No standardization &               98.54 \\
+        With $b$     &   98.72 \\
+        With $\theta$ &       98.37 \\
+        With zero model & \textbf{98.97} \\
+        \hline
+    \end{tabular}
+    \caption{Comparison of various standardization methods using the method described in this write-up.} \label{tab:standardization}
+\end{table}
+
+\begin{table}
+    \centering
+    \begin{tabular}{|l|l|}
+        \hline
+        Method & AP (\%) \\
+        \hline 
+        Basis-method-per-image-$b$ & \textbf{98.72} \\
+        Basis-method-fixed-$b$ &     97.05 \\
+        Real-images-1 &              97.88 \\
+        Real-images-2 &              97.74 \\
+        Superimposed CAD &           96.17 \\
+        \hline
+    \end{tabular}
+    \caption{Comparison of various methods. {\em Basis-method-per-image-$b$} refers to the method described here with background standardization and a per-image $b$ (average over the image). {\em Basis-method-fixed-$b$} uses a single $b$ for all images.{\em Real-images-1} refers to Bernstein's method, trained on real images and standardized according to the training mean and variance. {\em Real-images-2} is the same, except this time standardized with the background model, just like the {\em Basis-methods}. } \label{tab:comp}
+\end{table}
+
+\end{document}

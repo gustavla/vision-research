@@ -272,30 +272,11 @@ class Detector(Saveable):
         return mixture, kernel_templates, support
 
     def extract_unspread_features(self, image, support_mask=None):
-        edges = self.descriptor.extract_features(image, {'spread_radii': (0, 0)}, support_mask=support_mask)
+        edges = self.descriptor.extract_features(image, dict(spread_radii=(0, 0)), support_mask=support_mask)
         return edges
 
     def extract_spread_features(self, image, settings={}):
-
-        #self.back = image.sum(axis=0).sum(axis=0) / np.prod(image.shape[:2])
-
-        sett = self.settings.copy()
-        sett.update(settings)
-    
-        if 0:
-            th = 0
-            N = 100
-            p = 0.05
-            
-            for n in xrange(N):
-                p2 = 1 - np.sum([scipy.misc.comb(N, i) * p**i * (1-p)**(N-i) for i in xrange(n)])
-                if p2 < 0.01:
-                    th = n
-                    break
-
-            print('Threshold', th)
-
-        edges = self.descriptor.extract_features(image, {'spread_radii': sett['spread_radii']})
+        edges = self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii']))
         return edges 
 
     @property
@@ -323,7 +304,7 @@ class Detector(Saveable):
 
         """
         bkg_type = self.settings.get('bkg_type')
-
+    
         if bkg_type == 'constant':
             bkg_value = self.settings['fixed_bkg']
             return np.ones(self.num_features) * bkg_value 
@@ -347,7 +328,7 @@ class Detector(Saveable):
     def subsample(self, edges):
         return gv.sub.subsample(edges, self.settings['subsample_size'])
 
-    def prepare_kernels(self, bkg, settings={}):
+    def prepare_kernels(self, unspread_bkg, settings={}):
         sett = self.settings.copy()
         sett.update(settings) 
 
@@ -363,18 +344,17 @@ class Detector(Saveable):
 
             if self.use_basis:
                 global cad_kernels
-                a = 1 - bkg.sum()
+                a = 1 - unspread_bkg.sum()
 
-                C = self.kernel_basis * np.expand_dims(bkg, -1)
+                C = self.kernel_basis * np.expand_dims(unspread_bkg, -1)
                 kernels = a * cad_kernels + C.sum(axis=-2) / self.kernel_basis_samples
 
-            nospread_back = bkg
-            #nospread_back = 1 - (1 - bkg)**(1/neighborhood_area)
-            #nospread_back = 1 - (1 - bkg)**50
-            nospread_back = np.clip(nospread_back, 1e-5, 1-1e-5)
+            #unspread_bkg = 1 - (1 - bkg)**(1/neighborhood_area)
+            #unspread_bkg = 1 - (1 - bkg)**50
+            unspread_bkg = np.clip(unspread_bkg, 1e-5, 1-1e-5)
         
             aa_log = np.log(1 - kernels)
-            aa_log = ag.util.multipad(aa_log, (0, radii[0], radii[1], 0), np.log(1-nospread_back))
+            aa_log = ag.util.multipad(aa_log, (0, radii[0], radii[1], 0), np.log(1-unspread_bkg))
 
             integral_aa_log = aa_log.cumsum(1).cumsum(2)
 
@@ -422,21 +402,21 @@ class Detector(Saveable):
         psize = self.settings['subsample_size']
         radii = self.settings['spread_radii']
 
-        def extract(image):
-            return self.descriptor.extract_features(image, dict(spread_radii=radii, preserve_size=True))
-        def extract2(image):
-            return self.descriptor.extract_features(image, dict(spread_radii=(0, 0), preserve_size=False))
+        #spread_feats = self.extract_spread_features(img_resized)
+        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=self.settings['spread_radii'], preserve_size=True))
+        unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), preserve_size=False))
 
-        # Last psize
-
-        up_feats = extract(img_resized)
-        unspread_feats = extract2(img_resized)
-        bkg = self.bkg_model(up_feats)
+        # TODO: Avoid the edge for the background model
+        spread_bkg = self.bkg_model(spread_feats)
         unspread_bkg = self.bkg_model(unspread_feats)
-        feats = gv.sub.subsample(up_feats, psize) 
+        #unspread_bkg = np.load('bkg.npy')
+        #spread_bkg = 1 - (1 - unspread_bkg)**25
+        #spread_bkg = np.load('spread_bkg.npy')
+
+        feats = gv.sub.subsample(spread_feats, psize) 
         sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
-        bbs, resmap = self.detect_coarse_at_factor(feats, sub_kernels, bkg, factor, mixcomp)
+        bbs, resmap = self.detect_coarse_at_factor(feats, sub_kernels, spread_bkg, factor, mixcomp)
 
         final_bbs = bbs
 
@@ -455,12 +435,7 @@ class Detector(Saveable):
         psize = self.settings['subsample_size']
         radii = self.settings['spread_radii']
 
-        def extract(image):
-            return self.descriptor.extract_features(image, dict(spread_radii=radii, preserve_size=True))
-        def extract2(image):
-            return self.descriptor.extract_features(image, dict(spread_radii=(0, 0), preserve_size=False))
-
-        up_feats = extract(img_resized)
+        up_feats = self.extact_spread_features(img_resized)
 
         # Last psize
         d0, d1 = (14, 44) 
@@ -473,16 +448,17 @@ class Detector(Saveable):
         #unspread_feats0 = unspread_feats_pad[-10 + pad+i0-d0//2:10+ pad+i0-d0//2+d0, -10 + pad+j0-d1//2:10 + pad+j0-d1//2+d1]
 
         #bkg = self.bkg_model(unspread_feats0)
-        bkg = self.bkg_model(unspread_feats)
+        unspread_bkg = self.bkg_model(unspread_feats)
 
         feats = gv.sub.subsample(up_feats, psize) 
         feats_pad = ag.util.zeropad(feats, (pad, pad, 0))
         feats0 = feats_pad[pad+i0-d0//2:pad+i0-d0//2+d0, pad+j0-d1//2:pad+j0-d1//2+d1]
         if 0:
-            sub_kernels = self.prepare_kernels(bkg, settings=dict(spread_radii=radii, subsample_size=psize))
+            sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
             neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
-            spread_back = 1 - (1 - bkg)**neighborhood_area
+            # TODO: Don't do this anymore
+            spread_back = 1 - (1 - unspread_bkg)**neighborhood_area
             eps = self.settings['min_probability']
             spread_back = np.clip(spread_back, eps, 1 - eps)
 
@@ -526,7 +502,6 @@ class Detector(Saveable):
             for mixcomp in mixcomps:
                 bbs0, resmap, feats, img_resized = self.detect_coarse_single_factor(img, 1.0, mixcomp, img_id=fileobj.img_id)
                 bbs += bbs0
-            #bbs2, resmap, feats, img_resized = self.detect_coarse_single_factor(img, 1.0, 1, img_id=fileobj.img_id)
 
             # Do NMS here
             final_bbs = self.nonmaximal_suppression(bbs)
@@ -568,14 +543,20 @@ class Detector(Saveable):
         # Filter out levels that are below minimum scale
 
         # Prepare each level 
+        def extract2(image):
+            return self.descriptor.extract_features(image, dict(spread_radii=(0, 0), preserve_size=False))
         def extract(image):
             return self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], preserve_size=True))
 
         #edge_pyramid = map(self.extract_spread_features, pyramid)
         ag.info("Getting edge pyramid")
-        edge_pyramid = map(extract, pyramid)
+        unspread_edge_pyramid = map(extract, pyramid)
+        spread_edge_pyramid = map(extract, pyramid)
+
         ag.info("Extract background model")
-        bkg_pyramid = map(self.bkg_model, edge_pyramid)
+        unspread_bkg_pyramid = map(self.bkg_model, unspread_edge_pyramid)
+        spread_bkg_pyramid = map(self.bkg_model, spread_edge_pyramid)
+
         ag.info("Subsample")
         small_pyramid = map(self.subsample, edge_pyramid) 
 
@@ -583,12 +564,12 @@ class Detector(Saveable):
         for i, factor in enumerate(factors):
             # Prepare the kernel for this mixture component
             ag.info("Prepare kernel", i, "factor", factor)
-            sub_kernels = self.prepare_kernels(bkg_pyramid[i][0])
+            sub_kernels = self.prepare_kernels(unspread_bkg_pyramid[i][0])
 
             for mixcomp in mixcomps:
                 ag.info("Detect for mixture component", mixcomp)
             #for mixcomp in [1]:
-                bbsthis, _ = self.detect_coarse_at_factor(small_pyramid[i], sub_kernels, bkg_pyramid[i][1], factor, mixcomp)
+                bbsthis, _ = self.detect_coarse_at_factor(small_pyramid[i], sub_kernels, spread_bkg_pyramid[i][1], factor, mixcomp)
                 bbs += bbsthis
 
         ag.info("Maximal suppression")
@@ -602,9 +583,9 @@ class Detector(Saveable):
 
         return final_bbs
 
-    def detect_coarse_at_factor(self, sub_feats, sub_kernels, back, factor, mixcomp):
+    def detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # Get background level
-        resmap = self.response_map(sub_feats, sub_kernels, back, mixcomp, level=-1)
+        resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
 
         # TODO: Remove edges
         sh = sub_kernels.shape[1:3]
@@ -649,90 +630,45 @@ class Detector(Saveable):
 
         return bbs_sorted, resmap
 
-    def response_map(self, sub_feats, sub_kernels, back, mixcomp, level=0):
+    def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0):
         sh = sub_kernels.shape
         padding = (sh[1]//2, sh[2]//2, 0)
         bigger = ag.util.zeropad(sub_feats, padding)
         
-        res = None
-
-        # With larger kernels, the fftconvolve is much faster. However,
-        # this is not the case for smaller kernels.
-        from .fast import multifeature_correlate2d
-
         kern = sub_kernels[mixcomp]
-
 
         # Since the kernel is spread, we need to convert the background
         # model to spread
         radii = self.settings['spread_radii']
         neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
-        #spread_back = 1 - (1 - back)**neighborhood_area
-        #spread_back = np.clip(back, 0.005, 1-0.005)
-        spread_back = back
 
         eps = self.settings['min_probability']
-        spread_back = np.clip(spread_back, eps, 1 - eps)
-        #spread_back = back
+        spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
 
-        weights = np.log(kern/(1-kern) * ((1-spread_back)/spread_back))
-        rest = np.log((1-kern)/(1-spread_back))
+        weights = np.log(kern/(1-kern) * ((1-spread_bkg)/spread_bkg))
     
+        from .fast import multifeature_correlate2d
         res = multifeature_correlate2d(bigger, weights) 
 
-        if 0:
-            weights_plus = np.clip(weights, 0, np.inf)
-            weights_minus = np.clip(weights, -np.inf, 0)
-            
-            resminus = multifeature_correlate2d(bigger, weights_minus) 
-            resplus = multifeature_correlate2d(bigger, weights_plus) 
-
-            res = resminus + resplus
-
-        #res = resplus / weights_plus.sum() + resminus / -weights_minus.sum()
-        #res = 5 * resplus + resminus
-
-        
-
-        #print 'FACTOR', -(weights_plus.sum() / weights_minus.sum())**(-1)
-
-        #if resplus[resplus > 500]
-        #res += resplus * 3 
-
-        #rest = np.log((1-kern)/(1-spread_back))
-        #import pylab as plt
-        #import pdb; pdb.set_trace()
-
-        #res = resplus
-
-        #print("level", level, self.train_mean[level])
+        # Standardization
         testing_type = self.settings.get('testing_type', 'object-model')
-        if 1:
-            if testing_type == 'fixed':
-                res -= self.fixed_train_mean[level]
-                res /= self.fixed_train_std[level]
-            elif testing_type == 'object-model' and 0:
-                a = weights
-                res -= (kern * a).sum()
-                res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
-                print (kern * a).sum(), np.sqrt((a**2 * kern * (1 - kern)).sum())
-            elif testing_type == 'background-model' or 1:
-                a = weights
-                res -= (spread_back * a).sum()
-                res /= np.sqrt((a**2 * spread_back * (1 - spread_back)).sum())
-            elif 0:
-                a = weights
-                spread_back = np.ones(self.num_features) * 0.005
-                #spread_back = 1 - (1 - np.load('bkg.npy'))**neighborhood_area
-                res -= (spread_back * a).sum()
-                res /= np.sqrt((a**2 * spread_back * (1 - spread_back)).sum())
-        else:
+
+        if testing_type == 'fixed':
+            res -= self.fixed_train_mean[level]
+            res /= self.fixed_train_std[level]
+        elif testing_type == 'object-model':
             a = weights
-            #res += np.sum(np.log((1-kern)/(1-spread_back)))
-            #res -= (spread_back * a).sum()
-            #mn, mx = weights[weights < 0].sum(), weights[weights > 0].sum()
-            #res = (res - mn) / (mx - mn)
+            res -= (kern * a).sum()
+            res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
+        elif testing_type == 'background-model':
+            a = weights
+            res -= (spread_bkg * a).sum()
+            res /= np.sqrt((a**2 * spread_bkg * (1 - spread_bkg)).sum())
+        elif testing_type == 'zero-model':
             pass
+        elif testing_type == 'none':
+            # We need to add the constant term that isn't included in weights
+            res += np.log((1 - kern) / (1 - spread_bkg)).sum() 
 
         return res
 
