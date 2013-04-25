@@ -218,9 +218,10 @@ class Detector(Saveable):
 
 
         # Determine the log likelihood of the training data
-        fix_bkg = self.settings.get('fixed_background_probability')
+        testing_type = self.settings.get('testing_type')
+        fix_bkg = self.settings.get('fixed_bkg')
         radii = self.settings['spread_radii']
-        if fix_bkg is not None:
+        if testing_type == 'fixed' and fix_bkg is not None:
             L = len(self.settings['levels'])
             self.fixed_train_mean = np.zeros(L)
             self.fixed_train_std = np.zeros(L)
@@ -243,12 +244,13 @@ class Detector(Saveable):
                         #orig_edges = self.extract_spread_features(grayscale_img)
                     
 
-                bkg = 1 - (1 - fix_bkg)**((2 * radii[0] + 1) * (2 * radii[1] + 1))
+                #bkg = 1 - (1 - fix_bkg)**((2 * radii[0] + 1) * (2 * radii[1] + 1))
+                bkg = fix_bkg
                 #bkg = 0.05
 
                 self.kernel_templates = kernel_templates
                 # TODO: This gives a spread background!
-                kernels = self.prepare_kernels(np.ones(kernel_templates.shape[-1])*bkg, settings=dict(spread_radii=radii, subsample_size=psize))
+                kernels = self.prepare_kernels(np.ones(self.num_features)*bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
                 sub_output = gv.sub.subsample(orig_output, psize, skip_first_axis=True)
 
@@ -340,7 +342,7 @@ class Detector(Saveable):
 
         if self.train_unspread:
             radii = sett['spread_radii']
-            neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
+            #neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
 
             if self.use_basis:
                 global cad_kernels
