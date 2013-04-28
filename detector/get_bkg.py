@@ -2,10 +2,12 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Train mixture model on edge data')
 parser.add_argument('parts', metavar='<parts file>', type=argparse.FileType('rb'), help='Filename of parts file')
+parser.add_argument('name', type=str)
 parser.add_argument('--spread', action='store_true')
 
 args = parser.parse_args()
 parts_file = args.parts
+name = args.name
 do_spreading = args.spread
 
 import gv
@@ -28,7 +30,7 @@ intensities = np.array([])
 
 if do_spreading:
     # TODO: Should be specified
-    radii = (2, 2)
+    radii = (4, 4)
 else:
     radii = (0, 0)
 
@@ -52,7 +54,7 @@ if 0:
 bkg = pi / tot
 print bkg.shape
 if do_spreading:
-    np.save('spread_bkg.npy', bkg)
+    np.save('{0}-spread_bkg.npy'.format(name), bkg)
 else:
-    np.save('bkg.npy', bkg)
+    np.save('{0}-bkg.npy'.format(name), bkg)
     

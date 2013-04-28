@@ -40,6 +40,7 @@ class Detector(Saveable):
         self.kernel_basis_samples = None
         self.kernel_templates = None
         self.support = None
+        self.cov_matrix = None
 
         self.use_alpha = None
 
@@ -129,6 +130,7 @@ class Detector(Saveable):
         alpha_maps = None 
         sparse = False # TODO: Change
         build_sparse = True and sparse
+        train_subsampled = self.settings.get('train_subsampled', False) # NEW:
         feats = None
 
         # TODO: Remove
@@ -152,7 +154,7 @@ class Detector(Saveable):
                 final_edges = self.extract_spread_features(grayscale_img)
 
             orig_edges = self.extract_spread_features(grayscale_img)
-            edges = gv.sub.subsample(orig_edges, (2, 2)).ravel()
+            edges = gv.sub.subsample(orig_edges, (4, 4)).ravel()
 
             if self.orig_kernel_size is None:
                 self.orig_kernel_size = (img.shape[0], img.shape[1])
@@ -190,11 +192,16 @@ class Detector(Saveable):
         else:
             output = np.asmatrix(output)
 
+        
         # Train mixture model OR SVM
         mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32)
 
+
         minp = 1e-5
         mixture.run_EM(1e-8, minp)
+
+
+
 
         #mixture.templates = np.empty(0)
 
@@ -245,31 +252,64 @@ class Detector(Saveable):
                     
 
                 #bkg = 1 - (1 - fix_bkg)**((2 * radii[0] + 1) * (2 * radii[1] + 1))
-                bkg = fix_bkg
+                #bkg = np.ones(self.num_features) * fix_bkg
+    
+                # NES: Temp
+                bkg = np.load('covtest-spread_bkg.npy')
                 #bkg = 0.05
 
                 self.kernel_templates = kernel_templates
                 # TODO: This gives a spread background!
-                kernels = self.prepare_kernels(np.ones(self.num_features)*bkg, settings=dict(spread_radii=radii, subsample_size=psize))
+                kernels = self.prepare_kernels(bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
                 sub_output = gv.sub.subsample(orig_output, psize, skip_first_axis=True)
+
+
 
                 #import pylab as plt
                 #plt.imshow(kernels[0].sum(axis=-1), interpolation='nearest')
                 #plt.show()
 
                 #print('sub_output', sub_output.shape)
-                theta = kernels.reshape((kernels.shape[0], -1))
+                a = np.log(kernels/(1-kernels) * ((1-bkg)/bkg))
+
+                #theta = kernels.reshape((kernels.shape[0], -1))
                 X = sub_output.reshape((sub_output.shape[0], -1))
 
-                llhs = np.dot(X, np.log(theta/(1-theta) * ((1-bkg)/bkg)).T)
+                # NEW { Get the covariance of all the parts
+                self.cov_matrix = None
+                if 1:
+                    mu = kernels.flatten()
+                    N = X.shape[0]
+                    #C = np.zeros((output.shape[1],)*2, dtype=np.float16) 
+                    #import pudb; pudb.set_trace()
+                    #for Xi in output:
+                        #C += Xi * Xi.T 
+
+                    
+                    CX = X - mu
+
+                    C = np.dot(CX.T, CX).astype(np.float32) / N
+
+                    self.cov_matrix = C
+                # } NEW
+
+
+                try:
+                    llhs = np.dot(X, (a.reshape((kernels.shape[0], -1))).T) 
+                except:
+                    import pdb; pdb.set_trace()
                 #C = np.log((1-theta)/(1-bkg)).sum(axis=1)
                 #llhs += C
+
+                import pudb; pudb.set_trace()
                 
                 lrt = llhs.max(axis=1)
 
                 self.fixed_train_mean[i] = lrt.mean()
                 self.fixed_train_std[i] = lrt.std()
+    
+                print 'mean', self.fixed_train_mean, 'std',  self.fixed_train_std
     
         return mixture, kernel_templates, support
 
@@ -780,6 +820,8 @@ class Detector(Saveable):
             obj.fixed_train_std = d.get('fixed_train_std')
             obj.fixed_train_mean = d.get('fixed_train_mean')
 
+            obj.cov_matrix = d.get('cov_matrix')
+
             obj._preprocess()
             return obj
         except KeyError as e:
@@ -804,5 +846,8 @@ class Detector(Saveable):
         if self.settings['testing_type'] == 'fixed':
             d['fixed_train_std'] = self.fixed_train_std
             d['fixed_train_mean'] = self.fixed_train_mean
+
+        if self.cov_matrix is not None:
+            d['cov_matrix'] = self.cov_matrix
 
         return d
