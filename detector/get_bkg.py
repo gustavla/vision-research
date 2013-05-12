@@ -16,8 +16,9 @@ import numpy as np
 
 parts_descriptor = gv.BinaryDescriptor.getclass('parts').load(parts_file)
 
-path = os.path.join(os.environ['UIUC_DIR'], 'TrainImages/neg-*.pgm')
-files = glob.glob(path)
+#path = os.path.join(os.environ['UIUC_DIR'], 'TrainImages/neg-*.pgm')
+path = os.path.join(os.environ['VOC_DIR'], 'JPEGImages/*.jpg')  
+files = sorted(glob.glob(path))[:50]
 
 pi = np.zeros(parts_descriptor.num_parts)
 
@@ -39,7 +40,7 @@ for f in files:
     gray_img = gv.img.asgray(im)
     intensities = np.concatenate((intensities, gray_img.ravel())) 
 
-    feats = parts_descriptor.extract_features(im, settings=dict(spread_radii=radii, subsample_size=(1, 1)))
+    feats = parts_descriptor.extract_features(gray_img, settings=dict(spread_radii=radii, subsample_size=(1, 1)))
     x = np.rollaxis(feats[cut:-cut,cut:-cut], 2).reshape((parts_descriptor.num_parts, -1))
     tot += x.shape[1]
     pi += x.sum(axis=1)

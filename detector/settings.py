@@ -1,6 +1,7 @@
 
 import ConfigParser
 import re
+import os
 
 def load_settings(fp):
     conf = ConfigParser.ConfigParser(dict_type=dict)

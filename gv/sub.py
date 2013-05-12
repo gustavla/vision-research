@@ -7,6 +7,9 @@ def subsample_size(data, size):
 def iround(x):
     return int(round(x))
 
+def subsample_offset_shape(shape, size):
+    return [int(shape[i]%size[i]/2 + size[i]/2)  for i in xrange(2)]
+
 def subsample_offset(data, size):
     return [int(data.shape[i]%size[i]/2 + size[i]/2)  for i in xrange(2)]
 

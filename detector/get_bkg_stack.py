@@ -17,10 +17,10 @@ def get_bkg_stack(settings, X_pad_size, M=20):
 
     neg_filenames= sorted(glob.glob(os.path.join(os.environ['UIUC_DIR'], 'TrainImages', 'neg-*.pgm')))
 
-    gen_raw = generate_random_patches(neg_filenames, X_pad_size, 0, per_image=1000)
+    gen_raw = generate_random_patches(neg_filenames, X_pad_size, 0, per_image=25)
 
-    bkg_stack_num = np.zeros(descriptor.num_parts)
-    bkg_stack = np.zeros((descriptor.num_parts, M,) + X_pad_size)
+    bkg_stack_num = np.zeros(descriptor.num_parts + 1)
+    bkg_stack = np.zeros((descriptor.num_parts + 1, M,) + X_pad_size)
 
     i = 0
     import matplotlib.pylab as plt
@@ -41,14 +41,16 @@ def get_bkg_stack(settings, X_pad_size, M=20):
 
         # Accumulate and return
         if parts[0,0].sum() == 0:
-            f = -1
+            f = 0 
         else:
-            f = np.argmax(parts[0,0])
+            f = np.argmax(parts[0,0]) + 1
             #cc[f] += 1
 
-            if bkg_stack_num[f] < M:
-                bkg_stack[f,bkg_stack_num[f]] = patch
-                bkg_stack_num[f] += 1
+        # The i%10 is to avoid all background images for f=0 to be from the same image (and thus
+        # likely overlapping patches)
+        if bkg_stack_num[f] < M and (f != 0 or i%10 == 0):
+            bkg_stack[f,bkg_stack_num[f]] = patch
+            bkg_stack_num[f] += 1
 
         if i % 10000 == 0:
             print i, bkg_stack_num
@@ -80,10 +82,11 @@ if __name__ == '__main__':
     settings_file = args.settings
     output_file = args.bkgstack
 
-    pad = 5 
-    X_pad_size = (9+pad*2,)*2
-
     settings = load_settings(settings_file)
+
+    pad = 5 
+    size = settings['parts']['part_size'] 
+    X_pad_size = (size[0]+pad*2, size[1]+pad*2)
 
     bkg_stack, bkg_stack_num = get_bkg_stack(settings, X_pad_size, M=20)
 

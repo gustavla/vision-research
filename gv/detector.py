@@ -9,7 +9,7 @@ import sys
 from copy import deepcopy
 
 # TODO: Build into train_basis_...
-cad_kernels = np.load('cad_kernel.npy')
+#cad_kernels = np.load('cad_kernel.npy')
 
 def offset_img(img, off):
     sh = img.shape
@@ -40,6 +40,8 @@ class Detector(Saveable):
         self.kernel_basis_samples = None
         self.kernel_templates = None
         self.support = None
+        self.fixed_bkg = None
+        self.fixed_spread_bkg = None
 
         self.use_alpha = None
 
@@ -100,12 +102,8 @@ class Detector(Saveable):
 
     def gen_img(self, images, actual=False):
         for i, grayscale_img, img, alpha in self.load_img(images):
-            if self.train_unspread and not actual:
-                final_edges = self.extract_unspread_features(grayscale_img)
-            else:
-                final_edges = self.extract_spread_features(grayscale_img)
-                if actual:
-                    final_edges = self.subsample(final_edges)
+            final_edges = self.extract_spread_features(grayscale_img)
+            final_edges = self.subsample(final_edges)
             yield final_edges
 
     def train_from_images(self, images):
@@ -139,27 +137,25 @@ class Detector(Saveable):
             ag.info(i, "Processing image", i)
             if self.use_alpha is None:
                 self.use_alpha = (img.ndim == 3 and img.shape[-1] == 4)
-                if self.use_alpha:
-                    alpha_maps = np.empty((len(images),) + img.shape[:2], dtype=np.uint8)
+                #if self.use_alpha:
+                alpha_maps = np.empty((len(images),) + img.shape[:2], dtype=np.uint8)
 
-            if self.use_alpha:
-                a = (img[...,3] > 0.05).astype(np.uint8)
-                alpha_maps[i] = a
-
-            if self.train_unspread:
-                final_edges = self.extract_unspread_features(grayscale_img)
-            else:
-                final_edges = self.extract_spread_features(grayscale_img)
+            #if self.use_alpha:
+            a = (img[...,3] > 0.05).astype(np.uint8)
+            alpha_maps[i] = a
 
             orig_edges = self.extract_spread_features(grayscale_img)
-            edges = gv.sub.subsample(orig_edges, (2, 2)).ravel()
+            edges_nonflat = gv.sub.subsample(orig_edges, psize)
+            if shape is None:
+                shape = edges_nonflat.shape
+
+            edges = edges_nonflat.ravel()
 
             if self.orig_kernel_size is None:
                 self.orig_kernel_size = (img.shape[0], img.shape[1])
         
             # Extract the parts, with some pooling 
-            if shape is None:
-                shape = edges.shape
+            if output is None:
                 if sparse:
                     if build_sparse:
                         output = scipy.sparse.dok_matrix((len(images),) + edges.shape, dtype=np.uint8)
@@ -168,9 +164,9 @@ class Detector(Saveable):
                 else:
                     output = np.empty((len(images),) + edges.shape, dtype=np.uint8)
 
-                orig_output = np.empty((len(images),) + orig_edges.shape, dtype=np.uint8)
+                #orig_output = np.empty((len(images),) + orig_edges.shape, dtype=np.uint8)
             
-            orig_output[i] = orig_edges
+            #orig_output[i] = orig_edges
                 
             if build_sparse:
                 for j in np.where(edges==1):
@@ -201,39 +197,50 @@ class Detector(Saveable):
         # Now create our unspread kernels
         # Remix it - this iterable will produce each object and then throw it away,
         # so that we can remix without having to ever keep all mixing data in memory at once
-             
-        kernel_templates = np.clip(mixture.remix_iterable(self.gen_img(images)), 1e-5, 1-1e-5)
 
-        # Pick out the support, by remixing the alpha channel
-        if self.use_alpha: #TODO: Temp2
-            support = mixture.remix(alpha_maps).astype(np.float32)
-            # TODO: Temporary fix
-            self.full_support = support
-            support = support[:,6:-6,6:-6]
-        else:
-            support = None#np.ones((self.num_mixtures,) + shape[:2])
-
-        # TODO: Figure this out.
+        kernel_templates = np.clip(mixture.templates.reshape((self.num_mixtures,) + shape), 1e-5, 1-1e-5)
+        #support = None
+        support = mixture.remix(alpha_maps).astype(np.float32) 
         self.support = support
+
+
+        if 0:
+            kernel_templates = np.clip(mixture.remix_iterable(self.gen_img(images)), 1e-5, 1-1e-5)
+            if 0:
+                # Pick out the support, by remixing the alpha channel
+                if self.use_alpha: #TODO: Temp2
+                    support = mixture.remix(alpha_maps).astype(np.float32)
+                    # TODO: Temporary fix
+                    self.full_support = support
+                    support = support[:,6:-6,6:-6]
+                else:
+                    support = None#np.ones((self.num_mixtures,) + shape[:2])
+
+                # TODO: Figure this out.
+                self.support = support
 
 
         # Determine the log likelihood of the training data
         testing_type = self.settings.get('testing_type')
         fix_bkg = self.settings.get('fixed_bkg')
+        if self.settings.get('bkg_type') == 'from-file':
+            self.fixed_bkg = np.load(self.settings['fixed_bkg_file'])
+            self.fixed_spread_bkg = np.load(self.settings['fixed_spread_bkg_file'])
+
+        #fixed_bkg_file = self.settings.get('fixed_bkg_file')
+
         radii = self.settings['spread_radii']
-        if testing_type == 'fixed' and fix_bkg is not None:
-            L = len(self.settings['levels'])
-            self.fixed_train_mean = np.zeros(L)
-            self.fixed_train_std = np.zeros(L)
+        if testing_type == 'fixed':
+            #L = len(self.settings['levels'])
+            self.fixed_train_mean = np.zeros(self.num_mixtures)
+            self.fixed_train_std = np.zeros(self.num_mixtures)
 
-            for i, (sub, spread) in enumerate(self.settings['levels']):
+            #for i, (sub, spread) in enumerate(self.settings['levels']):
 
-                psize = (sub,)*2
-                radii = (spread,)*2
+            psize = self.settings['subsample_size']
+            radii = self.settings['spread_radii']
 
-                self.settings['subsample_size'] = psize
-                self.settings['spread_radii'] = radii 
-
+            if 0:
                 orig_output = None
                 # Get images with the right amount of spreading
                 for j, grayscale_img, img, alpha in self.load_img(images, offsets):
@@ -242,25 +249,38 @@ class Detector(Saveable):
                         orig_output = np.empty((len(images),) + orig_edges.shape, dtype=np.uint8)
                     orig_output[j] = orig_edges
                         #orig_edges = self.extract_spread_features(grayscale_img)
-                    
+                
 
-                #bkg = 1 - (1 - fix_bkg)**((2 * radii[0] + 1) * (2 * radii[1] + 1))
-                bkg = fix_bkg
-                #bkg = 0.05
+            #bkg = 1 - (1 - fix_bkg)**((2 * radii[0] + 1) * (2 * radii[1] + 1))
+            bkg = self.fixed_spread_bkg
+            #bkg = 0.05
 
-                self.kernel_templates = kernel_templates
-                # TODO: This gives a spread background!
-                kernels = self.prepare_kernels(np.ones(self.num_features)*bkg, settings=dict(spread_radii=radii, subsample_size=psize))
+            self.kernel_templates = kernel_templates
+            # TODO: This gives a spread background!
+            kernels = self.prepare_kernels(self.fixed_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
-                sub_output = gv.sub.subsample(orig_output, psize, skip_first_axis=True)
+            #sub_output = gv.sub.subsample(orig_output, psize, skip_first_axis=True)
 
-                #import pylab as plt
-                #plt.imshow(kernels[0].sum(axis=-1), interpolation='nearest')
-                #plt.show()
+            #import pylab as plt
+            #plt.imshow(kernels[0].sum(axis=-1), interpolation='nearest')
+            #plt.show()
+            X = np.asarray(output).reshape((-1,) + shape) #sub_output.reshape((sub_output.shape[0], -1))
+            llhs = [[] for i in xrange(self.num_mixtures)] 
 
+            comps = mixture.mixture_components()
+            for i, Xi in enumerate(X):
+                mixcomp = comps[i]
+                a = np.log(kernels[mixcomp]/(1-kernels[mixcomp]) * ((1-bkg)/bkg))
+                llh = np.sum(Xi * a)
+                llhs[mixcomp].append(llh)
+
+            self.fixed_train_mean = np.asarray([np.mean(llhs[k]) for k in xrange(self.num_mixtures)]) 
+            self.fixed_train_std = np.asarray([np.std(llhs[k]) for k in xrange(self.num_mixtures)])
+
+            if 0:
                 #print('sub_output', sub_output.shape)
                 theta = kernels.reshape((kernels.shape[0], -1))
-                X = sub_output.reshape((sub_output.shape[0], -1))
+                X = np.asarray(output) #sub_output.reshape((sub_output.shape[0], -1))
 
                 llhs = np.dot(X, np.log(theta/(1-theta) * ((1-bkg)/bkg)).T)
                 #C = np.log((1-theta)/(1-bkg)).sum(axis=1)
@@ -277,7 +297,7 @@ class Detector(Saveable):
         edges = self.descriptor.extract_features(image, dict(spread_radii=(0, 0)), support_mask=support_mask)
         return edges
 
-    def extract_spread_features(self, image, settings={}):
+    def extract_spread_features(self, image):
         edges = self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii']))
         return edges 
 
@@ -289,9 +309,9 @@ class Detector(Saveable):
     def unpooled_kernel_side(self):
         return max(self.unpooled_kernel_size)
 
-    def bkg_model(self, edges, location=None):
+    def bkg_model(self, edges, spread=False, location=None):
         """
-        Returns background model in three different ways:
+        Returns unspread background model in three different ways:
 
         * As a (num_features,) long vector, valid for the 
           entire image
@@ -306,13 +326,18 @@ class Detector(Saveable):
 
         """
         bkg_type = self.settings.get('bkg_type')
+
+        #return np.load('spread_bkg.npy')
     
         if bkg_type == 'constant':
             bkg_value = self.settings['fixed_bkg']
             return np.ones(self.num_features) * bkg_value 
 
         elif bkg_type == 'from-file':
-            return self.fixed_bkg
+            if spread:
+                return self.fixed_spread_bkg
+            else:
+                return self.fixed_bkg
 
         elif bkg_type == 'per-image-average':
             bkg = edges.reshape((-1, self.num_features)).mean(axis=0)
@@ -333,6 +358,8 @@ class Detector(Saveable):
     def prepare_kernels(self, unspread_bkg, settings={}):
         sett = self.settings.copy()
         sett.update(settings) 
+        if sett.get('kernels_ready'):
+            return self.kernel_templates 
 
         if not self.use_basis:
             kernels = self.kernel_templates.copy()
@@ -345,11 +372,18 @@ class Detector(Saveable):
             #neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
 
             if self.use_basis:
-                global cad_kernels
+                #global cad_kernels
+                import time
+                start = time.time()
                 a = 1 - unspread_bkg.sum()
+                bkg_categorical = np.concatenate(([a], unspread_bkg))
 
-                C = self.kernel_basis * np.expand_dims(unspread_bkg, -1)
-                kernels = a * cad_kernels + C.sum(axis=-2) / self.kernel_basis_samples
+                C = self.kernel_basis * np.expand_dims(bkg_categorical, -1)
+                kernels = C.sum(axis=-2) / self.kernel_basis_samples.reshape((-1,) + (1,)*(C.ndim-2))
+
+                kernels = np.clip(kernels, 1e-5, 1-1e-5)
+                end = time.time()
+                print (end - start) * 1000, 'ms'
 
             #unspread_bkg = 1 - (1 - bkg)**(1/neighborhood_area)
             #unspread_bkg = 1 - (1 - bkg)**50
@@ -376,15 +410,24 @@ class Detector(Saveable):
 
             
 
-        # Subsample kernels
-        sub_kernels = gv.sub.subsample(kernels, psize, skip_first_axis=True)
+            # Subsample kernels
+            sub_kernels = gv.sub.subsample(kernels, psize, skip_first_axis=True)
+        else:
+            sub_kernels = kernels
+
+            if self.use_basis:
+                a = 1 - unspread_bkg.sum()
+
+                C = self.kernel_basis * np.expand_dims(unspread_bkg, -1)
+                kernels = a * cad_kernels + C.sum(axis=-2) / self.kernel_basis_samples
+                
 
         sub_kernels = np.clip(sub_kernels, eps, 1-eps)
 
-
         K = self.settings.get('quantize_bins')
         if K is not None:
-            sub_kernels = np.round(1+sub_kernels*(K-2))/K
+            sub_kernels = np.round(1 + sub_kernels * (K - 2)) / K
+
 
         return sub_kernels
 
@@ -409,8 +452,8 @@ class Detector(Saveable):
         unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), preserve_size=False))
 
         # TODO: Avoid the edge for the background model
-        spread_bkg = self.bkg_model(spread_feats)
-        unspread_bkg = self.bkg_model(unspread_feats)
+        spread_bkg = self.bkg_model(spread_feats, spread=True)
+        unspread_bkg = self.bkg_model(unspread_feats, spread=False)
         #unspread_bkg = np.load('bkg.npy')
         #spread_bkg = 1 - (1 - unspread_bkg)**25
         #spread_bkg = np.load('spread_bkg.npy')
@@ -450,7 +493,7 @@ class Detector(Saveable):
         #unspread_feats0 = unspread_feats_pad[-10 + pad+i0-d0//2:10+ pad+i0-d0//2+d0, -10 + pad+j0-d1//2:10 + pad+j0-d1//2+d1]
 
         #bkg = self.bkg_model(unspread_feats0)
-        unspread_bkg = self.bkg_model(unspread_feats)
+        unspread_bkg = self.bkg_model(unspread_feats, spread=False)
 
         feats = gv.sub.subsample(up_feats, psize) 
         feats_pad = ag.util.zeropad(feats, (pad, pad, 0))
@@ -472,7 +515,7 @@ class Detector(Saveable):
 
         #means = feats0.reshape((-1, self.num_features)).mean(axis=0)
         #print lhsss  
-        print llhs, feats0.mean()
+        #print llhs, feats0.mean()
         if feats0.mean() < 0.02:
             return 0 
         else:
@@ -485,7 +528,7 @@ class Detector(Saveable):
         if 0:
             for bbobj in bbs:
                 new_score = self.calc_score(img, bbobj, score=bbobj.confidence)
-                print 'Score: ', bbobj.confidence, ' -> ', new_score    
+                #print 'Score: ', bbobj.confidence, ' -> ', new_score    
                 bbobj.confidence = new_score
 
         #print '-----------'
@@ -499,7 +542,7 @@ class Detector(Saveable):
             mixcomps = range(self.num_mixtures)
 
         # TODO: Temporary stuff
-        if 1:
+        if 0:
             bbs = []
             for mixcomp in mixcomps:
                 bbs0, resmap, feats, img_resized = self.detect_coarse_single_factor(img, 1.0, mixcomp, img_id=fileobj.img_id)
@@ -514,7 +557,44 @@ class Detector(Saveable):
 
 
             return final_bbs
+        else:
+            min_size = self.settings['min_size'] 
+            min_factor = min_size / max(self.orig_kernel_size)
+            max_size = self.settings['max_size'] 
+            max_factor = max_size / max(self.orig_kernel_size)
+
+            num_levels = 2
+            factors = []
+            skips = 0
+            eps = 1e-8
+            for i in xrange(1000):
+                factor = self.settings['scale_factor']**i
+                if factor > max_factor+eps:
+                    break
+                if factor >= min_factor-eps:
+                    factors.append(factor) 
+                else:
+                    skips += 1
+            num_levels = len(factors) + skips
+            
+            bbs = []
+            for i, factor in enumerate(factors):
+                #print 'Factor', factor
+                for mixcomp in mixcomps:
+                    bbs0, resmap, feats, img_resized = self.detect_coarse_single_factor(img, factor, mixcomp, img_id=fileobj.img_id)
+                    bbs += bbs0
         
+            # Do NMS here
+            final_bbs = self.nonmaximal_suppression(bbs)
+
+            # Mark corrects here
+            if fileobj is not None:
+                self.label_corrects(final_bbs, fileobj)
+
+
+            return final_bbs
+
+        # ********************** OLD STUFF *****************************
 
         # Build image pyramid
         min_size = self.settings['min_size'] 
@@ -550,7 +630,7 @@ class Detector(Saveable):
         def extract(image):
             return self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], preserve_size=True))
 
-        #edge_pyramid = map(self.extract_spread_features, pyramid)
+        edge_pyramid = map(self.extract_spread_features, pyramid)
         ag.info("Getting edge pyramid")
         unspread_edge_pyramid = map(extract, pyramid)
         spread_edge_pyramid = map(extract, pyramid)
@@ -649,6 +729,7 @@ class Detector(Saveable):
 
         weights = np.log(kern/(1-kern) * ((1-spread_bkg)/spread_bkg))
     
+        #print 'mixcomp', mixcomp
         from .fast import multifeature_correlate2d
         res = multifeature_correlate2d(bigger, weights) 
 
@@ -656,8 +737,8 @@ class Detector(Saveable):
         testing_type = self.settings.get('testing_type', 'object-model')
 
         if testing_type == 'fixed':
-            res -= self.fixed_train_mean[level]
-            res /= self.fixed_train_std[level]
+            res -= self.fixed_train_mean[mixcomp]
+            res /= self.fixed_train_std[mixcomp]
         elif testing_type == 'object-model':
             a = weights
             res -= (kern * a).sum()
@@ -705,7 +786,7 @@ class Detector(Saveable):
 
         # Take the bounding box of the support, with a certain threshold.
         #print("Using alpha", self.use_alpha, "support", self.support)
-        if self.use_alpha and self.support is not None:
+        if self.support is not None:
             supp = self.support[k] 
             supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
 
@@ -777,6 +858,9 @@ class Detector(Saveable):
             obj.use_alpha = d['use_alpha']
             obj.support = d.get('support')
 
+            obj.fixed_bkg = d.get('fixed_bkg')
+            obj.fixed_spread_bkg = d.get('fixed_spread_bkg')
+
             obj.fixed_train_std = d.get('fixed_train_std')
             obj.fixed_train_mean = d.get('fixed_train_mean')
 
@@ -800,6 +884,10 @@ class Detector(Saveable):
         d['use_alpha'] = self.use_alpha
         d['support'] = self.support
         d['settings'] = self.settings
+
+        if self.fixed_bkg is not None and self.fixed_spread_bkg is not None:
+            d['fixed_bkg'] = self.fixed_bkg
+            d['fixed_spread_bkg'] = self.fixed_spread_bkg 
 
         if self.settings['testing_type'] == 'fixed':
             d['fixed_train_std'] = self.fixed_train_std
