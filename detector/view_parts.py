@@ -48,4 +48,5 @@ else:
     else:
         ag.plot.images(originals, zero_to_one=False)
 
+
 #ag.plot.images(np.rollaxis(parts[9], axis=2))

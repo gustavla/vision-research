@@ -13,12 +13,13 @@ import os
 import os.path
 import glob
 import numpy as np
+import amitgroup as ag
 
 parts_descriptor = gv.BinaryDescriptor.getclass('parts').load(parts_file)
 
 #path = os.path.join(os.environ['UIUC_DIR'], 'TrainImages/neg-*.pgm')
 path = os.path.join(os.environ['VOC_DIR'], 'JPEGImages/*.jpg')  
-files = sorted(glob.glob(path))[:50]
+files = sorted(glob.glob(path))[:100]
 
 pi = np.zeros(parts_descriptor.num_parts)
 
@@ -33,6 +34,8 @@ if do_spreading:
 else:
     radii = (0, 0)
 
+e_count = 0
+e_tot = 0
 
 for f in files:
     print 'Processing', f
@@ -40,10 +43,14 @@ for f in files:
     gray_img = gv.img.asgray(im)
     intensities = np.concatenate((intensities, gray_img.ravel())) 
 
+    edges = ag.features.bedges(gray_img, **parts_descriptor.bedges_settings())
     feats = parts_descriptor.extract_features(gray_img, settings=dict(spread_radii=radii, subsample_size=(1, 1)))
     x = np.rollaxis(feats[cut:-cut,cut:-cut], 2).reshape((parts_descriptor.num_parts, -1))
     tot += x.shape[1]
     pi += x.sum(axis=1)
+
+    e_count += edges.sum()
+    e_tot += np.prod(edges.shape)  
 
 if 0:
     import pylab as plt
@@ -51,6 +58,7 @@ if 0:
     plt.show()
     
 bkg = pi / tot
+print 'edges', e_count / e_tot
 print bkg.shape
 if do_spreading:
     np.save('spread_bkg.npy', bkg)

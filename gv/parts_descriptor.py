@@ -4,6 +4,7 @@ import copy
 import amitgroup as ag
 import numpy as np
 import gv
+from itertools import product
 from .binary_descriptor import BinaryDescriptor
 
 @BinaryDescriptor.register('parts')
@@ -69,10 +70,14 @@ class PartsDescriptor(BinaryDescriptor):
         w, h = [edges.shape[i]-self.patch_size[i]+1 for i in xrange(2)]
 
         # TODO: Maybe shuffle an iterator of the indices?
+        indices = list(product(xrange(w-1), xrange(h-1)))
+        random.shuffle(indices)
+        i_iter = iter(indices)
 
         for sample in xrange(samples_per_image):
             for tries in xrange(20):
-                x, y = random.randint(0, w-1), random.randint(0, h-1)
+                #x, y = random.randint(0, w-1), random.randint(0, h-1)
+                x, y = i_iter.next()
                 selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
                 selection_padded = [slice(x, x+radius*2+self.patch_size[0]), slice(y, y+radius*2+self.patch_size[1])]
                 # Return grayscale patch and edges patch
@@ -151,6 +156,8 @@ class PartsDescriptor(BinaryDescriptor):
         mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
         ag.info("Done.")
 
+        counts = np.bincount(mixture.mixture_components(), minlength=self.num_parts)
+
         # Reject weak parts
         scores = np.empty(self.num_parts) 
         for i in xrange(self.num_parts):
@@ -164,6 +171,10 @@ class PartsDescriptor(BinaryDescriptor):
             D = np.sqrt(np.sum(np.log(p/(1-p))**2 * p * (1-p)))
 
             scores[i] = N/D 
+
+            # Require at least 20 occurrences
+            #if counts[i] < 5:
+                #scores[i] = 0
 
         # Only keep with a certain score
         visparts = mixture.remix(raw_originals)

@@ -250,14 +250,15 @@ class Detector(Saveable):
                     orig_output[j] = orig_edges
                         #orig_edges = self.extract_spread_features(grayscale_img)
                 
+            self.kernel_templates = kernel_templates
 
             #bkg = 1 - (1 - fix_bkg)**((2 * radii[0] + 1) * (2 * radii[1] + 1))
-            bkg = self.fixed_spread_bkg
+            unspread_bkg = self.bkg_model(None, spread=False)
+            spread_bkg = self.bkg_model(None, spread=True)
             #bkg = 0.05
 
-            self.kernel_templates = kernel_templates
             # TODO: This gives a spread background!
-            kernels = self.prepare_kernels(self.fixed_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
+            kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
             #sub_output = gv.sub.subsample(orig_output, psize, skip_first_axis=True)
 
@@ -270,7 +271,7 @@ class Detector(Saveable):
             comps = mixture.mixture_components()
             for i, Xi in enumerate(X):
                 mixcomp = comps[i]
-                a = np.log(kernels[mixcomp]/(1-kernels[mixcomp]) * ((1-bkg)/bkg))
+                a = np.log(kernels[mixcomp]/(1-kernels[mixcomp]) * ((1-spread_bkg)/spread_bkg))
                 llh = np.sum(Xi * a)
                 llhs[mixcomp].append(llh)
 
@@ -332,6 +333,13 @@ class Detector(Saveable):
         if bkg_type == 'constant':
             bkg_value = self.settings['fixed_bkg']
             return np.ones(self.num_features) * bkg_value 
+
+        elif bkg_type == 'corner':
+            assert not self.settings.get('train_unspread')
+            if spread:
+                return self.kernel_templates[0,0,0]
+            else:
+                return None
 
         elif bkg_type == 'from-file':
             if spread:
@@ -436,11 +444,13 @@ class Detector(Saveable):
         TODO: Experimental changes under way!
         """
 
-        from skimage.transform import pyramid_reduce
+        from skimage.transform import pyramid_reduce, pyramid_expand
         if abs(factor-1) < 1e-8:
             img_resized = img
-        else:
+        elif factor > 1:
             img_resized = pyramid_reduce(img, downscale=factor)
+        elif factor < 1:
+            img_resized = pyramid_expand(img, upscale=1/factor)
 
         last_resmap = None
 
@@ -568,7 +578,7 @@ class Detector(Saveable):
             skips = 0
             eps = 1e-8
             for i in xrange(1000):
-                factor = self.settings['scale_factor']**i
+                factor = self.settings['scale_factor']**(i-1)
                 if factor > max_factor+eps:
                     break
                 if factor >= min_factor-eps:
@@ -576,10 +586,10 @@ class Detector(Saveable):
                 else:
                     skips += 1
             num_levels = len(factors) + skips
-            
+
             bbs = []
             for i, factor in enumerate(factors):
-                #print 'Factor', factor
+                print 'factor', factor
                 for mixcomp in mixcomps:
                     bbs0, resmap, feats, img_resized = self.detect_coarse_single_factor(img, factor, mixcomp, img_id=fileobj.img_id)
                     bbs += bbs0
@@ -708,7 +718,7 @@ class Detector(Saveable):
 
         # Let's limit to five per level
         bbs_sorted = self.nonmaximal_suppression(bbs)
-        bbs_sorted = bbs_sorted[:5]
+        bbs_sorted = bbs_sorted[:15]
 
         return bbs_sorted, resmap
 
@@ -727,11 +737,18 @@ class Detector(Saveable):
         eps = self.settings['min_probability']
         spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
 
+        
+        # TEMP
+        #spread_bkg = np.clip(spread_bkg, 0.01, 1-0.01)
+        #kern = np.clip(kern, 0.01, 1-0.01)
+
         weights = np.log(kern/(1-kern) * ((1-spread_bkg)/spread_bkg))
     
         #print 'mixcomp', mixcomp
         from .fast import multifeature_correlate2d
-        res = multifeature_correlate2d(bigger, weights) 
+        #print bigger.shape, weights.shape
+        index = 26 
+        res = multifeature_correlate2d(bigger[...,index:index+1], weights[...,index:index+1].astype(np.float64)) 
 
         # Standardization
         testing_type = self.settings.get('testing_type', 'object-model')
@@ -759,7 +776,7 @@ class Detector(Saveable):
         # This one will respect scales a bit more
         bbs_sorted = sorted(bbs, reverse=True)
 
-        overlap_threshold = 0.5
+        overlap_threshold = self.settings.get('overlap_threshold', 0.5)
 
         # Suppress within a radius of H neighboring scale factors
         sf = self.settings['scale_factor']

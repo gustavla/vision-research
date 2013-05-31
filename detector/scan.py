@@ -7,8 +7,9 @@ parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'
 parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
 parser.add_argument('--class', dest='obj_class', nargs=1, default=[None], type=str, help='Object class for marking corrects')
 parser.add_argument('--kernel-size', dest='side', nargs=1, default=[None], metavar='SIDE', type=float, help='Run single side length of kernel')
-parser.add_argument('--contest', type=str, choices=('voc', 'uiuc', 'uiuc-multiscale'), default='voc', help='Contest to try on')
-parser.add_argument('--limit', nargs=1, default=[None], type=int, help='Contest to try on')
+parser.add_argument('--contest', type=str, choices=('none', 'voc', 'uiuc', 'uiuc-multiscale'), default='voc', help='Contest to try on')
+parser.add_argument('--image-file', type=str, nargs=1, default=[None])
+parser.add_argument('--limit', nargs=1, default=[None], type=int, help='Limit bounding boxes')
 
 # TODO: Make into an option 
 parser.add_argument('mixcomp', metavar='<mixture component>', nargs='?', type=int, help='mix comp')
@@ -21,6 +22,7 @@ mixcomp = args.mixcomp
 obj_class = args.obj_class[0]
 contest = args.contest
 bb_limit = args.limit[0]
+img_file = args.image_file[0]
 
 import gv
 import numpy as np
@@ -35,7 +37,10 @@ detector = gv.Detector.load(model_file)
 
 print(obj_class)
 
-if contest == 'voc':
+if contest == 'none': 
+    assert img_file is not None
+    fileobj = gv.voc.ImgFile(path=img_file, boxes=[], img_id=-1)
+elif contest == 'voc':
     fileobj = gv.voc.load_training_file(VOCSETTINGS, obj_class, img_id)
 elif contest == 'uiuc':
     assert obj_class is None or obj_class == 'car', "Can't set object class for uiuc data"
@@ -48,7 +53,7 @@ elif contest == 'uiuc-multiscale':
 if fileobj is None:
     print("Could not find image", file=sys.stderr)
     sys.exit(0)
-img = skimage.data.load(fileobj.path).astype(np.float64)/255
+img = gv.img.load_image(fileobj.path) 
 grayscale_img = gv.img.asgray(img)
 print("Image size:", grayscale_img.shape)
 #img = np.random.random(img.shape)
@@ -66,6 +71,8 @@ if side is not None:
     #bbs = detector.nonmaximal_suppression(bbs)
 
     #print('small', small.shape)
+    if bb_limit is not None:
+        bbs = bbs[:bb_limit]
 
     for bb in bbs:
         print(bb)

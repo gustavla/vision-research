@@ -65,8 +65,13 @@ def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
     #color_img, alpha = gv.img.load_image_binarized_alpha(fn)
     color_img = gv.img.load_image(fn)
 
-    from skimage.transform import pyramid_reduce
-    color_img = pyramid_reduce(color_img, downscale=color_img.shape[0]/settings['detector']['image_size'][0]) 
+    from skimage.transform import pyramid_reduce, pyramid_expand
+    f = color_img.shape[0]/settings['detector']['image_size'][0]
+    if f > 1:
+        color_img = pyramid_reduce(color_img, downscale=f) 
+    elif f < 1:
+        color_img = pyramid_expand(color_img, upscale=1/f)
+         
     
 
     alpha = color_img[...,3]
@@ -75,7 +80,7 @@ def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
     # Resize it
     # TODO: This only looks at the first axis
 
-    assert img.shape == settings['detector']['image_size'], "Target size not achieved"
+    assert img.shape == settings['detector']['image_size'], "Target size not achieved: {0} != {1}".format(img.shape, settings['detector']['image_size'])
 
     psize = settings['detector']['subsample_size']
 

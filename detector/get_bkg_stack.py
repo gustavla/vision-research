@@ -15,16 +15,17 @@ def get_bkg_stack(settings, X_pad_size, M=20):
     radius = bsettings['radius']
     bsettings['radius'] = 0
 
-    neg_filenames= sorted(glob.glob(os.path.join(os.environ['UIUC_DIR'], 'TrainImages', 'neg-*.pgm')))
+    #neg_filenames= sorted(glob.glob(os.path.join(os.environ['UIUC_DIR'], 'TrainImages', 'neg-*.pgm')))
+    neg_filenames = sorted(glob.glob(settings['parts']['image_dir_new'])) * 100 
 
-    gen_raw = generate_random_patches(neg_filenames, X_pad_size, 0, per_image=25)
+    gen_raw = generate_random_patches(neg_filenames, X_pad_size, 0, per_image=25) 
 
     bkg_stack_num = np.zeros(descriptor.num_parts + 1)
     bkg_stack = np.zeros((descriptor.num_parts + 1, M,) + X_pad_size)
 
     i = 0
     import matplotlib.pylab as plt
-    N = 100000
+    N = 1000000
     for patch in gen_raw:
         edges = ag.features.bedges(patch, **bsettings)
 
@@ -54,6 +55,8 @@ def get_bkg_stack(settings, X_pad_size, M=20):
 
         if i % 10000 == 0:
             print i, bkg_stack_num
+            if bkg_stack_num.min() == M:
+                break
         i += 1
         if i == N: 
             break
@@ -64,6 +67,8 @@ def get_bkg_stack(settings, X_pad_size, M=20):
     #cc /= N
     #print cc[:10]
     #print bkg[:10]
+
+    assert i != 0, "No images found"
 
     #print cc.sum()
     #print bkg.sum()

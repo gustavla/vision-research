@@ -29,3 +29,4 @@ cls = gv.BinaryDescriptor.getclass('parts')
 codebook = cls(psettings['part_size'], psettings['num_parts'], settings=psettings) 
 codebook.train_from_images(files[:psettings['num_images']])
 codebook.save(psettings['file'])
+

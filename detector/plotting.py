@@ -14,7 +14,7 @@ def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_r
     if small is None and x is None:
         plt.subplot(111)
     else:
-        plt.subplot(221)
+        plt.subplot(121)
     plt.title('Input image')
     plt.imshow(img, cmap=plt.cm.gray)
 
@@ -24,21 +24,22 @@ def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_r
         plt.gca().add_patch(plt.Rectangle((bb[1], bb[0]), bb[3]-bb[1], bb[2]-bb[0], facecolor='none', edgecolor=color, linewidth=2.0))
 
     if x is not None:
-        plt.subplot(222)
+        plt.subplot(122)
         plt.title('Response map')
         plt.imshow(x, interpolation='nearest')#, vmin=-40000, vmax=-36000)
-        plt.colorbar()
+        #plt.colorbar()
 
-    if small is not None:
-        plt.subplot(223)
-        plt.title('Feature activity')
-        plt.imshow(small.sum(axis=-1), interpolation='nearest')
-        plt.colorbar()
+    if 0:
+        if small is not None:
+            plt.subplot(223)
+            plt.title('Feature activity')
+            plt.imshow(small.sum(axis=-1), interpolation='nearest')
+            plt.colorbar()
 
-    if img_resized is not None:
-        plt.subplot(224)
-        plt.title('Resized image')
-        plt.imshow(img_resized, interpolation='nearest', cmap=plt.cm.gray)
+        if img_resized is not None:
+            plt.subplot(224)
+            plt.title('Resized image')
+            plt.imshow(img_resized, interpolation='nearest', cmap=plt.cm.gray)
         
     if 0:
         pass

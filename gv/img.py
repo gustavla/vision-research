@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 import scipy.misc
 import amitgroup as ag
-from skimage.transform.pyramids import pyramid_reduce
+from skimage.transform.pyramids import pyramid_reduce, pyramid_expand
 import sys
 
 def resize_to_size(im, new_size):
@@ -34,14 +34,13 @@ def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
     """
     factors = [new_size[i] / im.shape[i] for i in xrange(2)]
 
-    assert factors[0] == factors[1], "Must have same factor for now"
+    #assert factors[0] == factors[1], "Must have same factor for now"
     f = factors[0] 
     
     if f < 1:
         im2 = pyramid_reduce(im, downscale=1/f)
     elif f > 1:
-        # Implement 
-        assert 0, "Implement this using pyramid_expand"
+        im2 = pyramid_expand(im, upscale=f)
 
     assert im2.shape[:2] == tuple(new_size), "{0} != {1}".format(im2.shape, new_size)
      
