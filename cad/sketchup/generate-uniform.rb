@@ -4,7 +4,7 @@ require 'sketchup.rb'
 
 Sketchup.send_action "showRubyPanel:"
 
-UI.menu("Plugins").add_item("Generate data") {
+UI.menu("Plugins").add_item("Generate uniform") {
 
 
   # Set up rendering style 
@@ -21,7 +21,7 @@ UI.menu("Plugins").add_item("Generate data") {
   si = 128 
   model = Sketchup.active_model
   view = model.active_view
-  N = 40 
+  N = 30
 
   range = (0..N).map { |i| -1 + 2.0 * i/N.to_f } 
   # step(0.1) does not work in SketchUp's Ruby version
@@ -37,14 +37,14 @@ UI.menu("Plugins").add_item("Generate data") {
         #eye = [700 * Math.sin(angle), 700 * Math.cos(angle), 150]
         c = Math.sqrt(1.0 - both)
         #puts "="*30,x1, x2
-        x = 140 * 2 * x1 * c
-        y = 140 * 2 * x2 * c 
-        z = 140 * (1 - 2 * both)
+        x = 400 * 2 * x1 * c
+        y = 400 * 2 * x2 * c 
+        z = 400 * (1 - 2 * both)
         if z >= 0 then
           eye = [x, y, z]
           target = [0, 0, 0]
           up= [0, 0, 1]
-          filename = "/Users/slimgee/git/data/bike/bicycle1_#{i}.png"
+          filename = "/Users/slimgee/git/data/ellipsoid/ellipsoid_#{i}.png"
           if x != 0 or y != 0 then
             if not File.exists? filename then
               camera = Sketchup::Camera.new eye, target, up

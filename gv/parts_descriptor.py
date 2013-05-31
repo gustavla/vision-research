@@ -209,6 +209,16 @@ class PartsDescriptor(BinaryDescriptor):
             # LEAVE-BEHIND: From multi-channel images
             edges = ag.features.bedges_from_image(image, **self.bedges_settings()) 
         return self.extract_parts(edges, settings=settings, support_mask=support_mask)
+
+
+    def extract_partprobs_from_edges(self, edges):
+        partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
+                                           self.settings['threshold'], self.settings['patch_frame'])
+        return partprobs
+
+    def extract_partprobs(self, image):
+        edges = ag.features.bedges(image, **self.bedges_settings())
+        return self.extract_partprobs_from_edges(edges)
     
     def extract_parts(self, edges, settings={}, support_mask=None):
         if support_mask is not None: 

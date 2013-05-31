@@ -93,9 +93,9 @@ The column vector $f$ of $A^{(k,x)}$ now represents what the resulting feature d
 %The vector $\hat \psi_{k,x,f} \in [0, 1]^F$ now represents an estimate of $\psi_{k,i,f}$, which explains the resulting probability distrubtion at cluster $k$ and position $i$ given a background model that is entirely concentrated at $f$.
 
 \subsection{Back to $\theta$}
-Assuming all samples are independent, we can now reconstruct an appropriate object-over-background model $\theta$, given a certain background model $b \in [0, 1]^F$, by
+Assuming all samples are independent, we can now reconstruct an appropriate object-over-background model $\theta$, given a certain background model $b \in [0, 1]^F$. First, let $\tilde b = (1 - \sum_{f=1}^F b_f, b_1, \dots, b_f)^T$ include the probability of not coding a feature at all. We can then construct the object-over-background model as follows
 \[
-    \theta_{k,x}(b) = A^{(k,x)} b
+    \theta_{k,x}(b) = A^{(k,x)} \tilde b
 \]
 which is fast to compute. The problem reduces to picking the right background model $b$, which can be considered separately. Note that we can use different values for $b$ for each $(k,x)$. 
 
@@ -132,15 +132,15 @@ NOTE: I have recently discovered that this does not give good results and that $
 
 
 \section{Testing}
-In this section, we operate entirely on spread features, but to spare notation I will omit (spr) from notation. In other words, $X \rightarrow \spr{X}$, $\theta \rightarrow \spr{\theta}$ and $b \rightarrow \spr{b}$.
+In this section, we operate entirely on spread features, but to spare notation I will omit (spr). In other words, $X \rightarrow \spr{X}$, $\theta \rightarrow \spr{\theta}$ and $b \rightarrow \spr{b}$.
 
 Detection is done through a likelihood ratio test between the object-over-background model and the background model. Considering each component $k$ separately, we have
 \begin{align*}
     R = \ell(\theta; X) - \ell(b; X) &= \sum_x^L \sum_f^F \left[ X_{x,f} \log \left(\frac{\theta_{x,f}}{b_{x,f}}\right) + (1 - X_{x,f})\log\left( \frac{1 - \theta_{x,f}}{1 - b_{x,f}}\right)\right] \\
-    &= \sum_x^L X_x \sum_f^F \log \left(\frac{\theta_{x,f}}{1-\theta_{x,f}} \frac{1 - b_{x,f}}{b_{x,f}}\right) + \sum_x^L \sum_f^F \log\left(\frac{1 - \theta_{x,f}}{1 - b_{x,f}}\right) \\
+    &= \sum_x^L\sum_f^F X_{x,f} \log \left(\frac{\theta_{x,f}}{1-\theta_{x,f}} \frac{1 - b_{x,f}}{b_{x,f}}\right) + \sum_x^L \sum_f^F \log\left(\frac{1 - \theta_{x,f}}{1 - b_{x,f}}\right) \\
     &\equiv \beta_1^T X + \beta_0 
 \end{align*}
-where $\beta_1 \in \mathbb{R}^{LF}$ (column vector of length $LF$) and $\beta_0 \in \mathbb{R}$. Note that in this notation $X$ is flattened to $X = (X_{1,1}, X_{1,2}, \dots, X_{L,F})$. 
+where $\beta_1 \in \mathbb{R}^{LF}$ (column vector of length $LF$) and $\beta_0 \in \mathbb{R}$. Note that in this notation $X$ is flattened to $X = (X_{1,1}, X_{1,2}, \dots, X_{L,F})^T$. 
 
 \subsection{Standardization}
 
@@ -172,7 +172,9 @@ One method that yields good results for a single component, is simply subtractin
 %Here are some experimental comparisons of the different standardization methods when used with a single component ($K = 1$) and a single background model per image (taking the average):
 
 \section{Results}
-A comparison of the different standardization methods can be seen in tab.~\ref{tab:standardization}. A few different models altogether are compared in tab.~\ref{tab:comp}.
+A comparison of the different standardization methods can be seen in Tab.~\ref{tab:standardization}. Various methods altogether are compared in in Tab.~\ref{tab:comp}. All of these methods use a single mixture component ($K = 1$) and 100 training images. 
+
+The {\em Basis-methods} use 100 CAD images for training as well, but they are combined with negatives in a much richer way. This should account for the increase in performance between Superimposed-CAD and Basis-method-fixed-$b$, since they should be asymptotically equivalent.
 %Here are some results using a single mixture component and 100 real or CAD images.
 
 \begin{table}
@@ -198,12 +200,12 @@ A comparison of the different standardization methods can be seen in tab.~\ref{t
         \hline 
         Basis-method-per-image-$b$ & \textbf{98.72} \\
         Basis-method-fixed-$b$ &     97.05 \\
-        Real-images-1 &              97.88 \\
-        Real-images-2 &              97.74 \\
-        Superimposed CAD &           96.17 \\
+        Real-images-original &              97.88 \\
+        Real-images-bkg &              97.74 \\
+        Superimposed-CAD &           96.17 \\
         \hline
     \end{tabular}
-    \caption{Comparison of various methods. {\em Basis-method-per-image-$b$} refers to the method described here with background standardization and a per-image $b$ (average over the image). {\em Basis-method-fixed-$b$} uses a single $b$ for all images.{\em Real-images-1} refers to Bernstein's method, trained on real images and standardized according to the training mean and variance. {\em Real-images-2} is the same, except this time standardized with the background model, just like the {\em Basis-methods}. } \label{tab:comp}
+    \caption{Comparison of various methods. {\em Basis-method-per-image-$b$} refers to the method described in this document with background standardization and a per-image $b$ (average over each image). {\em Basis-method-fixed-$b$} uses a single $b$ for all images. {\em Real-images-original} refers to Bernstein's method, trained on real images and standardized according to the training mean and variance. {\em Real-images-bkg} is the same, except this time standardized with the background model, just like the {\em Basis-methods}. {\em Superimposed-CAD} is trained just like {\em Real-images-bkg}, but uses 100 CAD images that were beforehand superimposed onto negative background.} \label{tab:comp}
 \end{table}
 
 \end{document}

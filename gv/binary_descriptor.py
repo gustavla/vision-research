@@ -45,6 +45,7 @@ class BinaryDescriptor(Saveable):
             assert issubclass(reg_cls, cls), "Must be subclass of BinaryDescriptor"
             global _DESCIPTORS
             _DESCRIPTORS[name] = reg_cls
+            return reg_cls
         return register_decorator
 
     @classmethod
