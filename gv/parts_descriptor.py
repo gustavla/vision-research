@@ -249,6 +249,14 @@ class PartsDescriptor(BinaryDescriptor):
             if self._log_parts.shape[2] % 2 == 0:
                 parts = partprobs[:,:-1]
                 partprobs = partprobs[:,:-1]
+
+        elif 'cut_border' in settings:
+            # Due to spreading, the area of influence can be greater
+            # than what we're cutting off. That's why it's good to have
+            # a cut_border property if you're training on real images.
+            cb = settings['cut_border']
+            parts = parts[cb:-cb, cb:-cb]
+            partprobs = partprobs[cb:-cb, cb:-cb]
         
         sett = self.settings.copy()
         sett.update(settings)
