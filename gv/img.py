@@ -22,6 +22,14 @@ def _filtered_resize_once(im, new_size, preserve_aspect_ratio=True, prefilter=Tr
     im2 = raw_resize(im2, factor)
     return im2
 
+def resize_with_factor_new(im, factor):
+    if factor < 1:
+        im2 = pyramid_reduce(im, downscale=1/factor)
+    elif factor > 1:
+        im2 = pyramid_expand(im, upscale=factor)
+    else:
+        im2 = im
+    return im2
 
 def resize_with_factor(im, factor, preserve_aspect_ratio=True, prefilter=True):
     new_size = [int(im.shape[i] * factor) for i in xrange(2)]

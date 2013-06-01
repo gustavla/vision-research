@@ -48,9 +48,8 @@ if __name__ == '__main__':
     img_id = args.img_id
     part_id = args.part[0]
 
-    from config import VOCSETTINGS
 
-    fileobj = gv.voc.load_training_file(VOCSETTINGS, 'bicycle', img_id)
+    fileobj = gv.voc.load_file('bicycle', img_id)
     img = gv.img.load_image(fileobj.path)
 
     detector = gv.Detector.load(model_file)

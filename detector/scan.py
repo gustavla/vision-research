@@ -28,7 +28,6 @@ import gv
 import numpy as np
 import matplotlib.pylab as plt
 import sys
-from config import VOCSETTINGS
 import skimage.data
 
 from plotting import plot_results
@@ -41,7 +40,7 @@ if contest == 'none':
     assert img_file is not None
     fileobj = gv.voc.ImgFile(path=img_file, boxes=[], img_id=-1)
 elif contest == 'voc':
-    fileobj = gv.voc.load_training_file(VOCSETTINGS, obj_class, img_id)
+    fileobj = gv.voc.load_file(obj_class, img_id)
 elif contest == 'uiuc':
     assert obj_class is None or obj_class == 'car', "Can't set object class for uiuc data"
     fileobj = gv.uiuc.load_testing_file(img_id)

@@ -2,10 +2,9 @@
 import amitgroup as ag
 import gv
 import numpy as np
-from config import VOCSETTINGS
 
-originals, bbs = gv.voc.load_object_images_of_size(VOCSETTINGS, 'bicycle', (64, 64), dataset='train')
-#originals, bbs = gv.voc.load_negative_images_of_size(VOCSETTINGS, 'bicycle', (64, 64), dataset='train', count=1)
+originals, bbs = gv.voc.load_object_images_of_size('bicycle', (64, 64), dataset='train')
+#originals, bbs = gv.voc.load_negative_images_of_size('bicycle', (64, 64), dataset='train', count=1)
 
 #print map(lambda x: x.shape, images)
 

@@ -21,7 +21,6 @@ import gv
 import numpy as np
 import matplotlib.pylab as plt
 from matplotlib.widgets import Slider
-from config import VOCSETTINGS
 from plotting import plot_box
 import amitgroup as ag
 
@@ -29,7 +28,7 @@ import amitgroup as ag
 detector = gv.Detector.load(model_file)
 
 # Load image
-fileobj = gv.voc.load_training_file(VOCSETTINGS, 'bicycle', img_id)
+fileobj = gv.voc.load_file('bicycle', img_id)
 img = gv.img.load_image(fileobj.path)
 
 # Size of the kernel
