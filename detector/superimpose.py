@@ -103,7 +103,7 @@ def patch_generator(im_filenames, size):
             elif cnd_x and cnd_y:
                 # We have an image
                 patch = Image.new("RGBA", size[::-1], (0, 0, 0))
-                patch.paste(im, (-cur_pos[0], -cur_pos[1]))
+                patch.paste(im, (-cur_pos[1], -cur_pos[0]))
                 #import matplotlib.pylab as plt
                 #import pdb; pdb.set_trace()
                 yield patch

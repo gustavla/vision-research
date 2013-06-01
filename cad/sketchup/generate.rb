@@ -35,16 +35,19 @@ UI.menu("Plugins").add_item("Generate data") {
   i = 0
 
   (0..2).each do |elevation_index|
-    elevation = (90 - elevation_index * 20.0) * Math::PI / 180.0
+    elevation = (90 - (rand() - 0.5) * 7 - elevation_index * 15.0) * Math::PI / 180.0
     # Do only half
-    (0...36).each do |azimuth_index|
-      azimuth = azimuth_index * 10.0 * Math::PI / 180.0
-      x = dist * Math.sin(elevation) * Math.cos(azimuth)
-      y = dist * Math.sin(elevation) * Math.sin(azimuth) 
-      z = dist * Math.cos(elevation) 
+    (0...18).each do |azimuth_index|
+      #[0, -1, 1].each do |outofplane_index|
+        outofplane_index = rand(3) - 1
 
-      (-1..1).each do |outofplane_index|
-        rotation = outofplane_index * 10.0 * Math::PI / 180.0
+        rotation = outofplane_index * 6.0 * Math::PI / 180.0
+
+        # Also change the azimuth angle a bit with the outofplane
+        azimuth = (rand() * 10 + azimuth_index * 20.0) * Math::PI / 180.0
+        x = dist * Math.sin(elevation) * Math.cos(azimuth)
+        y = dist * Math.sin(elevation) * Math.sin(azimuth) 
+        z = dist * Math.cos(elevation) 
 
         eye = [x, y, z]
         target = [0, 0, 0]
@@ -53,7 +56,7 @@ UI.menu("Plugins").add_item("Generate data") {
           Math.sin(rotation) * Math.sin(azimuth + Math::PI / 2.0), 
           Math.cos(rotation)
         ]
-        filename = "/Users/slimgee/git/data/car/#{outputname}_#{i}.png"
+        filename = "/Users/slimgee/git/data/xi3zao3-car/view%03d_%s.png" % [i, outputname]
         if x != 0 or y != 0 then
           if not File.exists? filename then
             camera = Sketchup::Camera.new eye, target, up
@@ -70,7 +73,7 @@ UI.menu("Plugins").add_item("Generate data") {
           end
           i += 1
         end
-      end
+      #end
     end
   end 
   UI.messagebox("Data saved! (#{i})")

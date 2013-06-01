@@ -32,6 +32,9 @@ else:
         base_path = os.environ[dsettings['base_path']]
     path = os.path.join(base_path, dsettings['train_dir'])
     files = sorted(glob.glob(path))
+    # TEMP!
+    from random import shuffle
+    shuffle(files)
 
 limit = dsettings.get('train_limit')
 if limit is not None:
