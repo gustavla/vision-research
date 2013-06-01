@@ -16,7 +16,8 @@ def generate_random_patches(filenames, size, seed=0, per_image=1):
     randgen = np.random.RandomState(seed)
     failures = 0
     for fn in cycle(filenames):
-        img = gv.img.asgray(gv.img.load_image(fn))
+        img = gv.img.resize_with_factor_new(gv.img.asgray(gv.img.load_image(fn)), randgen.uniform(0.5, 1.0))
+
         for l in xrange(per_image):
             # Random position
             x_to = img.shape[0]-size[0]-1
