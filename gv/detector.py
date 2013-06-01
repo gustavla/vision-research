@@ -200,10 +200,12 @@ class Detector(Saveable):
 
         kernel_templates = np.clip(mixture.templates.reshape((self.num_mixtures,) + shape), 1e-5, 1-1e-5)
         #support = None
-        support = mixture.remix(alpha_maps).astype(np.float32) 
+        if self.use_alpha:
+            support = mixture.remix(alpha_maps).astype(np.float32) 
+        else:
+            support = None
+
         self.support = support
-
-
         if 0:
             kernel_templates = np.clip(mixture.remix_iterable(self.gen_img(images)), 1e-5, 1-1e-5)
             if 0:
