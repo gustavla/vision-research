@@ -3,7 +3,6 @@ from __future__ import division
 
 import matplotlib.pylab as plt
 import gv
-from config import VOCSETTINGS
 from plotting import plot_results
 
 def show_image(fileobj, filename=None):
@@ -37,7 +36,7 @@ if __name__ == '__main__':
     imagename = args.imgname
     
     if imagename is None:
-        fileobjs, tot = gv.voc.load_training_files(VOCSETTINGS, 'bicycle')
+        fileobjs, tot = gv.voc.load_files('bicycle')
         for f in fileobjs:
             if len(f.boxes) > 0:
                 #print("{0:20} {1} ({2})".format(os.path.basename(f.path), len(f.boxes), sum([bbobj.difficult for bbobj in f.boxes])))
@@ -48,5 +47,5 @@ if __name__ == '__main__':
                     
                 
     else:
-        fileobj = gv.voc.load_training_file(VOCSETTINGS, 'bicycle', imagename)
+        fileobj = gv.voc.load_file('bicycle', imagename)
         show_image(fileobj)

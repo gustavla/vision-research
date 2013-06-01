@@ -4,7 +4,6 @@ import matplotlib.pylab as plt
 import amitgroup as ag
 import gv
 import numpy as np
-from config import VOCSETTINGS
 from histogram_of_detections import calc_llhs
 
 def main():
@@ -22,9 +21,9 @@ def main():
     detector = gv.Detector.load(model_file)
 
     print 'Processing positives...'
-    llhs_positives = calc_llhs(VOCSETTINGS, detector, True, mixcomp)
+    llhs_positives = calc_llhs(detector, True, mixcomp)
     print 'Processing negatives...'
-    llhs_negatives = calc_llhs(VOCSETTINGS, detector, False, mixcomp)
+    llhs_negatives = calc_llhs(detector, False, mixcomp)
 
     score = llhs_positives.mean() - llhs_negatives.mean() 
 

@@ -12,9 +12,6 @@ from itertools import product
 from superimpose_experiment import generate_random_patches
 
 
-def composite(fg_img, bg_img, alpha):
-    return fg_img * alpha + bg_img * (1 - alpha) 
-
 def create_graymap(size, shade, prnd):
     graymap = np.empty(size)
     graymap.fill(shade)
@@ -281,7 +278,7 @@ def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
             bkgmap = bkg_stack[f,bkg_i]
 
             # Composite
-            img_with_bkg = composite(patch, bkgmap, alpha_patch)
+            img_with_bkg = gv.img.composite(patch, bkgmap, alpha_patch)
 
             # Retrieve unspread edges (with a given background gray level) 
             edges_pad = ag.features.bedges(img_with_bkg, **bsettings)
@@ -363,7 +360,7 @@ def background_adjust_model(settings, bkg_stack, bkg_stack_num, seed=0, threadin
     # Iterate images
     all_counts = imapf(_process_file_star, argses)
 
-    # Can dot his instead:
+    # Can dot this instead:
     counts = sum(all_counts)
 
     # Divide accmulate to get new distribution

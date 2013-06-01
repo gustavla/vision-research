@@ -8,6 +8,8 @@ parser.add_argument('bg', metavar='<background directory>', help='Directory of b
 parser.add_argument('dst', metavar='<destination directory>', help='Directory of output images')
 parser.add_argument('--size', nargs=2, type=int, default=None, help='Resize source images to this before doing anything else')
 parser.add_argument('--crop-size', nargs=2, type=int, default=None, help='Crop to this size after resizing')
+parser.add_argument('--factor', nargs=1, type=float, default=[1.0], help='Resize bg with this factor')
+parser.add_argument('--prefix', nargs=1, type=str, default=[""], help='Add prefix to name')
 
 args = parser.parse_args()
 fg = args.fg
@@ -15,6 +17,8 @@ bg = args.bg
 dst = args.dst
 size = args.size
 crop_size = args.crop_size
+factor = args.factor[0]
+prefix = args.prefix[0]
 assert size is not None, "Must specify for now"
 assert crop_size is not None, "Must specify for now"
 #src = SETTINGS['src_dir']
@@ -83,13 +87,17 @@ if 0:
 
             return image
 
-def patch_generator(im_filenames, size):
+def patch_generator(im_filenames, size, factor):
     """Yields a bunch of PIL Image objects of `size`, carved out image files found in the filenames `im_filenames`."""
     
     for fn in im_filenames:
         print ":", fn
         # One images at a time
-        im = Image.open(fn)
+        imarray = gv.img.load_image(fn)
+        imarray = gv.img.resize_with_factor_new(imarray, factor)
+
+        #im = Image.open(fn)
+        im = Image.fromarray((255*imarray).astype(np.uint8))
         im_size = im.size[::-1]
         cur_pos = (0, 0)
         while True:
@@ -140,7 +148,7 @@ def find_bounding_box(im):
     return tuple(bounding_box)
 
 #size = 
-gen = patch_generator(bg_filenames, crop_size)
+gen = patch_generator(bg_filenames, crop_size, factor)
 print "Going in..."
 #idcodes = []
 for i, fn in enumerate(fg_filenames):
@@ -174,7 +182,7 @@ for i, fn in enumerate(fg_filenames):
     
     #pos = ((size[0]-fg_im.size[0])//2, (size[1]-fg_im.size[1])//2)
     alpha_composite(fg_pil, dst_im, (0, 0))
-    fn = 'sup-{0}'.format(os.path.basename(fn))
+    fn = '{1}sup-{0}'.format(os.path.basename(fn), prefix)
     dst_im.save(os.path.join(dst, fn))
 
     #idcodes.append(idcode)

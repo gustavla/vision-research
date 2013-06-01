@@ -29,15 +29,13 @@ import numpy as np
 import scipy.integrate
 import skimage.data
 
-from config import VOCSETTINGS
-
 detector = gv.Detector.load(model_file)
 
 #dataset = ['val', 'train'][mini]
 #dataset = ['val', 'train'][mini]
 dataset = 'val'
 if contest == 'voc':
-    files, tot = gv.voc.load_files(VOCSETTINGS, obj_class, dataset=dataset)
+    files, tot = gv.voc.load_files(obj_class, dataset=dataset)
 elif contest == 'uiuc':
     files, tot = gv.uiuc.load_testing_files()
 elif contest == 'uiuc-multiscale':

@@ -22,6 +22,14 @@ def _filtered_resize_once(im, new_size, preserve_aspect_ratio=True, prefilter=Tr
     im2 = raw_resize(im2, factor)
     return im2
 
+def resize_with_factor_new(im, factor):
+    if factor < 1:
+        im2 = pyramid_reduce(im, downscale=1/factor)
+    elif factor > 1:
+        im2 = pyramid_expand(im, upscale=factor)
+    else:
+        im2 = im
+    return im2
 
 def resize_with_factor(im, factor, preserve_aspect_ratio=True, prefilter=True):
     new_size = [int(im.shape[i] * factor) for i in xrange(2)]
@@ -41,6 +49,8 @@ def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
         im2 = pyramid_reduce(im, downscale=1/f)
     elif f > 1:
         im2 = pyramid_expand(im, upscale=f)
+    else:
+        im2 = im
 
     assert im2.shape[:2] == tuple(new_size), "{0} != {1}".format(im2.shape, new_size)
      
@@ -144,4 +154,8 @@ def integrate(ii, r0, c0, r1, c1):
         S -= ii[r1, c0 - 1]
 
     return S
+
+def composite(fg_img, bg_img, alpha):
+    return fg_img * alpha + bg_img * (1 - alpha) 
+
 

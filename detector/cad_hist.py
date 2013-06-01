@@ -18,7 +18,6 @@ import sys
 import amitgroup as ag
 import glob
 import os
-from config import VOCSETTINGS
 
 ag.set_verbose(True)
 

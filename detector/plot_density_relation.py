@@ -16,13 +16,12 @@ factor = args.factor[0]
 
 import gv
 import matplotlib.pylab as plt
-from config import VOCSETTINGS
 import numpy as np
 
 # Load detector
 detector = gv.Detector.load(model_file)
 
-fileobj = gv.voc.load_training_file(VOCSETTINGS, 'bicycle', img_id)
+fileobj = gv.voc.load_file('bicycle', img_id)
 img = gv.img.load_image(fileobj.path)
 if factor is not None:
     img = gv.img.resize(img, factor)

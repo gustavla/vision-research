@@ -1,6 +1,5 @@
 from __future__ import print_function
 import gv
-from config import VOCSETTINGS
 import os.path
 import argparse
 
@@ -12,7 +11,7 @@ args = parser.parse_args()
 object_class = args.object
 listall = args.all
 
-fileobjs, tot = gv.voc.load_training_files(VOCSETTINGS, object_class, dataset='test')
+fileobjs, tot = gv.voc.load_files(object_class, dataset='test')
 
 print("<filename> <number of boxes> (<number of which are difficult>)")
 for f in fileobjs:

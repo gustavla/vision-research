@@ -7,7 +7,6 @@ import matplotlib.pylab as plt
 import amitgroup as ag
 import gv
 import numpy as np
-from config import VOCSETTINGS
 
 def main():
 
@@ -24,19 +23,19 @@ def main():
     # Load detector
     detector = gv.Detector.load(model_file)
 
-    llhs = calc_llhs(VOCSETTINGS, detector, not negatives, mixcomp)
+    llhs = calc_llhs(detector, not negatives, mixcomp)
 
     plt.hist(llhs, 10)
     plt.show()
 
-def calc_llhs(VOCSETTINGS, detector, positives, mixcomp):
+def calc_llhs(detector, positives, mixcomp):
     padding = 0 
     if not positives:
         np.random.seed(0)
-        originals, bbs = gv.voc.load_negative_images_of_size(VOCSETTINGS, 'bicycle', detector.kernel_size, count=50, padding=padding) 
+        originals, bbs = gv.voc.load_negative_images_of_size('bicycle', detector.kernel_size, count=50, padding=padding) 
     else:
         profiles = map(int, open('profiles.txt').readlines())
-        originals, bbs = gv.voc.load_object_images_of_size_from_list(VOCSETTINGS, 'bicycle', detector.unpooled_kernel_size, profiles, padding=padding) 
+        originals, bbs = gv.voc.load_object_images_of_size_from_list('bicycle', detector.unpooled_kernel_size, profiles, padding=padding) 
 
     print "NUMBER OF IMAGES", len(originals)
 
