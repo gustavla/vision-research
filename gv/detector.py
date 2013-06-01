@@ -306,7 +306,7 @@ class Detector(Saveable):
 
     @property
     def unpooled_kernel_size(self):
-        return (self.kernel_templates.shape[1], self.kernel_templates.shape[2])
+        return self.kernel_templates[0].shape[:2]
 
     @property
     def unpooled_kernel_side(self):
@@ -339,7 +339,7 @@ class Detector(Saveable):
         elif bkg_type == 'corner':
             assert not self.settings.get('train_unspread')
             if spread:
-                return self.kernel_templates[0,0,0]
+                return self.kernel_templates[0][0,0]
             else:
                 return None
 
@@ -372,12 +372,14 @@ class Detector(Saveable):
             return self.kernel_templates 
 
         if not self.use_basis:
-            kernels = self.kernel_templates.copy()
+            kernels = deepcopy(self.kernel_templates)
 
         eps = sett['min_probability']
         psize = sett['subsample_size']
 
         if self.train_unspread:
+            # TODO: This does not handle irregular-sized kernel_templates objects!
+
             radii = sett['spread_radii']
             #neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
 

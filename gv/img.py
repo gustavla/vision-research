@@ -49,6 +49,8 @@ def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
         im2 = pyramid_reduce(im, downscale=1/f)
     elif f > 1:
         im2 = pyramid_expand(im, upscale=f)
+    else:
+        im2 = im
 
     assert im2.shape[:2] == tuple(new_size), "{0} != {1}".format(im2.shape, new_size)
      
@@ -152,4 +154,8 @@ def integrate(ii, r0, c0, r1, c1):
         S -= ii[r1, c0 - 1]
 
     return S
+
+def composite(fg_img, bg_img, alpha):
+    return fg_img * alpha + bg_img * (1 - alpha) 
+
 

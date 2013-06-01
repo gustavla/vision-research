@@ -11,8 +11,6 @@ import os.path
 import random
 import glob
 
-from config import SETTINGS
-
 ag.set_verbose(True)
 
 base_path = ''
