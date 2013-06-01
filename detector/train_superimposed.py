@@ -8,7 +8,6 @@ import amitgroup as ag
 import gv
 import os
 import sys
-import ipdb
 from itertools import product, cycle
 from superimpose_experiment import generate_random_patches
 
