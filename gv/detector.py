@@ -448,13 +448,7 @@ class Detector(Saveable):
         TODO: Experimental changes under way!
         """
 
-        from skimage.transform import pyramid_reduce, pyramid_expand
-        if abs(factor-1) < 1e-8:
-            img_resized = img
-        elif factor > 1:
-            img_resized = pyramid_reduce(img, downscale=factor)
-        elif factor < 1:
-            img_resized = pyramid_expand(img, upscale=1/factor)
+        img_resized = gv.img.resize_with_factor_new(img, 1/factor) 
 
         last_resmap = None
 
