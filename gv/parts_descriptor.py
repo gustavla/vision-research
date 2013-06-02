@@ -249,14 +249,6 @@ class PartsDescriptor(BinaryDescriptor):
                 parts = partprobs[:,:-1]
                 partprobs = partprobs[:,:-1]
 
-        elif 'cut_border' in settings:
-            # Due to spreading, the area of influence can be greater
-            # than what we're cutting off. That's why it's good to have
-            # a cut_border property if you're training on real images.
-            cb = settings['cut_border']
-            parts = parts[cb:-cb, cb:-cb]
-            partprobs = partprobs[cb:-cb, cb:-cb]
-        
         sett = self.settings.copy()
         sett.update(settings)
 
@@ -269,6 +261,14 @@ class PartsDescriptor(BinaryDescriptor):
         #import pudb; pudb.set_trace()
         
         spread_parts = ag.features.spread_patches_new(partprobs.astype(np.float32), radii[0], radii[1], 0.0)
+
+        cb = sett.get('crop_border')
+        if cb:
+            # Due to spreading, the area of influence can be greater
+            # than what we're cutting off. That's why it's good to have
+            # a cut_border property if you're training on real images.
+            spread_parts = spread_parts[cb:-cb, cb:-cb]
+        
         return spread_parts 
         #else:
             # TODO: Maybe not this way.
