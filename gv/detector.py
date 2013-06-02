@@ -189,8 +189,8 @@ class Detector(Saveable):
         # Train mixture model OR SVM
         mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32)
 
-        minp = 1e-5
-        mixture.run_EM(1e-8, minp)
+        minp = 0.025
+        mixture.run_EM(1e-10, minp)
 
         #mixture.templates = np.empty(0)
 
@@ -297,11 +297,11 @@ class Detector(Saveable):
         return mixture, kernel_templates, support
 
     def extract_unspread_features(self, image, support_mask=None):
-        edges = self.descriptor.extract_features(image, dict(spread_radii=(0, 0)), support_mask=support_mask)
+        edges = self.descriptor.extract_features(image, dict(spread_radii=(0, 0), crop_border=self.settings.get('crop_border')), support_mask=support_mask)
         return edges
 
     def extract_spread_features(self, image):
-        edges = self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii']))
+        edges = self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], crop_border=self.settings.get('crop_border')))
         return edges 
 
     @property
@@ -434,10 +434,12 @@ class Detector(Saveable):
                 kernels = a * cad_kernels + C.sum(axis=-2) / self.kernel_basis_samples
                 
 
-        sub_kernels = np.clip(sub_kernels, eps, 1-eps)
+        for i in xrange(self.num_mixtures):
+            sub_kernels[i] = np.clip(sub_kernels[i], eps, 1-eps)
 
         K = self.settings.get('quantize_bins')
         if K is not None:
+            assert 0, "Does not work with different size kernels"
             sub_kernels = np.round(1 + sub_kernels * (K - 2)) / K
 
 
@@ -454,10 +456,11 @@ class Detector(Saveable):
 
         psize = self.settings['subsample_size']
         radii = self.settings['spread_radii']
+        cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
         spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=self.settings['spread_radii'], preserve_size=True))
-        unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), preserve_size=False))
+        unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), preserve_size=False, crop_border=cb))
 
         # TODO: Avoid the edge for the background model
         spread_bkg = self.bkg_model(spread_feats, spread=True)
@@ -677,8 +680,9 @@ class Detector(Saveable):
         # Get background level
         resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
 
+        kern = sub_kernels[mixcomp]
         # TODO: Remove edges
-        sh = sub_kernels.shape[1:3]
+        sh = kern.shape[0:2]
 
         th = -np.inf
         top_th = 200.0
@@ -691,8 +695,8 @@ class Detector(Saveable):
             for j in xrange(resmap.shape[1]):
                 score = resmap[i,j]
                 if score >= th:
-                    i_corner = i-sub_kernels.shape[1]//2
-                    j_corner = j-sub_kernels.shape[2]//2
+                    i_corner = i-sh[0]//2
+                    j_corner = j-sh[1]//2
 
                     obj_bb = self.boundingboxes[mixcomp]
                     bb = [(i_corner + obj_bb[0]) * agg_factors[0],
@@ -721,11 +725,11 @@ class Detector(Saveable):
         return bbs_sorted, resmap
 
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0):
-        sh = sub_kernels.shape
-        padding = (sh[1]//2, sh[2]//2, 0)
-        bigger = ag.util.zeropad(sub_feats, padding)
-        
         kern = sub_kernels[mixcomp]
+
+        sh = kern.shape
+        padding = (sh[0]//2, sh[1]//2, 0)
+        bigger = ag.util.zeropad(sub_feats, padding)
 
         # Since the kernel is spread, we need to convert the background
         # model to spread
@@ -745,8 +749,9 @@ class Detector(Saveable):
         #print 'mixcomp', mixcomp
         from .fast import multifeature_correlate2d
         #print bigger.shape, weights.shape
-        index = 26 
-        res = multifeature_correlate2d(bigger[...,index:index+1], weights[...,index:index+1].astype(np.float64)) 
+        #index = 26 
+        #res = multifeature_correlate2d(bigger[...,index:index+1], weights[...,index:index+1].astype(np.float64)) 
+        res = multifeature_correlate2d(bigger, weights.astype(np.float64))
 
         # Standardization
         testing_type = self.settings.get('testing_type', 'object-model')
@@ -900,8 +905,10 @@ class Detector(Saveable):
         d['support'] = self.support
         d['settings'] = self.settings
 
-        if self.fixed_bkg is not None and self.fixed_spread_bkg is not None:
+        if self.fixed_bkg is not None:
             d['fixed_bkg'] = self.fixed_bkg
+
+        if self.fixed_spread_bkg is not None:
             d['fixed_spread_bkg'] = self.fixed_spread_bkg 
 
         if self.settings['testing_type'] == 'fixed':
