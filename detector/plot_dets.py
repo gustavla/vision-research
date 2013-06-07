@@ -23,7 +23,8 @@ data = np.load(results_file)
 detections = data['detections']
 mixcomps = detections['mixcomp'].max() + 1
 
-bins = np.arange(0.0, 0.2, 0.01)
+#bins = np.arange(0.0, 0.2, 0.01)
+bins = np.arange(-3, 8, 0.25)
 
 tps_fps = np.zeros((mixcomps, 2))
 
@@ -39,8 +40,12 @@ for mixcomp in xrange(mixcomps):
 
     ax = plt.subplot(gs[mixcomps-1-mixcomp,:5])
     #plt.subplot(gs[2*mixcomp])
-    plt.hist(mydets[mydets['correct'] == 0]['confidence'], label='FP', bins=bins, alpha=0.5, normed=True)
-    plt.hist(mydets[mydets['correct'] == 1]['confidence'], label='TP', bins=bins, alpha=0.5, normed=True)
+    plt.hist(mydets[mydets['correct'] == 0]['confidence'], label='FP', bins=bins, alpha=0.5, normed=False)
+    print(mixcomp, "mean:", np.mean(mydets[mydets['correct'] == 0]['confidence']))
+    #if len(mydets[mydets['correct'] == 1]):
+    #    plt.hist(mydets[mydets['correct'] == 1]['confidence'], label='TP', bins=bins, alpha=0.5, normed=True)
+    #plt.ylim((0, 0.5))
+    plt.ylim((0, 25))
 
     if mixcomp == 0:
         plt.xlabel('Confidence (llh)')
