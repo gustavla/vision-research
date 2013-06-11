@@ -371,7 +371,7 @@ class Detector(Saveable):
     def prepare_kernels(self, unspread_bkg, settings={}):
         sett = self.settings.copy()
         sett.update(settings) 
-        if sett.get('kernels_ready'):
+        if sett.get('kernel_ready'):
             return self.kernel_templates 
 
         if not self.use_basis:
@@ -593,7 +593,7 @@ class Detector(Saveable):
 
             bbs = []
             for i, factor in enumerate(factors):
-                print 'factor', factor
+                #print 'factor', factor
                 for mixcomp in mixcomps:
                     bbs0, resmap, feats, img_resized = self.detect_coarse_single_factor(img, factor, mixcomp, img_id=fileobj.img_id)
                     bbs += bbs0

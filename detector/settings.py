@@ -14,7 +14,10 @@ def load_settings(fp):
             if match is not None:
                 d[section][k] = d[match.group(1)]
             else:
-                d[section][k] = eval(v)
+                ev = eval(v)
+                if isinstance(ev, str):
+                    ev = os.path.expandvars(ev)
+                d[section][k] = ev
     return d
 
 def argparse_settings(description):
