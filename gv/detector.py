@@ -462,7 +462,7 @@ class Detector(Saveable):
         cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
-        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=self.settings['spread_radii'], preserve_size=True))
+        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, preserve_size=True))
         unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), preserve_size=False, crop_border=cb))
 
         # TODO: Avoid the edge for the background model

@@ -20,7 +20,7 @@ class DetectionBB(object):
         self.plusscore = plusscore
 
     def __repr__(self):
-        return "DetectionBB(score={0:.2f}, box={1}, correct={2}, confidence={3:.2f}, mixcomp={4})".format(self.score, _repr(self.box), self.correct, self.confidence, self.mixcomp)
+        return "DetectionBB(score={0:.2f}, box={1}, correct={2}, confidence={3:.2f}, mixcomp={4}, scale={5})".format(self.score, _repr(self.box), self.correct, self.confidence, self.mixcomp, self.scale)
 
     def __cmp__(self, b):
         return cmp(self.score, b.score)

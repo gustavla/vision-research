@@ -40,12 +40,12 @@ for mixcomp in xrange(mixcomps):
 
     ax = plt.subplot(gs[mixcomps-1-mixcomp,:5])
     #plt.subplot(gs[2*mixcomp])
-    plt.hist(mydets[mydets['correct'] == 0]['confidence'], label='FP', bins=bins, alpha=0.5, normed=False)
+    plt.hist(mydets[mydets['correct'] == 0]['confidence'], label='FP', bins=bins, alpha=0.5, normed=True)
     print(mixcomp, "mean:", np.mean(mydets[mydets['correct'] == 0]['confidence']))
-    #if len(mydets[mydets['correct'] == 1]):
-    #    plt.hist(mydets[mydets['correct'] == 1]['confidence'], label='TP', bins=bins, alpha=0.5, normed=True)
-    #plt.ylim((0, 0.5))
-    plt.ylim((0, 25))
+    if len(mydets[mydets['correct'] == 1]):
+        plt.hist(mydets[mydets['correct'] == 1]['confidence'], label='TP', bins=bins, alpha=0.5, normed=True)
+    plt.ylim((0, 0.5))
+    #plt.ylim((0, 25))
 
     if mixcomp == 0:
         plt.xlabel('Confidence (llh)')
