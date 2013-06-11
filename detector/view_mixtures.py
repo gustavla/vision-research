@@ -29,6 +29,6 @@ else:
 
 #import pdb; pdb.set_trace()
 
-#cag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}: max: {1:.02} (w: {2:.02})".format(i, im.max(), detector.mixture.weights[i]))
+ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}: max: {1:.02} (w: {2:.02})".format(i, im.max(), detector.mixture.weights[i]))
 #ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}: max: {1:.02} (w: {2:.02})".format(i, im.max(), 1.0))
-ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "")
+#ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "")
