@@ -15,12 +15,13 @@ def generate_random_patches(filenames, size, seed=0, per_image=1):
     randgen = np.random.RandomState(seed)
     failures = 0
     for fn in cycle(filenames):
-        img = gv.img.resize_with_factor_new(gv.img.asgray(gv.img.load_image(fn)), randgen.uniform(0.5, 1.0))
+        #img = gv.img.resize_with_factor_new(gv.img.asgray(gv.img.load_image(fn)), randgen.uniform(0.5, 1.0))
+        img = gv.img.asgray(gv.img.load_image(fn))
 
         for l in xrange(per_image):
             # Random position
-            x_to = img.shape[0]-size[0]-1
-            y_to = img.shape[1]-size[1]-1
+            x_to = img.shape[0]-size[0]+1
+            y_to = img.shape[1]-size[1]+1
 
             if x_to >= 1 and y_to >= 1:
                 x = randgen.randint(x_to) 
@@ -34,9 +35,37 @@ def generate_random_patches(filenames, size, seed=0, per_image=1):
             if failures >= 30:
                 return
 
+def fetch_bkg_model(settings, neg_files):
+    randgen = np.random.RandomState(0)
+
+    size = settings['detector']['image_size']
+    descriptor = gv.load_descriptor(settings)
+
+    radii = settings['detector']['spread_radii']
+    psize = settings['detector']['subsample_size']
+    cb = settings['detector'].get('crop_border')
+
+    counts = np.zeros(descriptor.num_features)
+    tot = 0
+
+    for fn in neg_files[:200]:
+        ag.info('Processing {0} for background model extraction'.format(fn))
+
+        im = gv.img.resize_with_factor_new(gv.img.asgray(gv.img.load_image(fn)), randgen.uniform(0.5, 1.0))
+
+        feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, crop_border=cb))
+        subfeats = gv.sub.subsample(feats, psize)
+        x = np.rollaxis(subfeats, 2).reshape((descriptor.num_features, -1))
+    
+        tot += x.shape[1]
+        counts += x.sum(axis=1)
+        
+    return counts / tot 
+    
+
 def _create_kernel_for_mixcomp(mixcomp, settings, indices, files, neg_files):
     size = settings['detector']['image_size']
-
+    
     gen = generate_random_patches(neg_files, size, seed=mixcomp)
     descriptor = gv.load_descriptor(settings)
 
@@ -56,7 +85,10 @@ def _create_kernel_for_mixcomp(mixcomp, settings, indices, files, neg_files):
 
         for dup in xrange(duplicates):
             neg_im = gen.next()
-            superimposed_im = neg_im * (1 - alpha) + gray_im 
+            # TODO: we shouldn't do *alpha right, since it's already premultiplied?
+            superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
+
+            gv.img.save_image(superimposed_im, 'foutput/img-{0}.png'.format(np.random.randint(10000)))
 
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, crop_border=cb))
             feats = gv.sub.subsample(feats, psize)
@@ -109,7 +141,7 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, kern, bkg, indices, fil
 
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, crop_border=cb))
             feats = gv.sub.subsample(feats, psize)
-        
+
             llh = (weights * feats).sum()
             llhs.append(llh)
 
@@ -178,7 +210,8 @@ def superimposed_model(settings, threading=True):
     ag.info("Determining background")
     #spread_bkg = np.mean([kern[:2].reshape((-1, kern.shape[-1])).mean(axis=0) for kern in kernels], axis=0)
     #spread_bkg = np.mean([kern.reshape((-1, kern.shape[-1])).mean(axis=0) for kern in kernels], axis=0)
-    spread_bkg = kernels[0][1].mean(axis=0)
+    #spread_bkg = kernels[0][1].mean(axis=0)
+    spread_bkg = fetch_bkg_model(settings, neg_files)
 
     print 'spread_bkg shape:', spread_bkg.shape
     detector.fixed_bkg = None # Not needed, since kernel_ready is True
@@ -189,12 +222,14 @@ def superimposed_model(settings, threading=True):
     ag.info("Determining standardization values")
 
     detector.fixed_train_mean = np.zeros(detector.num_mixtures)
-    detector.fixed_train_std = np.zeros(detector.num_mixtures)
+    detector.fixed_train_std = np.ones(detector.num_mixtures)
     
-    argses = [(i, settings, kernels[i], spread_bkg, list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
-    for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
-        detector.fixed_train_mean[i] = mean
-        detector.fixed_train_std[i] = std
+    print "TEMP: SKIPPING STANDARDIZATION"
+    if 0:
+        argses = [(i, settings, kernels[i], spread_bkg, list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
+        for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
+            detector.fixed_train_mean[i] = mean
+            detector.fixed_train_std[i] = std
 
     detector.settings['testing_type'] = 'fixed'
 
