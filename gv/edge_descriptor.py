@@ -17,6 +17,10 @@ class EdgeDescriptor(BinaryDescriptor):
         #return ag.features.bedges_from_image(img, **self.settings)
         sett = self.settings.copy()
         sett.update(settings)
+        if 'spread_radii' in sett:
+            del sett['spread_radii']
+        if 'crop_border' in sett:
+            del sett['crop_border']
         return ag.features.bedges(img, **sett)
 
     @property

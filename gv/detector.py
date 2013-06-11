@@ -186,10 +186,13 @@ class Detector(Saveable):
         else:
             output = np.asmatrix(output)
 
-        # Train mixture model OR SVM
-        mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32)
 
-        minp = 0.025
+        seed = self.settings.get('init_seed', 0)
+
+        # Train mixture model OR SVM
+        mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32, init_seed=seed)
+
+        minp = 0.05
         mixture.run_EM(1e-10, minp)
 
         #mixture.templates = np.empty(0)
@@ -401,29 +404,28 @@ class Detector(Saveable):
             #unspread_bkg = 1 - (1 - bkg)**50
             unspread_bkg = np.clip(unspread_bkg, 1e-5, 1-1e-5)
         
-            aa_log = np.log(1 - kernels)
-            aa_log = ag.util.multipad(aa_log, (0, radii[0], radii[1], 0), np.log(1-unspread_bkg))
+            aa_log = [ag.util.multipad(np.log(1 - kernel), (radii[0], radii[1], 0), np.log(1-unspread_bkg)) for kernel in kernels]
 
-            integral_aa_log = aa_log.cumsum(1).cumsum(2)
+            integral_aa_log = [aa_log_i.cumsum(1).cumsum(2) for aa_log_i in aa_log]
 
             offsets = gv.sub.subsample_offset(kernels[0], psize)
 
             # Fix kernels
             istep = 2*radii[0]
             jstep = 2*radii[1]
-            sh = kernels.shape[1:3]
             for mixcomp in xrange(self.num_mixtures):
+                sh = kernels[mixcomp].shape[:2]
                 # Note, we are going in strides of psize, given a certain offset, since
                 # we will be subsampling anyway, so we don't need to do the rest.
                 for i in xrange(offsets[0], sh[0], psize[0]):
                     for j in xrange(offsets[1], sh[1], psize[1]):
                         p = gv.img.integrate(integral_aa_log[mixcomp], i, j, i+istep, j+jstep)
-                        kernels[mixcomp,i,j] = 1 - np.exp(p)
+                        kernels[mixcomp][i,j] = 1 - np.exp(p)
 
             
 
             # Subsample kernels
-            sub_kernels = gv.sub.subsample(kernels, psize, skip_first_axis=True)
+            sub_kernels = [gv.sub.subsample(kernel, psize) for kernel in kernels]
         else:
             sub_kernels = kernels
 
@@ -449,8 +451,9 @@ class Detector(Saveable):
         """
         TODO: Experimental changes under way!
         """
+        
 
-        img_resized = gv.img.resize_with_factor_new(img, 1/factor) 
+        img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
         last_resmap = None
 
@@ -780,6 +783,7 @@ class Detector(Saveable):
         bbs_sorted = sorted(bbs, reverse=True)
 
         overlap_threshold = self.settings.get('overlap_threshold', 0.5)
+        #print "TEMP TEMP TEMP TEMP!!!"
 
         # Suppress within a radius of H neighboring scale factors
         sf = self.settings['scale_factor']
@@ -790,10 +794,13 @@ class Detector(Saveable):
             # TODO: This can be vastly improved performance-wise
             area_i = gv.bb.area(bbs_sorted[i].box)
             for j in xrange(i):
+                # VERY TEMPORARY: This avoids suppression between classes
+                #if bbs_sorted[i].mixcomp != bbs_sorted[j].mixcomp:
+                #    continue
+        
                 overlap = gv.bb.area(gv.bb.intersection(bbs_sorted[i].box, bbs_sorted[j].box))/area_i
                 scale_diff = (bbs_sorted[i].scale / bbs_sorted[j].scale)
-                if overlap > overlap_threshold and \
-                   lo <= scale_diff <= hi: 
+                if overlap > overlap_threshold and lo <= scale_diff <= hi: 
                     del bbs_sorted[i]
                     i -= 1
                     break
