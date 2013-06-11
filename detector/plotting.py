@@ -22,6 +22,7 @@ def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_r
         bb = dbb.box
         color = 'cyan' if dbb.correct else 'red'
         plt.gca().add_patch(plt.Rectangle((bb[1], bb[0]), bb[3]-bb[1], bb[2]-bb[0], facecolor='none', edgecolor=color, linewidth=2.0))
+        plt.text(bb[1], bb[0], "{0:.2f}".format(dbb.confidence), color='white', backgroundcolor=color, size=8, ha='left', va='bottom')
 
     if x is not None:
         plt.subplot(122)
