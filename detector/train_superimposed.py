@@ -65,6 +65,7 @@ def fetch_bkg_model(settings, neg_files):
 
 def _create_kernel_for_mixcomp(mixcomp, settings, indices, files, neg_files):
     size = settings['detector']['image_size']
+    orig_size = size
     
     gen = generate_random_patches(neg_files, size, seed=mixcomp)
     descriptor = gv.load_descriptor(settings)
@@ -104,7 +105,7 @@ def _create_kernel_for_mixcomp(mixcomp, settings, indices, files, neg_files):
     kern = np.clip(kern, eps, 1-eps)
 
     #kernels.append(kern)
-    return kern
+    return kern, orig_size
 
 def _create_kernel_for_mixcomp_star(args):
     return _create_kernel_for_mixcomp(*args)
@@ -198,10 +199,13 @@ def superimposed_model(settings, threading=True):
     argses = [(i, settings, list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)] 
     #argses = [(i,) for i in xrange(detector.num_mixtures)] 
     kernels = []
-    for kern in imapf(_create_kernel_for_mixcomp_star, argses):
+    orig_sizes = []
+    for kern, orig_size in imapf(_create_kernel_for_mixcomp_star, argses):
         kernels.append(kern)
+        orig_sizes.append(orig_size)
 
     detector.kernel_templates = kernels
+    detector.kernel_sizes = orig_sizes
     detector.settings['kernel_ready'] = True
     detector.use_alpha = False
     detector.support = support

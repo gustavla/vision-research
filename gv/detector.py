@@ -39,6 +39,7 @@ class Detector(Saveable):
         self.kernel_basis = None
         self.kernel_basis_samples = None
         self.kernel_templates = None
+        self.kernel_sizes = None
         self.support = None
         self.fixed_bkg = None
         self.fixed_spread_bkg = None
@@ -109,10 +110,11 @@ class Detector(Saveable):
     def train_from_images(self, images):
         self.orig_kernel_size = None
 
-        mixture, kernel_templates, support = self._train(images)
+        mixture, kernel_templates, kernel_sizes, support = self._train(images)
 
         self.mixture = mixture
         self.kernel_templates = kernel_templates
+        self.kernel_sizes = kernel_sizes
         self.support = support
             
         self._preprocess()
@@ -202,6 +204,8 @@ class Detector(Saveable):
         # so that we can remix without having to ever keep all mixing data in memory at once
 
         kernel_templates = np.clip(mixture.templates.reshape((self.num_mixtures,) + shape), 1e-5, 1-1e-5)
+        kernel_sizes = [self.settings['image_size']] * self.num_mixtures
+
         #support = None
         if self.use_alpha:
             support = mixture.remix(alpha_maps).astype(np.float32) 
@@ -297,7 +301,7 @@ class Detector(Saveable):
                 self.fixed_train_mean[i] = lrt.mean()
                 self.fixed_train_std[i] = lrt.std()
     
-        return mixture, kernel_templates, support
+        return mixture, kernel_templates, kernel_sizes, support
 
     def extract_unspread_features(self, image, support_mask=None):
         edges = self.descriptor.extract_features(image, dict(spread_radii=(0, 0), crop_border=self.settings.get('crop_border')), support_mask=support_mask)
@@ -684,14 +688,17 @@ class Detector(Saveable):
         resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
 
         kern = sub_kernels[mixcomp]
-        # TODO: Remove edges
-        sh = kern.shape[0:2]
+
+        # Get size of original kernel (but downsampled)
+        full_sh = self.kernel_sizes[mixcomp]
+        psize = self.settings['subsample_size']
+        sh = (full_sh[0]//psize[0], full_sh[1]//psize[1])
+        print 'sh', sh
 
         th = -np.inf
         top_th = 200.0
         bbs = []
 
-        psize = self.settings['subsample_size']
         agg_factors = tuple([psize[i] * factor for i in xrange(2)])
         bb_bigger = (0.0, 0.0, sub_feats.shape[0] * agg_factors[0], sub_feats.shape[1] * agg_factors[1])
         for i in xrange(resmap.shape[0]):
@@ -882,6 +889,7 @@ class Detector(Saveable):
             obj.kernel_basis = d.get('kernel_basis')
             obj.kernel_basis_samples = d.get('kernel_basis_samples')
             obj.kernel_templates = d.get('kernel_templates')
+            obj.kernel_sizes = d.get('kernel_sizes')
             obj.use_alpha = d['use_alpha']
             obj.support = d.get('support')
 
@@ -908,6 +916,7 @@ class Detector(Saveable):
         d['kernel_templates'] = self.kernel_templates
         d['kernel_basis'] = self.kernel_basis
         d['kernel_basis_samples'] = self.kernel_basis_samples
+        d['kernel_sizes'] = self.kernel_sizes
         d['use_alpha'] = self.use_alpha
         d['support'] = self.support
         d['settings'] = self.settings
