@@ -68,7 +68,16 @@ def load_specific_files(class_name, img_ids, has_objects=None, padding=0):
 
     return files, tot
 
+_VOC_PROFILES = [153, 220, 263, 317, 522, 871, 1060, 1119, 1662, 2182, 3790, 3936]
+_VOC_EASY_NONPROFILES = [26, 1237, 1334, 1488, 1494, 1576, 2153, 2178, 2247, 2534]
+
 def load_files(class_name, dataset='train'):
+    if dataset == 'profile':
+        return load_specific_files(class_name, _VOC_PROFILES)
+    elif dataset == 'easy':
+        return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPRIFLES)
+
+
     path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))
 
     f = np.genfromtxt(path, dtype=int) 
