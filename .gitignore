@@ -7,7 +7,7 @@
 detector/config.py
 *.c
 *.so
-.*.sw[o]
+.*.sw[pon]
 *~.skp
 *.ini
 *.aux
@@ -41,3 +41,5 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+
+detector/img/*

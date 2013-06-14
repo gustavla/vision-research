@@ -485,20 +485,20 @@ class Detector(Saveable):
 
         return final_bbs, resmap, feats, img_resized
 
-    def calc_score(self, img, bbobj, score=0):
+    def calc_score(self, img, factor, bbobj, score=0):
         llhs = score
     
         i0, j0 = bbobj.score0, bbobj.score1
 
         # TODO: Temporary
-        img_resized = img
+        img_resized = gv.img.resize_with_factor_new(img, factor)
         factor = 1.
         mixcomp = 0
 
         psize = self.settings['subsample_size']
         radii = self.settings['spread_radii']
 
-        up_feats = self.extact_spread_features(img_resized)
+        up_feats = self.extract_spread_features(img_resized)
 
         # Last psize
         d0, d1 = (14, 44) 
@@ -658,7 +658,7 @@ class Detector(Saveable):
 
         ag.info("Extract background model")
         unspread_bkg_pyramid = map(self.bkg_model, unspread_edge_pyramid)
-        spread_bkg_pyramid = map(self.bkg_model, spread_edge_pyramid)
+        spread_bkg_pyramid = map(lambda p: self.bkg_model(p, spread=True), spread_edge_pyramid)
 
         ag.info("Subsample")
         small_pyramid = map(self.subsample, edge_pyramid) 
