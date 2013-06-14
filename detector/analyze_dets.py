@@ -55,7 +55,7 @@ for i, det in enumerate(detections[:3]):
 
     im = gv.img.load_image(fileobj.path) 
     im = gv.img.asgray(im)
-    #im = gv.img.resize_with_factor_new(im, 1/det['scale'])
+    im = gv.img.resize_with_factor_new(im, 1/det['scale'])
 
     kern = kernels[k]
 
@@ -69,31 +69,24 @@ for i, det in enumerate(detections[:3]):
 
     feats = ag.util.zeropad(feats, (pad, pad, 0))
 
-    from itertools import product
-    for dx, dy in product(xrange(0, 1), xrange(0, 1)):
-        i0, j0 = det['index_pos0'], det['index_pos1'] 
-        i0 += dx
-        j0 += dy
-        pad = max(-min(0, i0), -min(0, j0), max(0, i0+d0 - feats.shape[0]), min(0, j0+d1 - feats.shape[1]))
+    i0, j0 = det['index_pos0'], det['index_pos1'] 
+    pad = max(-min(0, i0), -min(0, j0), max(0, i0+d0 - feats.shape[0]), min(0, j0+d1 - feats.shape[1]))
 
-        feats = ag.util.zeropad(feats, (pad, pad, 0))
+    feats = ag.util.zeropad(feats, (pad, pad, 0))
 
-        print 'mins', kern.min(), bkg.min()
-        weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+    print 'mins', kern.min(), bkg.min()
+    weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
 
-        #X = feats_pad[pad+i0-d0//2:pad+i0-d0//2+d0, pad+j0-d1//2:pad+j0-d1//2+d1]
-        X = feats[pad+i0:pad+i0+d0, pad+j0:pad+j0+d1]
+    #X = feats_pad[pad+i0-d0//2:pad+i0-d0//2+d0, pad+j0-d1//2:pad+j0-d1//2+d1]
+    X = feats[pad+i0:pad+i0+d0, pad+j0:pad+j0+d1]
 
-        import pdb; pdb.set_trace()
-
-        R = (X * weights).sum()
-        Rst = (R - detector.fixed_train_mean[k]) / detector.fixed_train_std[k]
-        
-        # Replace bounding boxes with this single one
-        fileobj.boxes[:] = [bbobj]
-        
-        fn = 'det-{0}.png'.format(i)
-        print dx, dy
-        print '{0}: {1:.2f}'.format(fn, Rst)
-        print 'scale', np.log(det['scale'])/np.log(2)
-        print i0, j0
+    R = (X * weights).sum()
+    Rst = (R - detector.fixed_train_mean[k]) / detector.fixed_train_std[k]
+    
+    # Replace bounding boxes with this single one
+    fileobj.boxes[:] = [bbobj]
+    
+    fn = 'det-{0}.png'.format(i)
+    print '{0}: {1:.2f}'.format(fn, Rst)
+    #print 'scale', np.log(det['scale'])/np.log(2)
+    #print i0, j0
