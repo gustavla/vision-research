@@ -6,7 +6,7 @@ def _repr(tup):
     return "("+(", ".join(["{"+str(i)+":0.1f}" for i in xrange(4)])).format(*tup)+")"
 
 class DetectionBB(object):
-    def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, truncated=False, scale=0, mixcomp=None, plusscore=0.0, score0=0.0, score1=0.0):
+    def __init__(self, box, score=0.0, confidence=0.5, correct=None, difficult=False, truncated=False, scale=0, mixcomp=None, plusscore=0.0, score0=0.0, score1=0.0):
         self.score = score
         self.score0 = score0
         self.score1 = score1

@@ -67,6 +67,7 @@ if side is not None:
     factor = side/max(detector.orig_kernel_size)
     print(factor)
     bbs, x, feats, img_resized = detector.detect_coarse_single_factor(grayscale_img, factor, mixcomp)
+    detector.label_corrects(bbs, fileobj)
     #bbs = detector.nonmaximal_suppression(bbs)
 
     #print('small', small.shape)
@@ -86,6 +87,7 @@ else:
         #sys.exit(0)
     else:
         bbs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp]) 
+        
 
     if bb_limit is not None:
         bbs = bbs[:bb_limit]

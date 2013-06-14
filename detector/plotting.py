@@ -1,6 +1,36 @@
-
+from __future__ import division
+import gv
 import numpy as np
 import matplotlib.pylab as plt
+
+def plot_image(fileobj, filename=None, show_corrects=False):
+    img = gv.img.load_image(fileobj.path)
+
+    plt.clf()
+    plt.imshow(img)
+
+    for bbobj in fileobj.boxes:
+        bb = bbobj.box
+        if show_corrects:
+            if bbobj.correct:
+                color = 'lightgreen'
+            else:
+                color = 'red' 
+        else:
+            if bbobj.difficult:
+                color = 'red'
+            else:
+                color = 'lightgreen'
+        plt.gca().add_patch(plt.Rectangle((bb[1], bb[0]), bb[3]-bb[1], bb[2]-bb[0], facecolor='none', edgecolor=color, linewidth=2.0))
+        plt.text(bb[1], bb[0], "{0:.2f}".format(bbobj.confidence), color='white', size=6, ha='left', va='bottom')
+        #plt.gca().add_patch(plt.Rectangle((bb[0], bb[1]), bb[2]-bb[0], bb[3]-bb[1], facecolor='none', edgecolor='lightgreen', linewidth=2.0))
+    plt.title("img_id = {0}".format(fileobj.img_id))
+
+    if filename is not None:
+        plt.savefig(filename)
+    else:
+        plt.show()
+
 
 def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_resized=None):
     # Get max peak
