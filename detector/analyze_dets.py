@@ -4,12 +4,14 @@ import argparse
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
 parser.add_argument('results', metavar='<file>', nargs=1, type=argparse.FileType('rb'), help='Filename of results file')
+parser.add_argument('--limit', nargs=1, type=int, default=[None])
 #parser.add_argument('output_dir', metavar='<output folder>', nargs=1, type=str, help="Output path")
 #parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
 
 args = parser.parse_args()
 model_file = args.model
 results_file = args.results[0]
+limit = args.limit[0]
 #output_dir = args.output_dir[0]
 #img_id = args.img_id
 
@@ -45,7 +47,7 @@ bkg = detector.bkg_model(None, spread=True)
 eps = detector.settings['min_probability']
 bkg = np.clip(bkg, eps, 1 - eps)
 
-for i, det in enumerate(detections[:3]):
+for i, det in enumerate(detections[:limit]):
     bb = (det['top'], det['left'], det['bottom'], det['right'])
     k = det['mixcomp']
     bbobj = gv.bb.DetectionBB(bb, score=det['confidence'], confidence=det['confidence'], mixcomp=k, correct=det['correct'])
@@ -74,7 +76,6 @@ for i, det in enumerate(detections[:3]):
 
     feats = ag.util.zeropad(feats, (pad, pad, 0))
 
-    print 'mins', kern.min(), bkg.min()
     weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
 
     #X = feats_pad[pad+i0-d0//2:pad+i0-d0//2+d0, pad+j0-d1//2:pad+j0-d1//2+d1]
