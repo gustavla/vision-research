@@ -116,7 +116,7 @@ if 1:
     plt.savefig('detvis.png')
     
     
-detections = np.array(detections, dtype=[('confidence', float), ('cale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int)])
+detections = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int)])
 detections.sort(order='confidence')
 
 p, r = gv.rescalc.calc_precision_recall(detections, tot_tp_fn)
