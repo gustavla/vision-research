@@ -63,8 +63,9 @@ def fetch_bkg_model(settings, neg_files):
     return counts / tot 
     
 
-def _create_kernel_for_mixcomp(mixcomp, settings, indices, files, neg_files):
-    size = settings['detector']['image_size']
+def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files):
+    im_size = settings['detector']['image_size']
+    size = gv.bb.size(bb)
     orig_size = size
     
     gen = generate_random_patches(neg_files, size, seed=mixcomp)
@@ -79,14 +80,21 @@ def _create_kernel_for_mixcomp(mixcomp, settings, indices, files, neg_files):
     kern = None
     total = 0
 
+    alpha_cum = None
+
     for index in indices: 
         ag.info("Processing image of index {0} and mixture component {1}".format(index, mixcomp))
-        im = gv.img.resize(gv.img.load_image(files[index]), size)
-        gray_im, alpha = gv.img.asgray(im), im[...,3] 
+        gray_im, alpha = _load_cad_image(files[index], im_size, bb)
+
+        bin_alpha = alpha > 0.05
+
+        if alpha_cum is None:
+            alpha_cum = bin_alpha.astype(np.uint32)
+        else:
+            alpha_cum += bin_alpha 
 
         for dup in xrange(duplicates):
             neg_im = gen.next()
-            # TODO: we shouldn't do *alpha right, since it's already premultiplied?
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
 
             gv.img.save_image(superimposed_im, 'foutput/img-{0}.png'.format(np.random.randint(10000)))
@@ -104,14 +112,24 @@ def _create_kernel_for_mixcomp(mixcomp, settings, indices, files, neg_files):
     kern = kern.astype(np.float64) / total 
     kern = np.clip(kern, eps, 1-eps)
 
+    support = alpha_cum.astype(np.float64) / len(indices)
+
     #kernels.append(kern)
-    return kern, orig_size
+    return kern, orig_size, support 
 
 def _create_kernel_for_mixcomp_star(args):
     return _create_kernel_for_mixcomp(*args)
+
+def _load_cad_image(fn, im_size, bb):
+    im = gv.img.load_image(fn)
+    im = gv.img.resize(im, im_size)
+    im = gv.img.crop_to_bounding_box(im, bb)
+    gray_im, alpha = gv.img.asgray(im), im[...,3] 
+    return gray_im, alpha
         
-def _calc_standardization_for_mixcomp(mixcomp, settings, kern, bkg, indices, files, neg_files):
-    size = settings['detector']['image_size']
+def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices, files, neg_files):
+    im_size = settings['detector']['image_size']
+    size = gv.bb.size(bb)
 
     # Use the same seed for all mixture components! That will make them easier to compare,
     # without having to sample to infinity.
@@ -132,12 +150,10 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, kern, bkg, indices, fil
 
     for index in indices: 
         ag.info("Standardizing image of index {0} and mixture component {1}".format(index, mixcomp))
-        im = gv.img.resize(gv.img.load_image(files[index]), size)
-        gray_im, alpha = gv.img.asgray(im), im[...,3] 
-
+        gray_im, alpha = _load_cad_image(files[index], im_size, bb)
         for dup in xrange(duplicates):
             neg_im = gen.next()
-            #superimposed_im = neg_im * (1 - alpha) + gray_im 
+            #superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
             superimposed_im = neg_im
 
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, crop_border=cb))
@@ -185,6 +201,24 @@ def superimposed_model(settings, threading=True):
     #print "TODO, quitting"
     #return detector
 
+    psize = settings['detector']['subsample_size']
+
+    def get_full_size_bb(k):
+        bb = detector.bounding_box_for_mix_comp(k)
+        return tuple(bb[i] * psize[i%2] for i in xrange(4))
+
+    def iround(x):
+        return int(round(x))
+
+    def make_bb(bb, max_bb):
+        # First, make it integral
+        bb = (iround(bb[0]), iround(bb[1]), iround(bb[2]), iround(bb[3]))
+        bb = gv.bb.inflate(bb, 2)
+        bb = gv.bb.intersection(bb, max_bb)
+        return bb
+
+    max_bb = (0, 0) + detector.settings['image_size']
+    bbs = [make_bb(get_full_size_bb(k), max_bb) for k in xrange(detector.num_mixtures)]
 
     #for mixcomp in xrange(num_mixtures):
     
@@ -196,19 +230,21 @@ def superimposed_model(settings, threading=True):
     else:
         from itertools import imap as imapf
     
-    argses = [(i, settings, list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)] 
+    argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)] 
     #argses = [(i,) for i in xrange(detector.num_mixtures)] 
     kernels = []
     orig_sizes = []
-    for kern, orig_size in imapf(_create_kernel_for_mixcomp_star, argses):
+    new_support = []
+    for kern, orig_size, sup in imapf(_create_kernel_for_mixcomp_star, argses):
         kernels.append(kern)
         orig_sizes.append(orig_size)
+        new_support.append(sup)
 
     detector.kernel_templates = kernels
     detector.kernel_sizes = orig_sizes
     detector.settings['kernel_ready'] = True
     detector.use_alpha = False
-    detector.support = support
+    detector.support = new_support
 
     # Determine the background
     ag.info("Determining background")
@@ -216,6 +252,9 @@ def superimposed_model(settings, threading=True):
     #spread_bkg = np.mean([kern.reshape((-1, kern.shape[-1])).mean(axis=0) for kern in kernels], axis=0)
     #spread_bkg = kernels[0][1].mean(axis=0)
     spread_bkg = fetch_bkg_model(settings, neg_files)
+
+    eps = detector.settings['min_probability']
+    spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
 
     print 'spread_bkg shape:', spread_bkg.shape
     detector.fixed_bkg = None # Not needed, since kernel_ready is True
@@ -228,12 +267,10 @@ def superimposed_model(settings, threading=True):
     detector.fixed_train_mean = np.zeros(detector.num_mixtures)
     detector.fixed_train_std = np.ones(detector.num_mixtures)
     
-    print "TEMP: SKIPPING STANDARDIZATION"
-    if 0:
-        argses = [(i, settings, kernels[i], spread_bkg, list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
-        for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
-            detector.fixed_train_mean[i] = mean
-            detector.fixed_train_std[i] = std
+    argses = [(i, settings, bbs[i], kernels[i], spread_bkg, list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
+    for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
+        detector.fixed_train_mean[i] = mean
+        detector.fixed_train_std[i] = std
 
     detector.settings['testing_type'] = 'fixed'
 

@@ -576,6 +576,9 @@ class Detector(Saveable):
 
             return final_bbs
         else:
+            # TODO: This does not use a Guassian pyramid, so it
+            # resizes everything from scratch, which is MUCH SLOWER
+
             min_size = self.settings['min_size'] 
             min_factor = min_size / max(self.orig_kernel_size)
             max_size = self.settings['max_size'] 
@@ -689,11 +692,15 @@ class Detector(Saveable):
 
         kern = sub_kernels[mixcomp]
 
+        # TODO: Decide this in a way common to response_map
+        sh = kern.shape
+        padding = (sh[0]//2, sh[1]//2, 0)
+
         # Get size of original kernel (but downsampled)
         full_sh = self.kernel_sizes[mixcomp]
         psize = self.settings['subsample_size']
+        sh2 = sh
         sh = (full_sh[0]//psize[0], full_sh[1]//psize[1])
-        print 'sh', sh
 
         th = -np.inf
         top_th = 200.0
@@ -707,6 +714,8 @@ class Detector(Saveable):
                 if score >= th:
                     i_corner = i-sh[0]//2
                     j_corner = j-sh[1]//2
+
+                    index_pos = (i-padding[0], j-padding[1])
 
                     obj_bb = self.boundingboxes[mixcomp]
                     bb = [(i_corner + obj_bb[0]) * agg_factors[0],
@@ -723,7 +732,7 @@ class Detector(Saveable):
                     score1 = j
 
                     conf = score
-                    dbb = gv.bb.DetectionBB(score=score, score0=score0, score1=score1, box=bb, confidence=conf, scale=factor, mixcomp=mixcomp)
+                    dbb = gv.bb.DetectionBB(score=score, score0=score0, score1=score1, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
 
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)
@@ -755,6 +764,21 @@ class Detector(Saveable):
         #kern = np.clip(kern, 0.01, 1-0.01)
 
         weights = np.log(kern/(1-kern) * ((1-spread_bkg)/spread_bkg))
+
+        # Some experiments (will be removed)
+
+        if 0:
+            weights -= 0.46579455979415885
+
+        if 0:
+            # - 
+            wp = np.maximum(weights, 0)
+            wm = np.minimum(weights, 0)
+
+            wp /= wp.sum()
+            wm /= np.fabs(wm.sum())
+
+            weights = wp + wm
     
         #print 'mixcomp', mixcomp
         from .fast import multifeature_correlate2d

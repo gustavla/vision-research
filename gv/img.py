@@ -88,6 +88,10 @@ def crop(im, size):
     im2 = im[diff[0]//2:diff[0]//2 + size[0], diff[1]//2:diff[1]//2 + size[1]]
     return im2
 
+def crop_to_bounding_box(im, bb):
+    im2 = im[bb[0]:bb[2], bb[1]:bb[3]]
+    return im2
+
 #from PIL import Image
 import skimage.io
 import os.path
