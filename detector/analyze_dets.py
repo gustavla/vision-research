@@ -47,6 +47,10 @@ bkg = detector.bkg_model(None, spread=True)
 eps = detector.settings['min_probability']
 bkg = np.clip(bkg, eps, 1 - eps)
 
+analyze_mixcomp = 0
+Y = np.zeros((2,) + kernels[analyze_mixcomp].shape, dtype=np.uint32)
+totals = np.zeros(2, dtype=np.uint32)
+
 for i, det in enumerate(detections[:limit]):
     bb = (det['top'], det['left'], det['bottom'], det['right'])
     k = det['mixcomp']
@@ -81,6 +85,11 @@ for i, det in enumerate(detections[:limit]):
     #X = feats_pad[pad+i0-d0//2:pad+i0-d0//2+d0, pad+j0-d1//2:pad+j0-d1//2+d1]
     X = feats[pad+i0:pad+i0+d0, pad+j0:pad+j0+d1]
 
+
+    if analyze_mixcomp == k:
+        Y[det['correct']] += X
+        totals[det['correct']] += 1
+
     R = (X * weights).sum()
     Rst = (R - detector.fixed_train_mean[k]) / detector.fixed_train_std[k]
     
@@ -91,3 +100,34 @@ for i, det in enumerate(detections[:limit]):
     print '{0}: {1:.2f}'.format(fn, Rst)
     #print 'scale', np.log(det['scale'])/np.log(2)
     #print i0, j0
+
+Z = Y.astype(np.float64) / totals.reshape((-1,) + (1,)*(Y.ndim-1))
+G = (Z * weights)
+
+if 0: 
+    Gmeans = [G[i].mean(axis=-1) for i in xrange(2)]
+    m = max(np.fabs(Gmeans[0]).max(), np.fabs(Gmeans[1]).max())
+
+    plt.subplot(211)
+    plt.imshow(Gmeans[0], interpolation='nearest', vmin=-m, vmax=m, cmap=plt.cm.RdBu_r)
+    plt.title('FP')
+    plt.subplot(212)
+    plt.imshow(Gmeans[1], interpolation='nearest', vmin=-m, vmax=m, cmap=plt.cm.RdBu_r)
+    plt.title('TP')
+    plt.show()
+
+if 0:
+    Zmeans = [Z[i].mean(axis=-1) for i in xrange(2)]
+    m = max(np.fabs(Zmeans[0]).max(), np.fabs(Zmeans[1]).max())
+
+    plt.subplot(211)
+    plt.imshow(Zmeans[0], interpolation='nearest', vmax=m)
+    plt.title('FP')
+    plt.subplot(212)
+    plt.imshow(Zmeans[1], interpolation='nearest', vmax=m)
+    plt.title('TP')
+    plt.show()
+
+# Open a shell where we can play around with the data
+import IPython
+IPython.embed()
