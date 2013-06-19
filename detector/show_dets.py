@@ -31,7 +31,7 @@ detections = detections[::-1]
 
 # TODO:
 try:
-    contest = data['contest']
+    contest = str(data['contest'])
     obj_class = data['obj_class']
 except KeyError:
     contest = 'voc'
