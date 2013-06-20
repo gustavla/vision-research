@@ -75,7 +75,6 @@ class Detector(Saveable):
         resize_to = self.settings.get('image_size')
         for i, img_obj in enumerate(images):
             if isinstance(img_obj, str):
-                print("Image file name", img_obj)
                 img = gv.img.load_image(img_obj)
             grayscale_img = gv.img.asgray(img)
 
@@ -756,19 +755,28 @@ class Detector(Saveable):
         neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
 
         eps = self.settings['min_probability']
-        spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
+        #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
 
         
         # TEMP
-        #spread_bkg = np.clip(spread_bkg, 0.01, 1-0.01)
-        #kern = np.clip(kern, 0.01, 1-0.01)
+        spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
+        kern = np.clip(kern, eps, 1 - eps) 
+        #spread_bkg = np.load('new-bkg.npy')
+
+        #spread_bkg *= 1.8
+        if 0:
+            spread_bkg = np.clip(spread_bkg, 0.02, 0.98)
+            kern = np.clip(kern, 0.02, 0.98)
+
+        #spread_bkg[:] = 0.025
+
+        
 
         weights = np.log(kern/(1-kern) * ((1-spread_bkg)/spread_bkg))
 
         # Some experiments (will be removed)
 
-        if 0:
-            weights -= 0.46579455979415885
+        #weights -= weights.mean() * 1.25
 
         if 0:
             # - 
@@ -778,7 +786,7 @@ class Detector(Saveable):
             wp /= wp.sum()
             wm /= np.fabs(wm.sum())
 
-            weights = wp + wm
+            weights = wp + 2 * wm
     
         #print 'mixcomp', mixcomp
         from .fast import multifeature_correlate2d

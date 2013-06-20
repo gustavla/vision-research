@@ -24,6 +24,7 @@ class PartsDescriptor(BinaryDescriptor):
         self.settings['threaded'] = False 
         self.settings['samples_per_image'] = 500 
         self.settings['min_probability'] = 0.005
+        self.settings['strides'] = 1
 
         # Or maybe just do defaults?
         # self.settings['bedges'] = {}
@@ -220,6 +221,7 @@ class PartsDescriptor(BinaryDescriptor):
         return self.extract_partprobs_from_edges(edges)
 
     def extract_parts(self, edges, settings={}):
+        #print 'strides', self.settings.get('strides', 1)
         feats = ag.features.code_parts_as_features(edges, self._log_parts, self._log_invparts, 
                                                    self.settings['threshold'], self.settings['patch_frame'], strides=self.settings.get('strides', 1))
 
@@ -260,7 +262,6 @@ class PartsDescriptor(BinaryDescriptor):
     
     def __OLD_extract_parts(self, edges, settings={}, support_mask=None):
         if support_mask is not None: 
-            #print "edges", edges.shape, "mask", support_mask.shape
             partprobs = ag.features.code_parts_support_mask(edges, self._log_parts, self._log_invparts, 
                                                self.settings['threshold'], support_mask[2:-2,2:-2].astype(np.uint8), self.settings['patch_frame'])
         else:
@@ -302,6 +303,9 @@ class PartsDescriptor(BinaryDescriptor):
             # than what we're cutting off. That's why it's good to have
             # a cut_border property if you're training on real images.
             spread_parts = spread_parts[cb:-cb, cb:-cb]
+
+        print parts[120:135,120:135]
+        print spread_parts[120:135,120:135,1]
         
         return spread_parts 
         #else:
