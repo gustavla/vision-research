@@ -59,8 +59,9 @@ for f in files:
 
     edges = ag.features.bedges(im, **descriptor.bedges_settings())
 
-    feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, subsample_size=psize))
-    x = np.rollaxis(feats[cut:-cut,cut:-cut], 2).reshape((descriptor.num_parts, -1))
+    feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, crop_border=cut))
+    feats = gv.sub.subsample(feats, psize)
+    x = np.rollaxis(feats, 2).reshape((descriptor.num_parts, -1))
     tot += x.shape[1]
     pi += x.sum(axis=1)
 
@@ -79,6 +80,13 @@ print 'bkg-avg', bkg.mean()
 print 'bkg-min', bkg.min()
 print 'bkg-max', bkg.max()
 print 'quintiles', mstats.mquantiles(bkg, np.linspace(0, 1, 5))
+
+if 0:
+    print 'most common', np.argmax(bkg)
+    import pylab as plt
+    plt.plot(np.sort(bkg))
+    plt.show()
+
 if 0:
     if do_spreading:
         np.save('spread_bkg.npy', bkg)

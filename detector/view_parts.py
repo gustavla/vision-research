@@ -3,7 +3,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Train mixture model on edge data')
 parser.add_argument('parts', metavar='<parts file>', type=argparse.FileType('rb'), help='Filename of parts file')
-parser.add_argument('-i', dest='inspect', nargs=1, default=[None], metavar='INDEX', type=int, help='Run and inspect a single part')
+parser.add_argument('-i', dest='inspect', nargs=1, default=[None], metavar='INDEX', type=int, help='Run and inspect a single part (zero-based index)')
 parser.add_argument('--plot-prevalence', action='store_true', help='Plot the prevalence of each part')
 
 args = parser.parse_args()

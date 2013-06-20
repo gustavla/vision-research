@@ -202,13 +202,13 @@ class PartsDescriptor(BinaryDescriptor):
         self._log_parts = np.log(self.parts)
         self._log_invparts = np.log(1-self.parts)
 
-    def extract_features(self, image, settings={}, support_mask=None):
+    def extract_features(self, image, settings={}):
         if 1:
             edges = ag.features.bedges(image, **self.bedges_settings())
         else:
             # LEAVE-BEHIND: From multi-channel images
             edges = ag.features.bedges_from_image(image, **self.bedges_settings()) 
-        return self.extract_parts(edges, settings=settings, support_mask=support_mask)
+        return self.extract_parts(edges, settings=settings)
 
     def extract_partprobs_from_edges(self, edges):
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
@@ -218,15 +218,54 @@ class PartsDescriptor(BinaryDescriptor):
     def extract_partprobs(self, image):
         edges = ag.features.bedges(image, **self.bedges_settings())
         return self.extract_partprobs_from_edges(edges)
+
+    def extract_parts(self, edges, settings={}):
+        feats = ag.features.code_parts_as_features(edges, self._log_parts, self._log_invparts, 
+                                                   self.settings['threshold'], self.settings['patch_frame'], strides=self.settings.get('strides', 1))
+
+        # Pad with background (TODO: maybe incorporate as an option to code_parts?)
+        # This just makes things a lot easier, and we don't have to match for instance the
+        # support which will be bigger if we don't do this.
+        # TODO: If we're not using a support, this could be extremely detrimental!
+
+        if settings.get('preserve_size'):
+            # TODO: Create a function called pad_to_size that handles this better
+            feats = ag.util.zeropad(feats, (self._log_parts.shape[1]//2, self._log_parts.shape[2]//2, 0))
+
+            # TODO: This is a bit of a hack. This makes it handle even-sized parts
+            if self._log_parts.shape[1] % 2 == 0:
+                feats = feats[:-1]
+            if self._log_parts.shape[2] % 2 == 0:
+                feats = partprobs[:,:-1]
+
+        sett = self.settings.copy()
+        sett.update(settings)
+
+        # Do spreading
+        radii = sett.get('spread_radii', (0, 0))
+
+        assert radii[0] == radii[1], 'Supports only axis symmetric radii spreading at this point'
+        from amitgroup.features.features import array_bspread_new
+        
+        feats = array_bspread_new(feats, spread='box', radius=radii[0])
+
+        cb = sett.get('crop_border')
+        if cb:
+            # Due to spreading, the area of influence can be greater
+            # than what we're cutting off. That's why it's good to have
+            # a cut_border property if you're training on real images.
+            feats = feats[cb:-cb, cb:-cb]
+
+        return feats 
     
-    def extract_parts(self, edges, settings={}, support_mask=None):
+    def __OLD_extract_parts(self, edges, settings={}, support_mask=None):
         if support_mask is not None: 
             #print "edges", edges.shape, "mask", support_mask.shape
             partprobs = ag.features.code_parts_support_mask(edges, self._log_parts, self._log_invparts, 
                                                self.settings['threshold'], support_mask[2:-2,2:-2].astype(np.uint8), self.settings['patch_frame'])
         else:
             partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
-                                               self.settings['threshold'], self.settings['patch_frame'])
+                                               self.settings['threshold'], self.settings['patch_frame'], strides=1)
 
         #tau = self.settings.get('tau')
         #if self.settings.get('tau'):
@@ -254,12 +293,7 @@ class PartsDescriptor(BinaryDescriptor):
 
         # Do spreading
         radii = sett.get('spread_radii', (0, 0))
-        #radii = (0, 0)
-        #if max(radii) > 0:
-        #spread_parts = ag.features.spread_patches(parts, radii[0], radii[1], self.num_parts)
-        #print(partprobs.shape)
-        #import pudb; pudb.set_trace()
-        
+
         spread_parts = ag.features.spread_patches_new(partprobs.astype(np.float32), radii[0], radii[1], 0.0)
 
         cb = sett.get('crop_border')

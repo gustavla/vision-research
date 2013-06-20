@@ -303,8 +303,8 @@ class Detector(Saveable):
     
         return mixture, kernel_templates, kernel_sizes, support
 
-    def extract_unspread_features(self, image, support_mask=None):
-        edges = self.descriptor.extract_features(image, dict(spread_radii=(0, 0), crop_border=self.settings.get('crop_border')), support_mask=support_mask)
+    def extract_unspread_features(self, image):
+        edges = self.descriptor.extract_features(image, dict(spread_radii=(0, 0), crop_border=self.settings.get('crop_border')))
         return edges
 
     def extract_spread_features(self, image):
