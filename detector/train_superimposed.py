@@ -249,7 +249,7 @@ def superimposed_model(settings, threading=True):
     orig_sizes = []
     new_support = []
 
-    ONE_MIXCOMP = 2
+    ONE_MIXCOMP = None
 
     if ONE_MIXCOMP is not None:
         kern, bkg, orig_size, sup = _create_kernel_for_mixcomp_star(argses[ONE_MIXCOMP]) 
@@ -260,10 +260,13 @@ def superimposed_model(settings, threading=True):
         detector.num_mixtures = 1
     
     else:
-        for kern, orig_size, sup in imapf(_create_kernel_for_mixcomp_star, argses):
+        for kern, bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp_star, argses):
             kernels.append(kern)
+            bkgs.append(bkg)
             orig_sizes.append(orig_size)
             new_support.append(sup)
+
+        detector.settings['per_mixcomp_bkg'] = True
 
     detector.kernel_templates = kernels
     detector.kernel_sizes = orig_sizes
@@ -281,14 +284,15 @@ def superimposed_model(settings, threading=True):
         detector.fixed_bkg = None
         detector.fixed_spread_bkg = bkgs[0] 
     else:
-        spread_bkg = fetch_bkg_model(settings, neg_files)
+        #spread_bkg = fetch_bkg_model(settings, neg_files)
 
-        eps = detector.settings['min_probability']
-        spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
+        #eps = detector.settings['min_probability']
+        #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
 
         print 'spread_bkg shape:', spread_bkg.shape
         detector.fixed_bkg = None # Not needed, since kernel_ready is True
-        detector.fixed_spread_bkg = spread_bkg
+        #detector.fixed_spread_bkg = spread_bkg
+        detector.fixed_spread_bkg = bkgs
 
     detector.settings['bkg_type'] = 'from-file'
 

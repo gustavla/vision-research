@@ -374,6 +374,7 @@ class Detector(Saveable):
     def prepare_kernels(self, unspread_bkg, settings={}):
         sett = self.settings.copy()
         sett.update(settings) 
+
         if sett.get('kernel_ready'):
             return self.kernel_templates 
 
@@ -469,8 +470,8 @@ class Detector(Saveable):
         unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), preserve_size=False, crop_border=cb))
 
         # TODO: Avoid the edge for the background model
-        spread_bkg = self.bkg_model(spread_feats, spread=True)
-        unspread_bkg = self.bkg_model(unspread_feats, spread=False)
+        spread_bkg = self.bkg_model(spread_feats, spread=True, mixcomp=mixcomp)
+        unspread_bkg = self.bkg_model(unspread_feats, spread=False, mixcomp=mixcomp)
         #unspread_bkg = np.load('bkg.npy')
         #spread_bkg = 1 - (1 - unspread_bkg)**25
         #spread_bkg = np.load('spread_bkg.npy')
@@ -657,7 +658,7 @@ class Detector(Saveable):
 
         ag.info("Extract background model")
         unspread_bkg_pyramid = map(self.bkg_model, unspread_edge_pyramid)
-        spread_bkg_pyramid = map(lambda p: self.bkg_model(p, spread=True), spread_edge_pyramid)
+        spread_bkg_pyramid = map(lambda p: self.bkg_model(p, spread=True, mixcomp=), spread_edge_pyramid)
 
         ag.info("Subsample")
         small_pyramid = map(self.subsample, edge_pyramid) 
@@ -744,6 +745,8 @@ class Detector(Saveable):
 
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0):
         kern = sub_kernels[mixcomp]
+        if self.settings.get('per_mixcomp_bkg'):
+            spread_bkg =  spread_bkg[mixcomp]
 
         sh = kern.shape
         padding = (sh[0]//2, sh[1]//2, 0)
@@ -769,8 +772,6 @@ class Detector(Saveable):
             kern = np.clip(kern, 0.02, 0.98)
 
         #spread_bkg[:] = 0.025
-
-        
 
         weights = np.log(kern/(1-kern) * ((1-spread_bkg)/spread_bkg))
 
