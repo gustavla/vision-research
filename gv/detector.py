@@ -308,7 +308,7 @@ class Detector(Saveable):
         return edges
 
     def extract_spread_features(self, image):
-        edges = self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], crop_border=self.settings.get('crop_border')))
+        edges = self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], subsample_size=self.settings['subsample_size'], crop_border=self.settings.get('crop_border')))
         return edges 
 
     @property
@@ -484,7 +484,7 @@ class Detector(Saveable):
 
         final_bbs = bbs
 
-        return final_bbs, resmap, feats, img_resized
+        return final_bbs, resmap, spread_feats, img_resized
 
     def calc_score(self, img, factor, bbobj, score=0):
         llhs = score

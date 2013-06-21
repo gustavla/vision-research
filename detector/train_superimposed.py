@@ -53,7 +53,7 @@ def fetch_bkg_model(settings, neg_files):
 
         im = gv.img.resize_with_factor_new(gv.img.asgray(gv.img.load_image(fn)), randgen.uniform(0.5, 1.0))
 
-        feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, crop_border=cb))
+        feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
         subfeats = gv.sub.subsample(feats, psize)
         x = np.rollaxis(subfeats, 2).reshape((descriptor.num_features, -1))
         tot += x.shape[1]
@@ -83,7 +83,7 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
     alpha_cum = None
 
 
-    setts = dict(spread_radii=radii, crop_border=cb)
+    setts = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
 
     for index in indices: 
         ag.info("Processing image of index {0} and mixture component {1}".format(index, mixcomp))
@@ -169,7 +169,7 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices,
             #superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
             superimposed_im = neg_im
 
-            feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, crop_border=cb))
+            feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
             feats = gv.sub.subsample(feats, psize)
 
             llh = (weights * feats).sum()
