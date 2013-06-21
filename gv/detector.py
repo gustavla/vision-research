@@ -75,6 +75,7 @@ class Detector(Saveable):
         resize_to = self.settings.get('image_size')
         for i, img_obj in enumerate(images):
             if isinstance(img_obj, str):
+                #print("Image file name", img_obj)
                 img = gv.img.load_image(img_obj)
             grayscale_img = gv.img.asgray(img)
 
@@ -470,8 +471,8 @@ class Detector(Saveable):
         unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), preserve_size=False, crop_border=cb))
 
         # TODO: Avoid the edge for the background model
-        spread_bkg = self.bkg_model(spread_feats, spread=True, mixcomp=mixcomp)
-        unspread_bkg = self.bkg_model(unspread_feats, spread=False, mixcomp=mixcomp)
+        spread_bkg = self.bkg_model(spread_feats, spread=True)
+        unspread_bkg = self.bkg_model(unspread_feats, spread=False)
         #unspread_bkg = np.load('bkg.npy')
         #spread_bkg = 1 - (1 - unspread_bkg)**25
         #spread_bkg = np.load('spread_bkg.npy')
@@ -658,7 +659,7 @@ class Detector(Saveable):
 
         ag.info("Extract background model")
         unspread_bkg_pyramid = map(self.bkg_model, unspread_edge_pyramid)
-        spread_bkg_pyramid = map(lambda p: self.bkg_model(p, spread=True, mixcomp=), spread_edge_pyramid)
+        spread_bkg_pyramid = map(lambda p: self.bkg_model(p, spread=True), spread_edge_pyramid)
 
         ag.info("Subsample")
         small_pyramid = map(self.subsample, edge_pyramid) 

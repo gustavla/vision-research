@@ -158,6 +158,7 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices,
     llhs = []
 
     kern = np.clip(kern, eps, 1 - eps)
+    bkg = np.clip(bkg, eps, 1 - eps)
     weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
 
     for index in indices: 
@@ -282,14 +283,14 @@ def superimposed_model(settings, threading=True):
     if ONE_MIXCOMP is not None:
         eps = detector.settings['min_probability']
         detector.fixed_bkg = None
-        detector.fixed_spread_bkg = bkgs[0] 
+        detector.fixed_spread_bkg = bkgs
     else:
         #spread_bkg = fetch_bkg_model(settings, neg_files)
 
         #eps = detector.settings['min_probability']
         #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
 
-        print 'spread_bkg shape:', spread_bkg.shape
+        #print 'spread_bkg shape:', spread_bkg.shape
         detector.fixed_bkg = None # Not needed, since kernel_ready is True
         #detector.fixed_spread_bkg = spread_bkg
         detector.fixed_spread_bkg = bkgs
@@ -303,7 +304,7 @@ def superimposed_model(settings, threading=True):
     detector.fixed_train_std = np.ones(detector.num_mixtures)
         
     if ONE_MIXCOMP is None:
-        argses = [(i, settings, bbs[i], kernels[i], spread_bkg, list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
+        argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
         for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
             detector.fixed_train_mean[i] = mean
             detector.fixed_train_std[i] = std
