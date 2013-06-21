@@ -209,7 +209,19 @@ class PartsDescriptor(BinaryDescriptor):
         else:
             # LEAVE-BEHIND: From multi-channel images
             edges = ag.features.bedges_from_image(image, **self.bedges_settings()) 
-        return self.extract_parts(edges, settings=settings)
+
+        feats = self.extract_parts(edges, settings=settings)
+
+        sett = self.settings
+        sett.update(settings)
+        psize = sett['subsample_size']
+        feats = gv.sub.subsample(feats, psize)
+
+        buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
+        lower = (buf[0]//2, buf[1]//2)
+        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+
+        return feats
 
     def extract_partprobs_from_edges(self, edges):
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 

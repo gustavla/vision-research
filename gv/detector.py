@@ -104,7 +104,7 @@ class Detector(Saveable):
     def gen_img(self, images, actual=False):
         for i, grayscale_img, img, alpha in self.load_img(images):
             final_edges = self.extract_spread_features(grayscale_img)
-            final_edges = self.subsample(final_edges)
+            #final_edges = self.subsample(final_edges)
             yield final_edges
 
     def train_from_images(self, images):
@@ -146,8 +146,8 @@ class Detector(Saveable):
             a = (img[...,3] > 0.05).astype(np.uint8)
             alpha_maps[i] = a
 
-            orig_edges = self.extract_spread_features(grayscale_img)
-            edges_nonflat = gv.sub.subsample(orig_edges, psize)
+            edges_nonflat = self.extract_spread_features(grayscale_img)
+            #edges_nonflat = gv.sub.subsample(orig_edges, psize)
             if shape is None:
                 shape = edges_nonflat.shape
 
@@ -369,8 +369,8 @@ class Detector(Saveable):
         else:
             raise ValueError("Specified background model not available")
 
-    def subsample(self, edges):
-        return gv.sub.subsample(edges, self.settings['subsample_size'])
+    #def subsample(self, edges):
+        #return gv.sub.subsample(edges, self.settings['subsample_size'])
 
     def prepare_kernels(self, unspread_bkg, settings={}):
         sett = self.settings.copy()
@@ -467,8 +467,8 @@ class Detector(Saveable):
         cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
-        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, preserve_size=True))
-        unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), preserve_size=False, crop_border=cb))
+        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize))
+        unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), subsample_size=psize, crop_border=cb))
 
         # TODO: Avoid the edge for the background model
         spread_bkg = self.bkg_model(spread_feats, spread=True)
@@ -477,10 +477,10 @@ class Detector(Saveable):
         #spread_bkg = 1 - (1 - unspread_bkg)**25
         #spread_bkg = np.load('spread_bkg.npy')
 
-        feats = gv.sub.subsample(spread_feats, psize) 
+        #feats = gv.sub.subsample(spread_feats, psize) 
         sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
 
-        bbs, resmap = self.detect_coarse_at_factor(feats, sub_kernels, spread_bkg, factor, mixcomp)
+        bbs, resmap = self.detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
 
         final_bbs = bbs
 
@@ -499,11 +499,10 @@ class Detector(Saveable):
         psize = self.settings['subsample_size']
         radii = self.settings['spread_radii']
 
-        up_feats = self.extract_spread_features(img_resized)
+        feats = self.extract_spread_features(img_resized)
 
         # Last psize
         d0, d1 = (14, 44) 
-        
 
         pad = 50 
 
@@ -514,7 +513,7 @@ class Detector(Saveable):
         #bkg = self.bkg_model(unspread_feats0)
         unspread_bkg = self.bkg_model(unspread_feats, spread=False)
 
-        feats = gv.sub.subsample(up_feats, psize) 
+        #feats = gv.sub.subsample(up_feats, psize) 
         feats_pad = ag.util.zeropad(feats, (pad, pad, 0))
         feats0 = feats_pad[pad+i0-d0//2:pad+i0-d0//2+d0, pad+j0-d1//2:pad+j0-d1//2+d1]
         if 0:
@@ -662,7 +661,7 @@ class Detector(Saveable):
         spread_bkg_pyramid = map(lambda p: self.bkg_model(p, spread=True), spread_edge_pyramid)
 
         ag.info("Subsample")
-        small_pyramid = map(self.subsample, edge_pyramid) 
+        #small_pyramid = map(self.subsample, edge_pyramid) 
 
         bbs = []
         for i, factor in enumerate(factors):
@@ -673,7 +672,7 @@ class Detector(Saveable):
             for mixcomp in mixcomps:
                 ag.info("Detect for mixture component", mixcomp)
             #for mixcomp in [1]:
-                bbsthis, _ = self.detect_coarse_at_factor(small_pyramid[i], sub_kernels, spread_bkg_pyramid[i][1], factor, mixcomp)
+                bbsthis, _ = self.detect_coarse_at_factor(edge_pyramid[i], sub_kernels, spread_bkg_pyramid[i][1], factor, mixcomp)
                 bbs += bbsthis
 
         ag.info("Maximal suppression")

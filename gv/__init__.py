@@ -7,6 +7,7 @@ from . import bb
 from . import sub 
 from . import rescalc
 from . import datasets
+from .ndfeature import ndfeature
 
 from .binary_descriptor import *
 from . import edge_descriptor
