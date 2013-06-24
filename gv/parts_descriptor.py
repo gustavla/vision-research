@@ -221,7 +221,7 @@ class PartsDescriptor(BinaryDescriptor):
         lower = (buf[0]//2, buf[1]//2)
         upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
 
-        return feats
+        return gv.ndfeature(feats, lower=lower, upper=upper)
 
     def extract_partprobs_from_edges(self, edges):
         partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
@@ -316,9 +316,6 @@ class PartsDescriptor(BinaryDescriptor):
             # a cut_border property if you're training on real images.
             spread_parts = spread_parts[cb:-cb, cb:-cb]
 
-        print parts[120:135,120:135]
-        print spread_parts[120:135,120:135,1]
-        
         return spread_parts 
         #else:
             # TODO: Maybe not this way.

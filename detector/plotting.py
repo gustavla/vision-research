@@ -22,7 +22,7 @@ def plot_image(fileobj, filename=None, show_corrects=False):
             else:
                 color = 'lightgreen'
         plt.gca().add_patch(plt.Rectangle((bb[1], bb[0]), bb[3]-bb[1], bb[2]-bb[0], facecolor='none', edgecolor=color, linewidth=2.0))
-        plt.text(bb[1], bb[0], "{0:.2f}".format(bbobj.confidence), color='white', size=6, ha='left', va='bottom')
+        plt.text(bb[1], bb[0], "{0:.2f}".format(bbobj.confidence), color='blue', size=6, ha='left', va='bottom')
         #plt.gca().add_patch(plt.Rectangle((bb[0], bb[1]), bb[2]-bb[0], bb[3]-bb[1], facecolor='none', edgecolor='lightgreen', linewidth=2.0))
     plt.title("img_id = {0}".format(fileobj.img_id))
 
@@ -53,7 +53,7 @@ def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_r
         color = 'cyan' if dbb.correct else 'red'
         plt.gca().add_patch(plt.Rectangle((bb[1], bb[0]), bb[3]-bb[1], bb[2]-bb[0], facecolor='none', edgecolor=color, linewidth=2.0))
         #plt.text(bb[1], bb[0], "{0:.2f}".format(dbb.confidence), color='white', backgroundcolor=color, size=8, ha='left', va='bottom')
-        plt.text(bb[1], bb[0], "{0:.2f}".format(dbb.confidence), color='white', size=6, ha='left', va='bottom')
+        plt.text(bb[1], bb[0], "{0:.2f}".format(dbb.confidence), color='yellow', size=6, ha='left', va='bottom')
 
     if x is not None:
         plt.subplot(122)

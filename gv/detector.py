@@ -479,7 +479,6 @@ class Detector(Saveable):
 
         #feats = gv.sub.subsample(spread_feats, psize) 
         sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
-
         bbs, resmap = self.detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
 
         final_bbs = bbs
@@ -707,35 +706,57 @@ class Detector(Saveable):
         bbs = []
 
         agg_factors = tuple([psize[i] * factor for i in xrange(2)])
+        agg_factors2 = tuple([factor for i in xrange(2)])
         bb_bigger = (0.0, 0.0, sub_feats.shape[0] * agg_factors[0], sub_feats.shape[1] * agg_factors[1])
         for i in xrange(resmap.shape[0]):
             for j in xrange(resmap.shape[1]):
                 score = resmap[i,j]
                 if score >= th:
-                    i_corner = i-sh[0]//2
-                    j_corner = j-sh[1]//2
+                    #print type(resmap)
+                    conf = score
+                    #import pdb; pdb.set_trace()
+                    pos = resmap.pos((i, j))
+                    #lower = resmap.pos((i + self.boundingboxes2[mixcomp][0]))
+                    bb = ((pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][0] * agg_factors[0]),
+                          (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][1] * agg_factors[1]),
+                          (pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][2] * agg_factors[0]),
+                          (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors[1]))
+
+                    #if score >= 3.89:
+                        #import pdb; pdb.set_trace()
 
                     index_pos = (i-padding[0], j-padding[1])
-
-                    obj_bb = self.boundingboxes[mixcomp]
-                    bb = [(i_corner + obj_bb[0]) * agg_factors[0],
-                          (j_corner + obj_bb[1]) * agg_factors[1],
-                          (i_corner + obj_bb[2]) * agg_factors[0],
-                          (j_corner + obj_bb[3]) * agg_factors[1],
-                    ]
-
-                    # Clip to bb_bigger 
-                    bb = gv.bb.intersection(bb, bb_bigger)
     
-                    #score0 = score1 = 0
-                    score0 = i
-                    score1 = j
-
-                    conf = score
-                    dbb = gv.bb.DetectionBB(score=score, score0=score0, score1=score1, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
+                    dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
 
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)
+
+                    if 0:
+                        i_corner = i-sh[0]//2
+                        j_corner = j-sh[1]//2
+
+                        index_pos = (i-padding[0], j-padding[1])
+
+                        obj_bb = self.boundingboxes[mixcomp]
+                        bb = [(i_corner + obj_bb[0]) * agg_factors[0],
+                              (j_corner + obj_bb[1]) * agg_factors[1],
+                              (i_corner + obj_bb[2]) * agg_factors[0],
+                              (j_corner + obj_bb[3]) * agg_factors[1],
+                        ]
+
+                        # Clip to bb_bigger 
+                        bb = gv.bb.intersection(bb, bb_bigger)
+        
+                        #score0 = score1 = 0
+                        score0 = i
+                        score1 = j
+
+                        conf = score
+                        dbb = gv.bb.DetectionBB(score=score, score0=score0, score1=score1, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
+
+                        if gv.bb.area(bb) > 0:
+                            bbs.append(dbb)
 
         # Let's limit to five per level
         bbs_sorted = self.nonmaximal_suppression(bbs)
@@ -750,7 +771,15 @@ class Detector(Saveable):
 
         sh = kern.shape
         padding = (sh[0]//2, sh[1]//2, 0)
-        bigger = ag.util.zeropad(sub_feats, padding)
+
+        #print type(sub_feats)
+        #print sub_feats.pos((0, 0))
+        #print sub_feats.pos((sub_feats.shape[0], sub_feats.shape[1]))
+        bigger = gv.ndfeature.zeropad(sub_feats, padding)
+        #print bigger.pos((padding[0], padding[1]))
+        #print bigger.pos((bigger.shape[0]-padding[0], bigger.shape[1]-padding[1]))
+
+        #import pdb; pdb.set_trace()
 
         # Since the kernel is spread, we need to convert the background
         # model to spread
@@ -795,6 +824,20 @@ class Detector(Saveable):
         #index = 26 
         #res = multifeature_correlate2d(bigger[...,index:index+1], weights[...,index:index+1].astype(np.float64)) 
         res = multifeature_correlate2d(bigger, weights.astype(np.float64))
+        lower, upper = gv.ndfeature.inner_frame(bigger, (weights.shape[0]/2, weights.shape[1]/2))
+        #res = gv.ndfeature(res, lower=bigger.lower, upper=bigger.upper) 
+        #res2 = gv.ndfeature(res, lower=sub_feats.lower, upper=sub_feats.upper) 
+        #res = gv.ndfeature_inflate_frame(res, (-weights.shape[0]//2, -weights.shape[1]//2))
+        res = gv.ndfeature(res, lower=lower, upper=upper)
+
+        print res
+        print res.lower
+        print res.upper
+        print res.pos((0, 0))
+        print res.pos((res.shape[0]-1, res.shape[1]-1))
+        #import sys; sys.exit(0)
+        #import pdb; pdb.set_trace()
+
 
         # Standardization
         testing_type = self.settings.get('testing_type', 'object-model')
@@ -869,6 +912,28 @@ class Detector(Saveable):
             psize = self.settings['subsample_size']
             return (0, 0, self.orig_kernel_size[0]/psize[0], self.orig_kernel_size[1]/psize[1])
 
+    def bounding_box_for_mix_comp2(self, k):
+        """This returns a bounding box of the support for a given component"""
+
+        # Take the bounding box of the support, with a certain threshold.
+        #print("Using alpha", self.use_alpha, "support", self.support)
+        if self.support is not None:
+            supp = self.support[k] 
+            supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
+
+            th = self.settings['bounding_box_opacity_threshold']
+            # Check first and last value of that threshold
+            bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
+
+            # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
+            psize = self.settings['subsample_size']
+            ret = ((bb[0][0] - supp.shape[0]//2)/psize[0], (bb[1][0] - supp.shape[1]//2)/psize[1], (bb[0][1] - supp.shape[0]//2)/psize[0], (bb[1][1] - supp.shape[1]//2)/psize[1])
+            return ret
+        else:
+            psize = self.settings['subsample_size']
+            return (-supp.shape[0]//2, -supp.shapep[1]//2, self.orig_kernel_size[0]/psize[0] - supp.shape[0]//2, self.orig_kernel_size[1]/psize[1] - supp.shape[1]//2)
+
+
     def label_corrects(self, bbs, fileobj):
         used_bb = set([])
         tot = 0
@@ -902,6 +967,7 @@ class Detector(Saveable):
         """Pre-processes things"""
         # Prepare bounding boxes for all mixture model
         self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
+        self.boundingboxes2 = np.array([self.bounding_box_for_mix_comp2(i) for i in xrange(self.num_mixtures)])
 
     @classmethod
     def load_from_dict(cls, d):
