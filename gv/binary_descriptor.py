@@ -19,7 +19,7 @@ class BinaryDescriptor(Saveable):
 
     @property
     def num_features(self):
-        raise NotImplementedError("This is a base calss and this function must be overloaded.") 
+        raise NotImplementedError("This is a base class and this function must be overloaded.") 
 
     @property
     def name(self):

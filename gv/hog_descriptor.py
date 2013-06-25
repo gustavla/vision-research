@@ -6,7 +6,7 @@ from unraveled_hog import unraveled_hog
 
 @BinaryDescriptor.register('hog')
 class HOGDescriptor(BinaryDescriptor):
-    def __init__(self, patch_size, num_parts, settings={}):
+    def __init__(self, settings={}):
         self.settings = {}
         self.settings['cells_per_block'] = (3, 3)
         self.settings['pixels_per_cell'] = (6, 6)
@@ -14,6 +14,7 @@ class HOGDescriptor(BinaryDescriptor):
         self.settings['normalise'] = True 
         
         self.settings['binarize_threshold'] = 0.02
+        self.settings.update(settings)
 
     def extract_features(self, image, settings={}, raveled=True):
         from skimage import feature
@@ -33,7 +34,7 @@ class HOGDescriptor(BinaryDescriptor):
 
         # How much space was cut away?
         buf = tuple(image.shape[i] - hog.shape[i] * ppc[i] for i in xrange(2))
-        lower = (buf[0]//2, buf[1]//2)
+        lower = tuple(buf[i]//2 for i in xrange(2))
         upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
 
         return ndfeature(hog, lower=lower, upper=upper)
@@ -52,6 +53,10 @@ class HOGDescriptor(BinaryDescriptor):
             # Now, let's reshape it to keep spatial locations, but flatten the rest
             
             return hog.reshape((n_blocksy, n_blocksx, -1))
+
+    @property
+    def num_features(self):
+        return self.settings['orientations'] * np.prod(self.settings['cells_per_block'])
 
     def save_to_dict(self):
         return self.settings

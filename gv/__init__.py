@@ -12,6 +12,7 @@ from .ndfeature import ndfeature
 from .binary_descriptor import *
 from . import edge_descriptor
 from . import parts_descriptor
+from . import hog_descriptor
 
 
 # TODO: Put somewhere better
