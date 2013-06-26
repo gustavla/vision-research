@@ -250,7 +250,7 @@ def superimposed_model(settings, threading=True):
     orig_sizes = []
     new_support = []
 
-    ONE_MIXCOMP = None
+    ONE_MIXCOMP = 0 
 
     if ONE_MIXCOMP is not None:
         kern, bkg, orig_size, sup = _create_kernel_for_mixcomp_star(argses[ONE_MIXCOMP]) 
@@ -259,6 +259,8 @@ def superimposed_model(settings, threading=True):
         orig_sizes.append(orig_size)
         new_support.append(sup)
         detector.num_mixtures = 1
+
+        detector.settings['per_mixcomp_bkg'] = True
     
     else:
         for kern, bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp_star, argses):

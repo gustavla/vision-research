@@ -830,11 +830,6 @@ class Detector(Saveable):
         #res = gv.ndfeature_inflate_frame(res, (-weights.shape[0]//2, -weights.shape[1]//2))
         res = gv.ndfeature(res, lower=lower, upper=upper)
 
-        print res
-        print res.lower
-        print res.upper
-        print res.pos((0, 0))
-        print res.pos((res.shape[0]-1, res.shape[1]-1))
         #import sys; sys.exit(0)
         #import pdb; pdb.set_trace()
 
