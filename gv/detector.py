@@ -4,6 +4,7 @@ import amitgroup as ag
 import numpy as np
 import scipy.signal
 from .saveable import Saveable
+from .named_registry import NamedRegistry
 import gv
 import sys
 from copy import deepcopy
@@ -23,7 +24,12 @@ def offset_img(img, off):
                 max(-off[1], 0):min(sh[1]-off[1], sh[1])]
         return x
 
-class Detector(Saveable):
+@NamedRegistry.root
+class BaseDetector(Saveable, NamedRegistry):
+    pass
+    
+@BaseDetector.register('binary')
+class Detector(BaseDetector):
     """
     An object detector representing a single class (although mutliple mixtures of that class).
         
@@ -55,6 +61,10 @@ class Detector(Saveable):
         self.settings['min_size'] = 75
         self.settings['max_size'] = 450
         self.settings.update(settings)
+    
+    @classmethod
+    def descriptor_base_class(cls):
+        return gv.BinaryDescriptor
     
     def copy(self):
         return deepcopy(self)

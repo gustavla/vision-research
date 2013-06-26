@@ -21,7 +21,7 @@ import amitgroup as ag
 
 ag.set_verbose(True)
 
-descriptor = gv.load_descriptor(sett)
+descriptor = gv.load_descriptor(gv.Detector.descriptor_base_class, sett)
 detector = gv.Detector(dsettings['num_mixtures'], descriptor, dsettings)
 
 if dsettings['use_voc']:
