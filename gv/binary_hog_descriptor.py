@@ -4,7 +4,7 @@ from ndfeature import ndfeature
 from binary_descriptor import BinaryDescriptor
 from unraveled_hog import unraveled_hog
 
-@BinaryDescriptor.register('hog')
+@BinaryDescriptor.register('bhog')
 class BinaryHOGDescriptor(BinaryDescriptor):
     def __init__(self, settings={}):
         self.settings = {}
@@ -57,6 +57,10 @@ class BinaryHOGDescriptor(BinaryDescriptor):
     @property
     def num_features(self):
         return self.settings['orientations'] * np.prod(self.settings['cells_per_block'])
+
+    @property
+    def subsample_size(self):
+        return self.settings['pixels_per_cell']
 
     def save_to_dict(self):
         return self.settings

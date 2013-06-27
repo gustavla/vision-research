@@ -3,8 +3,9 @@ from __future__ import division
 import amitgroup as ag
 import numpy as np
 import scipy.signal
-from .saveable import Saveable
+from .saveable import Saveable, SaveableRegistry
 from .named_registry import NamedRegistry
+from .binary_descriptor import BinaryDescriptor
 import gv
 import sys
 from copy import deepcopy
@@ -25,20 +26,32 @@ def offset_img(img, off):
         return x
 
 @NamedRegistry.root
-class BaseDetector(Saveable, NamedRegistry):
-    pass
-    
-@BaseDetector.register('binary')
-class Detector(BaseDetector):
+#class Detector(Saveable, NamedRegistry):
+class Detector(SaveableRegistry):
+    DESCRIPTOR = None
+
+    def __init__(self, num_mixtures, descriptor, settings={}):
+        assert isinstance(descriptor, self.DESCRIPTOR)
+        self.descriptor = descriptor 
+        self.num_mixtures = num_mixtures
+
+        self.settings = {}
+        self.settings['scale_factor'] = np.sqrt(2)
+        self.settings['bounding_box_opacity_threshold'] = 0.1
+        self.settings['min_size'] = 75
+        self.settings['max_size'] = 450
+
+@Detector.register('binary')
+class BernoulliDetector(Detector):
+    DESCRIPTOR = BinaryDescriptor
+
     """
     An object detector representing a single class (although mutliple mixtures of that class).
         
     It uses the BinaryDescriptor as feature extractor, and then runs a mixture model on top of that.
     """
     def __init__(self, num_mixtures, descriptor, settings={}):
-        assert isinstance(descriptor, gv.BinaryDescriptor)
-        self.descriptor = descriptor 
-        self.num_mixtures = num_mixtures
+        super(BernoulliDetector, self).__init__(num_mixtures, descriptor, settings)
         self.mixture = None
         self.log_kernels = None
         self.log_invkernels = None
@@ -52,19 +65,10 @@ class Detector(BaseDetector):
 
         self.use_alpha = None
 
-        self.settings = {}
-        self.settings['scale_factor'] = np.sqrt(2)
-        self.settings['bounding_box_opacity_threshold'] = 0.1
         self.settings['min_probability'] = 0.05
         self.settings['subsample_size'] = (8, 8)
         self.settings['train_unspread'] = True
-        self.settings['min_size'] = 75
-        self.settings['max_size'] = 450
         self.settings.update(settings)
-    
-    @classmethod
-    def descriptor_base_class(cls):
-        return gv.BinaryDescriptor
     
     def copy(self):
         return deepcopy(self)
@@ -100,14 +104,17 @@ class Detector(BaseDetector):
                 img = offset_img(img, offsets[i])
 
             # Now, binarize the support in a clever way (notice that we have to adjust for pre-multiplied alpha)
-            alpha = (img[...,3] > 0.2)
+            if img.ndim == 2:
+                alpha = np.ones(img.shape)
+            else:
+                alpha = (img[...,3] > 0.2)
 
-            eps = sys.float_info.epsilon
-            imrgb = (img[...,:3]+eps)/(img[...,3:4]+eps)
+            #eps = sys.float_info.epsilon
+            #imrgb = (img[...,:3]+eps)/(img[...,3:4]+eps)
             
-            new_img = imrgb * alpha.reshape(alpha.shape+(1,))
+            #new_img = imrgb * alpha.reshape(alpha.shape+(1,))
 
-            new_grayscale_img = new_img[...,:3].mean(axis=-1)
+            #new_grayscale_img = new_img[...,:3].mean(axis=-1)
 
             yield i, grayscale_img, img, alpha
 
@@ -117,7 +124,7 @@ class Detector(BaseDetector):
             #final_edges = self.subsample(final_edges)
             yield final_edges
 
-    def train_from_images(self, images):
+    def train_from_images(self, images, labels=None):
         self.orig_kernel_size = None
 
         mixture, kernel_templates, kernel_sizes, support = self._train(images)
@@ -153,8 +160,7 @@ class Detector(BaseDetector):
                 alpha_maps = np.empty((len(images),) + img.shape[:2], dtype=np.uint8)
 
             #if self.use_alpha:
-            a = (img[...,3] > 0.05).astype(np.uint8)
-            alpha_maps[i] = a
+            alpha_maps[i] = alpha
 
             edges_nonflat = self.extract_spread_features(grayscale_img)
             #edges_nonflat = gv.sub.subsample(orig_edges, psize)
@@ -186,7 +192,7 @@ class Detector(BaseDetector):
             else:
                 output[i] = edges
 
-        ag.info("Running mixture model in Detector")
+        ag.info("Running mixture model in BernoulliDetector")
 
         if output is None:
             raise Exception("Found no training images")
@@ -489,7 +495,7 @@ class Detector(BaseDetector):
 
         #feats = gv.sub.subsample(spread_feats, psize) 
         sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
-        bbs, resmap = self.detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
+        bbs, resmap = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
 
         final_bbs = bbs
 
@@ -681,7 +687,7 @@ class Detector(BaseDetector):
             for mixcomp in mixcomps:
                 ag.info("Detect for mixture component", mixcomp)
             #for mixcomp in [1]:
-                bbsthis, _ = self.detect_coarse_at_factor(edge_pyramid[i], sub_kernels, spread_bkg_pyramid[i][1], factor, mixcomp)
+                bbsthis, _ = self._detect_coarse_at_factor(edge_pyramid[i], sub_kernels, spread_bkg_pyramid[i][1], factor, mixcomp)
                 bbs += bbsthis
 
         ag.info("Maximal suppression")
@@ -695,7 +701,7 @@ class Detector(BaseDetector):
 
         return final_bbs
 
-    def detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
+    def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # Get background level
         resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
 
@@ -936,7 +942,8 @@ class Detector(BaseDetector):
             return ret
         else:
             psize = self.settings['subsample_size']
-            return (-supp.shape[0]//2, -supp.shapep[1]//2, self.orig_kernel_size[0]/psize[0] - supp.shape[0]//2, self.orig_kernel_size[1]/psize[1] - supp.shape[1]//2)
+            size = (self.orig_kernel_size[0]/psize[0], self.orig_kernel_size[1]/psize[1])
+            return (-size[0]/2, -size[1]/2, size[0]/2, size[1]/2)
 
 
     def label_corrects(self, bbs, fileobj):
@@ -978,7 +985,7 @@ class Detector(BaseDetector):
     def load_from_dict(cls, d):
         try:
             num_mixtures = d['num_mixtures']
-            descriptor_cls = gv.BinaryDescriptor.getclass(d['descriptor_name'])
+            descriptor_cls = cls.DESCRIPTOR.getclass(d['descriptor_name'])
             if descriptor_cls is None:
                 raise Exception("The descriptor class {0} is not registered".format(d['descriptor_name'])) 
             descriptor = descriptor_cls.load_from_dict(d['descriptor'])

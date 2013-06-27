@@ -35,6 +35,10 @@ class PartsDescriptor(BinaryDescriptor):
     def num_features(self):
         return self.num_parts
 
+    @property
+    def subsample_size(self):
+        return self.settings['subsample_size']
+
     def _get_patches(self, filename):
         samples_per_image = self.settings['samples_per_image']
         fr = self.settings['patch_frame']

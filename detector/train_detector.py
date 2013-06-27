@@ -21,8 +21,9 @@ import amitgroup as ag
 
 ag.set_verbose(True)
 
-descriptor = gv.load_descriptor(gv.Detector.descriptor_base_class, sett)
-detector = gv.Detector(dsettings['num_mixtures'], descriptor, dsettings)
+#descriptor = gv.load_descriptor(gv.BinaryDetector.DESCRIPTOR, sett)
+descriptor = gv.load_descriptor(sett)
+detector = gv.BernoulliDetector(dsettings['num_mixtures'], descriptor, dsettings)
 
 if dsettings['use_voc']:
     files = gv.voc.load_object_images_of_size(sett['voc'], 'bicycle', dsettings['image_size'], dataset='train')

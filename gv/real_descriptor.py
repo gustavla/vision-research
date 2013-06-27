@@ -3,11 +3,11 @@ from .saveable import Saveable
 from .named_registry import NamedRegistry
 
 @NamedRegistry.root
-class BinaryDescriptor(Saveable, NamedRegistry):
+class RealDescriptor(Saveable, NamedRegistry):
     """
-    This class is the base class of a binary descriptor. It should be able to
+    This class is the base class of a real-value descriptor. It should be able to
     take an image and spit out binary vectors of shape ``(X, Y, F)``, where ``(X, Y)``
-    is the size of the image, and ``F`` the number of binary features.
+    is the size of the image, and ``F`` the number of real-valued features.
     """
     def __init__(self, settings={}):
         self.settings = settings
@@ -23,4 +23,4 @@ class BinaryDescriptor(Saveable, NamedRegistry):
     def subsample_size(self):
         raise NotImplementedError("This is a base class and this function must be overloaded.") 
 
-    # Notice, user must also implement the Saveable interface! 
+    # Notice, must also implement the Saveable interface! 

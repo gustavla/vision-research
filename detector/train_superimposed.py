@@ -192,7 +192,7 @@ def superimposed_model(settings, threading=True):
 
     # Train a mixture model to get a clustering of the angles of the object
     descriptor = gv.load_descriptor(settings)
-    detector = gv.Detector(num_mixtures, descriptor, settings['detector'])
+    detector = gv.BernoulliDetector(num_mixtures, descriptor, settings['detector'])
     detector.train_from_images(files)
 
     comps = detector.mixture.mixture_components()

@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from .detector import *
+from .real_detector import RealDetector
 from . import img
 from . import voc
 from . import uiuc
@@ -24,7 +25,7 @@ def load_descriptor(settings):
     des_name = settings['detector']['descriptor']
     descriptor_filename = settings[des_name].get('file')
     detector_class = gv.Detector.getclass(settings['detector'].get('type', 'binary'))
-    descriptor_cls = detector_class.descriptor_base_class().getclass(des_name)
+    descriptor_cls = detector_class.DESCRIPTOR.getclass(des_name)
     if descriptor_filename is None:
         # If there is no descriptor filename, we'll just build it from the settings
         print settings[des_name]

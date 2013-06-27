@@ -11,9 +11,9 @@ class HOGDescriptor(RealDescriptor):
         self.settings['cells_per_block'] = (3, 3)
         self.settings['pixels_per_cell'] = (6, 6)
         self.settings['orientations'] = 9 
+        self.settings['polarity_sensitive'] = True
         self.settings['normalise'] = True 
         
-        self.settings['binarize_threshold'] = 0.02
         self.settings.update(settings)
 
     def extract_features(self, image, settings={}, raveled=True):
@@ -25,6 +25,11 @@ class HOGDescriptor(RealDescriptor):
                           pixels_per_cell=ppc,
                           cells_per_block=self.settings['cells_per_block'],
                           normalise=self.settings['normalise'])
+
+        if not self.settings['polarity_sensitive']:
+            assert self.settings['orientations'] % 2 == 0, "Must have even number of orientations for polarity insensitive edges"
+            S = self.settings['orientations'] // 2
+            hog = (hog[...,:S] + hog[...,S:]) / 2
 
         # Let's binarize the features somehow
         #hog = (hog > self.settings['binarize_threshold']).astype(np.uint8)
@@ -41,7 +46,14 @@ class HOGDescriptor(RealDescriptor):
 
     @property
     def num_features(self):
-        return self.settings['orientations'] * np.prod(self.settings['cells_per_block'])
+        orients = self.settings['orientations']
+        if not self.settings['polarity_sensitive']:
+            orients //= 2
+        return orients * np.prod(self.settings['cells_per_block'])
+
+    @property
+    def subsample_size(self):
+        return self.settings['pixels_per_cell']
 
     def save_to_dict(self):
         return self.settings

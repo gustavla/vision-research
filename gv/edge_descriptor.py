@@ -27,6 +27,11 @@ class EdgeDescriptor(BinaryDescriptor):
     def num_features(self):
         return 4 if self.settings['contrast_insensitive'] else 8
 
+    @property
+    def subsample_size(self):
+        # TODO: Does no subsampling for now
+        return (1, 1)
+
     def save_to_dict(self):
         return self.settings
 
