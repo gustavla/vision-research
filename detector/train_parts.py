@@ -13,10 +13,7 @@ import glob
 
 ag.set_verbose(True)
 
-base_path = ''
-if 'base_path' in psettings:
-    base_path = os.environ[psettings['base_path']]
-path = os.path.join(base_path, psettings['image_dir'])
+path = os.path.expandvars(psettings['image_dir'])
 
 files = glob.glob(path)
 random.seed(0)
