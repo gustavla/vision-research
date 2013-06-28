@@ -250,7 +250,7 @@ def superimposed_model(settings, threading=True):
     orig_sizes = []
     new_support = []
 
-    ONE_MIXCOMP = 0 
+    ONE_MIXCOMP = None
 
     if ONE_MIXCOMP is not None:
         kern, bkg, orig_size, sup = _create_kernel_for_mixcomp_star(argses[ONE_MIXCOMP]) 

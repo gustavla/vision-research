@@ -818,6 +818,9 @@ class BernoulliDetector(Detector):
 
         #spread_bkg[:] = 0.025
 
+        # TODO Boost
+        #spread_bkg *= 1.25
+
         weights = np.log(kern/(1-kern) * ((1-spread_bkg)/spread_bkg))
 
         # Some experiments (will be removed)
