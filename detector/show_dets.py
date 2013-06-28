@@ -5,12 +5,15 @@ parser = argparse.ArgumentParser(description='Test response of model')
 #parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
 parser.add_argument('results', metavar='<file>', nargs=1, type=argparse.FileType('rb'), help='Filename of results file')
 parser.add_argument('output_dir', metavar='<output folder>', nargs=1, type=str, help="Output path")
+parser.add_argument('--count', metavar='COUNT', nargs=1, default=[20], type=int, help='The k in top-k')
 #parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
 
 args = parser.parse_args()
 #model_file = args.model
 results_file = args.results[0]
 output_dir = args.output_dir[0]
+count = args.count[0]
+
 #img_id = args.img_id
 
 import matplotlib
@@ -37,7 +40,7 @@ except KeyError:
     contest = 'voc'
     obj_class = 'car'
 
-for i, det in enumerate(detections[:20]):
+for i, det in enumerate(detections[:count]):
     bb = (det['top'], det['left'], det['bottom'], det['right'])
     bbobj = gv.bb.DetectionBB(bb, score=det['confidence'], confidence=det['confidence'], mixcomp=det['mixcomp'], correct=det['correct'])
 
