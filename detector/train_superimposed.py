@@ -62,6 +62,48 @@ def fetch_bkg_model(settings, neg_files):
     return counts / tot 
     
 
+def _partition_bkg_files(seed, count, settings, size, neg_files):
+    gen = generate_random_patches(neg_files, size, seed=seed)
+
+    descriptor = gv.load_descriptor(settings)
+
+    radii = settings['detector']['spread_radii']
+    psize = settings['detector']['subsample_size']
+    cb = settings['detector'].get('crop_border')
+    setts = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+       
+    neg_im = []
+    feats = []
+    for i, neg_im in enumerate(gen):
+        if i == count:
+            break
+    
+        all_feat = descriptor.extract_features(neg_im, settings=setts)
+        feat = np.apply_over_axes(np.sum, all_feat, [0, 1]).ravel() 
+        feats.append(feat)
+
+        neg_im.append(neg_im)
+
+    feats = np.asarray(feats)
+    neg_im = np.asarray(neg_im)
+
+    from sklearn.mixture import GMM
+    K = 4
+    mixture = GMM(K)
+    mixture.fit(feats)
+
+    mixcomps = mixture.predict(feats)
+
+    #mixture = ag.stats.BernoulliMixture(settings['detector'].get('num_bkg_mixtures', 1), feats)
+    #mixture.run_EM(1e-8, min_probability=0.005)
+
+    return [neg_im[mixcomps==i] for i in xrange(K)]
+
+    #import pdb; pdb.set_trace() 
+
+def _partition_bkg_files_star(args):
+    return _partition_bkg_files(*args)
+
 def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files):
     im_size = settings['detector']['image_size']
     size = gv.bb.size(bb)
@@ -130,6 +172,78 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
 
 def _create_kernel_for_mixcomp_star(args):
     return _create_kernel_for_mixcomp(*args)
+
+def _create_kernel_for_mixcomp2(mixcomp, settings, bb, indices, files, neg_ims):
+    im_size = settings['detector']['image_size']
+    size = gv.bb.size(bb)
+    orig_size = size
+    
+    import itertools
+    gen = itertools.cycle(neg_ims)
+    #gen = generate_random_patches(neg_files, size, seed=mixcomp)
+    descriptor = gv.load_descriptor(settings)
+
+    eps = settings['detector']['min_probability']
+    radii = settings['detector']['spread_radii']
+    psize = settings['detector']['subsample_size']
+    duplicates = settings['detector'].get('duplicates', 1)
+    cb = settings['detector'].get('crop_border')
+
+    bkg = None
+    kern = None
+    total = 0
+
+    alpha_cum = None
+
+
+    setts = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+
+    for index in indices: 
+        ag.info("Processing image of index {0} and mixture component {1}".format(index, mixcomp))
+        gray_im, alpha = _load_cad_image(files[index], im_size, bb)
+
+        bin_alpha = alpha > 0.05
+
+        if alpha_cum is None:
+            alpha_cum = bin_alpha.astype(np.uint32)
+        else:
+            alpha_cum += bin_alpha 
+
+        for dup in xrange(duplicates):
+            neg_im = gen.next()
+            superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
+
+            bkg_feats = descriptor.extract_features(neg_im, settings=setts)
+            #bkg_feats = gv.sub.subsample(bkg_feats, psize)
+        
+            if bkg is None:
+                bkg = bkg_feats.astype(np.uint32)
+            else:
+                bkg += bkg_feats
+
+            feats = descriptor.extract_features(superimposed_im, settings=setts)
+            #feats = gv.sub.subsample(feats, psize)
+
+            if kern is None:
+                kern = feats.astype(np.uint32)
+            else:
+                kern += feats
+
+            total += 1
+    
+    kern = kern.astype(np.float64) / total 
+    #kern = np.clip(kern, eps, 1-eps)
+
+    bkg = bkg.astype(np.float64) / total
+
+    support = alpha_cum.astype(np.float64) / len(indices)
+
+    #kernels.append(kern)
+    return kern, bkg, orig_size, support 
+
+
+def _create_kernel_for_mixcomp2_star(args):
+    return _create_kernel_for_mixcomp2(*args)
 
 def _load_cad_image(fn, im_size, bb):
     im = gv.img.load_image(fn)
@@ -242,8 +356,16 @@ def superimposed_model(settings, threading=True):
         imapf = p.imap
     else:
         from itertools import imap as imapf
+
+    argses2 = [(i, len(np.where(comps == i)[0]) * settings['detector']['duplicates'], settings, gv.bb.size(bbs[i]), neg_files) for i in xrange(detector.num_mixtures)]
+
     
+
     argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)] 
+
+
+    #all_mixcomps = [_partition_bkg_files() for 
+    
     #argses = [(i,) for i in xrange(detector.num_mixtures)] 
     kernels = []
     bkgs = []
@@ -251,6 +373,8 @@ def superimposed_model(settings, threading=True):
     new_support = []
 
     ONE_MIXCOMP = None
+
+    K = 4 
 
     if ONE_MIXCOMP is not None:
         kern, bkg, orig_size, sup = _create_kernel_for_mixcomp_star(argses[ONE_MIXCOMP]) 
@@ -263,13 +387,22 @@ def superimposed_model(settings, threading=True):
         detector.settings['per_mixcomp_bkg'] = True
     
     else:
-        for kern, bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp_star, argses):
+        all_negs = []
+        for neg_ims in imapf(_partition_bkg_files_star, argses2):
+            all_negs.append(neg_ims)
+
+        argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, all_negs[k]) for i in xrange(detector.num_mixtures) for k in xrange(K)] 
+
+        for kern, bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp2_star, argses):
             kernels.append(kern)
             bkgs.append(bkg)
             orig_sizes.append(orig_size)
             new_support.append(sup)
 
         detector.settings['per_mixcomp_bkg'] = True
+
+    # TODO
+    detector.num_mixtures *= K
 
     detector.kernel_templates = kernels
     detector.kernel_sizes = orig_sizes
