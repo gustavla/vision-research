@@ -702,8 +702,23 @@ class BernoulliDetector(Detector):
         return final_bbs
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
-        # Get background level
         resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
+        if 1:
+            # Get background level
+            if mixcomp % 4 != 0:
+                return [], None 
+        
+            mc = mixcomp // 4
+
+            bkgmaps = [self.response_map(sub_feats, spread_bkg, 0.5 * np.ones(100), mixcomp+i, level=-1, standardize=False) for i in xrange(4)]
+            resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(4)]
+
+            bkgcomp = np.argmax(bkgmaps, axis=0)
+            resmap = np.zeros_like(resmaps[0])
+            from itertools import product
+            for x, y in product(xrange(resmap.shape[0]), xrange(resmap.shape[1])):
+                resmap[x,y] = resmaps[bkgcomp[x,y]][x,y]
+
 
         kern = sub_kernels[mixcomp]
 
@@ -780,7 +795,7 @@ class BernoulliDetector(Detector):
 
         return bbs_sorted, resmap
 
-    def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0):
+    def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True):
         kern = sub_kernels[mixcomp]
         if self.settings.get('per_mixcomp_bkg'):
             spread_bkg =  spread_bkg[mixcomp]
@@ -854,24 +869,26 @@ class BernoulliDetector(Detector):
 
 
         # Standardization
-        testing_type = self.settings.get('testing_type', 'object-model')
 
-        if testing_type == 'fixed':
-            res -= self.fixed_train_mean[mixcomp]
-            res /= self.fixed_train_std[mixcomp]
-        elif testing_type == 'object-model':
-            a = weights
-            res -= (kern * a).sum()
-            res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
-        elif testing_type == 'background-model':
-            a = weights
-            res -= (spread_bkg * a).sum()
-            res /= np.sqrt((a**2 * spread_bkg * (1 - spread_bkg)).sum())
-        elif testing_type == 'zero-model':
-            pass
-        elif testing_type == 'none':
-            # We need to add the constant term that isn't included in weights
-            res += np.log((1 - kern) / (1 - spread_bkg)).sum() 
+
+        if standardize:
+            testing_type = self.settings.get('testing_type', 'object-model')
+            if testing_type == 'fixed':
+                res -= self.fixed_train_mean[mixcomp]
+                res /= self.fixed_train_std[mixcomp]
+            elif testing_type == 'object-model':
+                a = weights
+                res -= (kern * a).sum()
+                res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
+            elif testing_type == 'background-model':
+                a = weights
+                res -= (spread_bkg * a).sum()
+                res /= np.sqrt((a**2 * spread_bkg * (1 - spread_bkg)).sum())
+            elif testing_type == 'zero-model':
+                pass
+            elif testing_type == 'none':
+                # We need to add the constant term that isn't included in weights
+                res += np.log((1 - kern) / (1 - spread_bkg)).sum() 
 
         return res
 
