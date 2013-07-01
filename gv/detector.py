@@ -1066,7 +1066,8 @@ class BernoulliDetector(Detector):
         if self.fixed_spread_bkg is not None:
             d['fixed_spread_bkg'] = self.fixed_spread_bkg 
 
-        if self.settings['testing_type'] == 'fixed':
+        # TODO: Has temporary stuff in it
+        if self.settings['testing_type'] in ('fixed', 'NEW'):
             d['fixed_train_std'] = self.fixed_train_std
             d['fixed_train_mean'] = self.fixed_train_mean
 
