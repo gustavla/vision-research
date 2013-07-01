@@ -714,7 +714,7 @@ class BernoulliDetector(Detector):
             resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(4)]
 
             bkgcomp = np.argmax(bkgmaps, axis=0)
-            resmap = np.zeros_like(resmaps[0])
+            resmap = gv.ndfeature(np.zeros_like(resmaps[0]), lower=resmaps[0].lower, upper=resmaps[0].upper)
             from itertools import product
             for x, y in product(xrange(resmap.shape[0]), xrange(resmap.shape[1])):
                 resmap[x,y] = resmaps[bkgcomp[x,y]][x,y]
