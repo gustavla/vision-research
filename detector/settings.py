@@ -1,5 +1,6 @@
 
 import ConfigParser
+import numpy as np
 import re
 import os
 
@@ -14,7 +15,7 @@ def load_settings(fp):
             if match is not None:
                 d[section][k] = d[match.group(1)]
             else:
-                ev = eval(v)
+                ev = np.safe_eval(v)
                 if isinstance(ev, str):
                     ev = os.path.expandvars(ev)
                 d[section][k] = ev
