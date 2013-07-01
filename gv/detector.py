@@ -856,7 +856,32 @@ class BernoulliDetector(Detector):
         # Standardization
         testing_type = self.settings.get('testing_type', 'object-model')
 
-        if testing_type == 'fixed':
+        if testing_type == 'NEW':
+            mu1, mu2, std1, std2 = self.fixed_train_mean[0,mixcomp], self.fixed_train_mean[1,mixcomp], self.fixed_train_std[0,mixcomp], self.fixed_train_std[1,mixcomp]
+            alpha = 1/std2**2 - 1/std1**2
+            def t0(x):
+                return + mu1**2 / (2*sigma1**2) \
+                       - mu2**2 / (2*sigma2**2) \
+                       - x**2 / 2 * alpha \
+                       + x * (mu2/sigma2**2 - mu1/sigma1**2) \
+                       - np.log(sigma2 / sigma1)
+            if alpha == 0:
+                t = t0
+            else:
+                x0 = mu2 * sigma1**2 - mu1 * sigma2**2 / (sigma1**2 - sigma2**2)
+                def t(x):
+                    if (alpha < 0 and x >= x0) or (alpha >= 0 and x <= x0):
+                        return t0(x)
+                    else:
+                        return t0(x0) + (x - x0)/10
+
+            @np.vectorize
+            def logistic(x):
+                return 1 / (1 + np.exp(-t(x))) 
+                 
+            res = logistic(res)
+
+        elif testing_type == 'fixed':
             res -= self.fixed_train_mean[mixcomp]
             res /= self.fixed_train_std[mixcomp]
         elif testing_type == 'object-model':
