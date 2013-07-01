@@ -868,7 +868,7 @@ class BernoulliDetector(Detector):
             if alpha == 0:
                 t = t0
             else:
-                x0 = mu2 * std1**2 - mu1 * std2**2 / (std1**2 - std2**2)
+                x0 = (mu2 * std1**2 - mu1 * std2**2) / (std1**2 - std2**2)
                 def t(x):
                     if (alpha < 0 and x >= x0) or (alpha >= 0 and x <= x0):
                         return t0(x)
@@ -879,7 +879,7 @@ class BernoulliDetector(Detector):
             #def logistic(x):
                 #return 1 / (1 + np.exp(-t(x))) 
             logistic = np.vectorize(t)
-                 
+
             res = gv.ndfeature(logistic(res), lower=res.lower, upper=res.upper)
             
 
