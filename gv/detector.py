@@ -776,7 +776,7 @@ class BernoulliDetector(Detector):
 
         # Let's limit to five per level
         bbs_sorted = self.nonmaximal_suppression(bbs)
-        bbs_sorted = bbs_sorted[:15]
+        bbs_sorted = bbs_sorted[:50]
 
         return bbs_sorted, resmap
 
@@ -886,6 +886,10 @@ class BernoulliDetector(Detector):
         elif testing_type == 'fixed':
             res -= self.fixed_train_mean[mixcomp]
             res /= self.fixed_train_std[mixcomp]
+        elif testing_type == 'fixed2':
+            llhs = self.fixed_train_mean[mixcomp]['neg_llhs']
+            res -= np.mean(llhs)
+            res /= np.std(llhs)
         elif testing_type == 'object-model':
             a = weights
             res -= (kern * a).sum()
@@ -1069,7 +1073,7 @@ class BernoulliDetector(Detector):
             d['fixed_spread_bkg'] = self.fixed_spread_bkg 
 
         # TODO: Has temporary stuff in it
-        if self.settings['testing_type'] in ('fixed', 'NEW'):
+        if self.settings['testing_type'] in ('fixed', 'fixed2', 'NEW'):
             d['fixed_train_std'] = self.fixed_train_std
             d['fixed_train_mean'] = self.fixed_train_mean
 

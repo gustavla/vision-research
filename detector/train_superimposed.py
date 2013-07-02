@@ -169,7 +169,7 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices,
             neg_im = gen.next()
 
             neg_feats = descriptor.extract_features(neg_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
-            neg_llh = (weights * neg_feats).sum()
+            neg_llh = float((weights * neg_feats).sum())
             neg_llhs.append(neg_llh)
 
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
@@ -178,12 +178,13 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices,
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
             #feats = gv.sub.subsample(feats, psize)
 
-            llh = (weights * feats).sum()
+            llh = float((weights * feats).sum())
             llhs.append(llh)
 
     #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
 
-    return np.mean(llhs), np.std(llhs), np.mean(neg_llhs), np.std(neg_llhs)
+    #return np.mean(llhs), np.std(llhs), np.mean(neg_llhs), np.std(neg_llhs)
+    return llhs, neg_llhs
 
 def _calc_standardization_for_mixcomp_star(args):
     return _calc_standardization_for_mixcomp(*args)
@@ -310,22 +311,29 @@ def superimposed_model(settings, threading=True):
 
     #detector.fixed_train_mean = np.zeros(detector.num_mixtures)
     #detector.fixed_train_std = np.ones(detector.num_mixtures)
-    detector.fixed_train_mean = np.zeros((2, detector.num_mixtures))
-    detector.fixed_train_std = np.ones((2, detector.num_mixtures))
+    #detector.fixed_train_mean = np.zeros((2, detector.num_mixtures))
+    #detector.fixed_train_std = np.ones((2, detector.num_mixtures))
+    detector.fixed_train_mean = [] 
+    detector.fixed_train_std = np.ones(1)
         
     if ONE_MIXCOMP is None:
         argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
         #for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
-        for i, (mean2, std2, mean1, std1) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
+        #for i, (mean2, std2, mean1, std1) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
+        for i, (llhs, neg_llhs) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
             #detector.fixed_train_mean[i] = mean
             #detector.fixed_train_std[i] = std
-            detector.fixed_train_mean[0,i] = mean1
-            detector.fixed_train_std[0,i] = std1
-            detector.fixed_train_mean[1,i] = mean2
-            detector.fixed_train_std[1,i] = std2
+            #detector.fixed_train_mean[0,i] = mean1
+            #detector.fixed_train_std[0,i] = std1
+            #detector.fixed_train_mean[1,i] = mean2
+            #detector.fixed_train_std[1,i] = std2
+            detector.fixed_train_mean.append({
+                'pos_llhs': llhs,
+                'neg_llhs': neg_llhs,
+            })
 
     #detector.settings['testing_type'] = 'fixed'
-    detector.settings['testing_type'] = 'NEW'
+    detector.settings['testing_type'] = 'fixed2'
 
     return detector 
 
