@@ -175,15 +175,17 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices,
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
             #superimposed_im = neg_im
 
-            feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
-            #feats = gv.sub.subsample(feats, psize)
+            if 0:
+                feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
+                #feats = gv.sub.subsample(feats, psize)
 
-            llh = (weights * feats).sum()
-            llhs.append(llh)
+                llh = (weights * feats).sum()
+                llhs.append(llh)
 
     #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
 
-    return np.mean(llhs), np.std(llhs), np.mean(neg_llhs), np.std(neg_llhs)
+    #return np.mean(llhs), np.std(llhs), np.mean(neg_llhs), np.std(neg_llhs)
+    return np.mean(neg_llhs), np.std(neg_llhs)
 
 def _calc_standardization_for_mixcomp_star(args):
     return _calc_standardization_for_mixcomp(*args)
@@ -199,7 +201,17 @@ def superimposed_model(settings, threading=True):
     # Train a mixture model to get a clustering of the angles of the object
     descriptor = gv.load_descriptor(settings)
     detector = gv.BernoulliDetector(num_mixtures, descriptor, settings['detector'])
+
+    bkg_type = detector.settings['bkg_type']
+    testing_type = detector.settings['testing_type']
+    detector.settings['bkg_type'] = None
+    detector.settings['testing_type'] = None
+
     detector.train_from_images(files)
+
+    detector.settings['bkg_type'] = bkg_type
+    detector.settings['testing_type'] = testing_type
+    
 
     comps = detector.mixture.mixture_components()
     each_mix_N = np.bincount(comps, minlength=num_mixtures)
@@ -256,7 +268,7 @@ def superimposed_model(settings, threading=True):
     orig_sizes = []
     new_support = []
 
-    ONE_MIXCOMP = None
+    ONE_MIXCOMP = 0#None
 
     if ONE_MIXCOMP is not None:
         kern, bkg, orig_size, sup = _create_kernel_for_mixcomp_star(argses[ONE_MIXCOMP]) 
@@ -308,24 +320,24 @@ def superimposed_model(settings, threading=True):
     # Determine the standardization values
     ag.info("Determining standardization values")
 
-    #detector.fixed_train_mean = np.zeros(detector.num_mixtures)
-    #detector.fixed_train_std = np.ones(detector.num_mixtures)
-    detector.fixed_train_mean = np.zeros((2, detector.num_mixtures))
-    detector.fixed_train_std = np.ones((2, detector.num_mixtures))
+    detector.fixed_train_mean = np.zeros(detector.num_mixtures)
+    detector.fixed_train_std = np.ones(detector.num_mixtures)
+    #detector.fixed_train_mean = np.zeros((2, detector.num_mixtures))
+    #detector.fixed_train_std = np.ones((2, detector.num_mixtures))
         
     if ONE_MIXCOMP is None:
         argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
-        #for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
-        for i, (mean2, std2, mean1, std1) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
-            #detector.fixed_train_mean[i] = mean
-            #detector.fixed_train_std[i] = std
-            detector.fixed_train_mean[0,i] = mean1
-            detector.fixed_train_std[0,i] = std1
-            detector.fixed_train_mean[1,i] = mean2
-            detector.fixed_train_std[1,i] = std2
+        for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
+        #for i, (mean2, std2, mean1, std1) in enumerate(imapf(_calc_standardization_for_mixcomp_star, argses)):
+            detector.fixed_train_mean[i] = mean
+            detector.fixed_train_std[i] = std
+            #detector.fixed_train_mean[0,i] = mean1
+            #detector.fixed_train_std[0,i] = std1
+            #detector.fixed_train_mean[1,i] = mean2
+            #detector.fixed_train_std[1,i] = std2
 
-    #detector.settings['testing_type'] = 'fixed'
-    detector.settings['testing_type'] = 'NEW'
+    detector.settings['testing_type'] = 'fixed'
+    #detector.settings['testing_type'] = 'NEW'
 
     return detector 
 
