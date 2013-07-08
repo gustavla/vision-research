@@ -7,7 +7,10 @@ def plot_image(fileobj, filename=None, show_corrects=False):
     img = gv.img.load_image(fileobj.path)
 
     plt.clf()
-    plt.imshow(img)
+    if img.ndim == 2: 
+        plt.imshow(img, cmap=plt.cm.gray)
+    else:
+        plt.imshow(img)
 
     for bbobj in fileobj.boxes:
         bb = bbobj.box

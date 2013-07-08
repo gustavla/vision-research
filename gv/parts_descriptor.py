@@ -218,7 +218,7 @@ class PartsDescriptor(BinaryDescriptor):
 
         sett = self.settings
         sett.update(settings)
-        psize = sett['subsample_size']
+        psize = sett.get('subsample_size', (1, 1))
         feats = gv.sub.subsample(feats, psize)
 
         buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))

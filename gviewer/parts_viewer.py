@@ -133,7 +133,9 @@ class Viewer3DWidget(QGLWidget):
                 radii = self.detector.settings['spread_radii']
                 psize = self.detector.settings['subsample_size']
                 #bkg = self.detector.fixed_spread_bkg
-                bkg = self.detector.bkg_model(None, spread=True)
+                bkgs = self.detector.bkg_model(None, spread=True)
+                bkg = bkgs[self.mixture_index]
+                eps = self.detector.settings['min_probability']
             
                 ksize = self.kern[self.mixture_index].shape
 
@@ -147,7 +149,14 @@ class Viewer3DWidget(QGLWidget):
                 Y = gv.sub.subsample(spread_parts, psize)
                 
                 kern = self.kern[self.mixture_index]
+
+    
+                kern = np.clip(kern, eps, 1-eps)
+                bkg = np.clip(bkg, eps, 1-eps)
                 a = np.log(kern / (1 - kern) * ((1-bkg)/bkg))
+
+                print kern.shape, bkg.shape, Y.shape, a.shape
+            
                 if Y.shape == a.shape:
                     xcorr = (Y * a)
                     llh = xcorr.sum()
