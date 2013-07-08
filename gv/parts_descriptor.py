@@ -89,10 +89,11 @@ class PartsDescriptor(BinaryDescriptor):
                 edgepatch = edges[selection]
                 #edgepatch_nospread = edges_nospread[selection]
                 if fr == 0:
-                    num = edgepatch.sum()
+                    avg = edgepatch.mean()
                 else:
-                    num = edgepatch[fr:-fr,fr:-fr].sum()
-                if num >= self.settings['threshold']: 
+                    avg = edgepatch[fr:-fr,fr:-fr].mean()
+
+                if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
                     the_patches.append(edgepatch)
                     #the_patches.append(edgepatch_nospread)
     
@@ -208,13 +209,19 @@ class PartsDescriptor(BinaryDescriptor):
         self._log_invparts = np.log(1-self.parts)
 
     def extract_features(self, image, settings={}):
+        sett = self.bedges_settings().copy()
+        sett['radius'] = 0
         if 1:
-            edges = ag.features.bedges(image, **self.bedges_settings())
+            unspread_edges = ag.features.bedges(image, **sett)
         else:
             # LEAVE-BEHIND: From multi-channel images
-            edges = ag.features.bedges_from_image(image, **self.bedges_settings()) 
+            unspread_edges = ag.features.bedges_from_image(image, **sett)
+    
 
-        feats = self.extract_parts(edges, settings=settings)
+        # Now do spreading
+        edges = ag.features.bspread(unspread_edges, spread=self.bedges_settings()['spread'], radius=self.bedges_settings()['radius'])  
+
+        feats = self.extract_parts(edges, unspread_edges, settings=settings)
 
         sett = self.settings
         sett.update(settings)
@@ -227,19 +234,33 @@ class PartsDescriptor(BinaryDescriptor):
 
         return gv.ndfeature(feats, lower=lower, upper=upper)
 
-    def extract_partprobs_from_edges(self, edges):
-        partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
-                                           self.settings['threshold'], self.settings['patch_frame'])
+    # How could it know num_edges without inputting it? 
+    def threshold_in_counts(self, threshold, num_edges):
+        size = self.settings['part_size']
+        frame = self.settings['patch_frame']
+        return int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges)
+
+    def extract_partprobs_from_edges(self, edges, edges_unspread):
+        partprobs = ag.features.code_parts(edges, 
+                                           edges_unspread,
+                                           self._log_parts, self._log_invparts, 
+                                           self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'],
+                                           max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
         return partprobs
 
     def extract_partprobs(self, image):
         edges = ag.features.bedges(image, **self.bedges_settings())
         return self.extract_partprobs_from_edges(edges)
 
-    def extract_parts(self, edges, settings={}):
+    def extract_parts(self, edges, edges_unspread, settings={}):
         #print 'strides', self.settings.get('strides', 1)
-        feats = ag.features.code_parts_as_features(edges, self._log_parts, self._log_invparts, 
-                                                   self.settings['threshold'], self.settings['patch_frame'], strides=self.settings.get('strides', 1))
+        feats = ag.features.code_parts_as_features(edges, 
+                                                   edges_unspread,
+                                                   self._log_parts, self._log_invparts, 
+                                                   self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'], 
+                                                   strides=self.settings.get('strides', 1), 
+                                                   tau=self.settings.get('tau', 0.0),
+                                                   max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
 
         # Pad with background (TODO: maybe incorporate as an option to code_parts?)
         # This just makes things a lot easier, and we don't have to match for instance the
@@ -284,7 +305,7 @@ class PartsDescriptor(BinaryDescriptor):
             partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
                                                self.settings['threshold'], self.settings['patch_frame'], strides=1)
 
-        #tau = self.settings.get('tau')
+        tau = self.settings.get('tau', 0.0)
         #if self.settings.get('tau'):
         parts = partprobs.argmax(axis=-1)
 
@@ -311,7 +332,8 @@ class PartsDescriptor(BinaryDescriptor):
         # Do spreading
         radii = sett.get('spread_radii', (0, 0))
 
-        spread_parts = ag.features.spread_patches_new(partprobs.astype(np.float32), radii[0], radii[1], 0.0)
+        print tau
+        spread_parts = ag.features.spread_patches_new(partprobs.astype(np.float32), radii[0], radii[1], tau)
 
         cb = sett.get('crop_border')
         if cb:
