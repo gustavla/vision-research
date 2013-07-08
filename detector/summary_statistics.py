@@ -43,6 +43,7 @@ cut = 4
 
 intensities = np.array([])
 
+num_e_count = None 
 e_count = 0
 e_tot = 0
 
@@ -59,15 +60,21 @@ for f in files:
 
     edges = ag.features.bedges(im, **descriptor.bedges_settings())
 
-    feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, crop_border=cut))
-    feats = gv.sub.subsample(feats, psize)
+    feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cut))
+    #feats = gv.sub.subsample(feats, psize)
     x = np.rollaxis(feats, 2).reshape((descriptor.num_parts, -1))
     tot += x.shape[1]
     pi += x.sum(axis=1)
 
-    #import pdb; pdb.set_trace()
-    e_count += edges.reshape((-1, edges.shape[-1])).sum(axis=0)
+    flat = edges.reshape((-1, edges.shape[-1]))
+    e_count += flat.sum(axis=0)
     e_tot += np.prod(edges.shape[:-1])  
+
+    es = flat.sum(axis=1)
+    if num_e_count is None:
+        num_e_count = es
+    else:
+        num_e_count = np.r_[num_e_count, es]
 
 #if 1:
     #import pylab as plt
@@ -75,10 +82,14 @@ for f in files:
     #plt.show()
     
 bkg = pi / tot
-print 'edges', e_count.astype(np.float64) / e_tot
-print 'bkg-avg', bkg.mean()
-print 'bkg-min', bkg.min()
-print 'bkg-max', bkg.max()
+edges = e_count.astype(np.float64) / e_tot
+avg_edges_per_pixel = num_e_count / e_tot
+np.set_printoptions(precision=2)
+print 'num_edges', np.bincount(num_e_count.astype(int), minlength=4) / float(num_e_count.size)
+print 'edges', '{0:.2f}'.format(edges.mean()), edges
+print 'bkg-avg', '{0:.3f}'.format(bkg.mean())
+print 'bkg-min', '{0:.2f}'.format(bkg.min())
+print 'bkg-max', '{0:.2f}'.format(bkg.max())
 print 'quintiles', mstats.mquantiles(bkg, np.linspace(0, 1, 5))
 
 if 0:

@@ -704,6 +704,7 @@ class BernoulliDetector(Detector):
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # Get background level
+
         resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
 
         kern = sub_kernels[mixcomp]
