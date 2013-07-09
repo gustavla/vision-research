@@ -353,10 +353,25 @@ def superimposed_model(settings, threading=True):
     # Train a mixture model to get a clustering of the angles of the object
     descriptor = gv.load_descriptor(settings)
     detector = gv.BernoulliDetector(num_mixtures, descriptor, settings['detector'])
+
+    print "Checkpoint 1"
+
+    bkg_type = detector.settings['bkg_type']
+    testing_type = detector.settings['testing_type']
+    detector.settings['bkg_type'] = None
+    detector.settings['testing_type'] = None
+
     detector.train_from_images(files)
+
+    detector.settings['bkg_type'] = bkg_type
+    detector.settings['testing_type'] = testing_type
+
+    print "Checkpoint 2"
 
     comps = detector.mixture.mixture_components()
     each_mix_N = np.bincount(comps, minlength=num_mixtures)
+
+    print "Checkpoint 3"
 
     for fn in glob.glob('toutputs/*.png'):
         os.remove(fn)
@@ -366,6 +381,8 @@ def superimposed_model(settings, threading=True):
         indices = np.where(comps == mixcomp)[0]
         for i in indices:
             copyfile(files[i], 'toutputs/mixcomp-{0}-index-{1}.png'.format(mixcomp, i))
+
+    print "Checkpoint 4"
 
     support = detector.support 
 
@@ -390,8 +407,12 @@ def superimposed_model(settings, threading=True):
         bb = gv.bb.intersection(bb, max_bb)
         return bb
 
+    print "Checkpoint 5"
+
     max_bb = (0, 0) + detector.settings['image_size']
     bbs = [make_bb(get_full_size_bb(k), max_bb) for k in xrange(detector.num_mixtures)]
+
+    print "Checkpoint 6"
 
     #for mixcomp in xrange(num_mixtures):
     
@@ -408,6 +429,8 @@ def superimposed_model(settings, threading=True):
     
 
     argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)] 
+
+    print "Checkpoint 7"
 
 
     #all_mixcomps = [_partition_bkg_files() for 
@@ -433,17 +456,22 @@ def superimposed_model(settings, threading=True):
         detector.settings['per_mixcomp_bkg'] = True
     
     else:
+        print "Checkpoint 8"
         all_negs = []
         for neg_ims in imapf(_partition_bkg_files_star, argses2):
             all_negs.append(neg_ims)
 
         argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, all_negs[i][k]) for i in xrange(detector.num_mixtures) for k in xrange(K)] 
 
+        print "Checkpoint 9"
+
         for kern, bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp2_star, argses):
             kernels.append(kern)
             bkgs.append(bkg)
             orig_sizes.append(orig_size)
             new_support.append(sup)
+
+        print "Checkpoint 10"
 
         detector.settings['per_mixcomp_bkg'] = True
 

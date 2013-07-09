@@ -702,23 +702,42 @@ class BernoulliDetector(Detector):
         return final_bbs
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
-        resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
         # TODO: VERY TEMPORARY
-        if self.num_mixtures > 10:
+        K = 4
+        if self.num_mixtures == K:
             # Get background level
-            if mixcomp % 4 != 0:
+            if mixcomp % K != 0:
                 return [], None 
-        
-            mc = mixcomp // 4
 
-            bkgmaps = [self.response_map(sub_feats, spread_bkg, 0.5 * np.ones(100), mixcomp+i, level=-1, standardize=False) for i in xrange(4)]
-            resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(4)]
+            mc = mixcomp // K
+
+            bkgmaps = np.asarray([self.response_map(sub_feats, spread_bkg, 0.5 * np.ones(100), mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
+            resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(K)]
 
             bkgcomp = np.argmax(bkgmaps, axis=0)
             resmap = gv.ndfeature(np.zeros_like(resmaps[0]), lower=resmaps[0].lower, upper=resmaps[0].upper)
+        
+        
+            #invalid = (bkgmaps[bkgcomp] == 0)
+            #resmap = invalid * resmap.min() + ~invalid * resmap
+
+            mn = np.min(resmaps)
+
+            # Don't allow score where all bkg probs were 0
             from itertools import product
             for x, y in product(xrange(resmap.shape[0]), xrange(resmap.shape[1])):
-                resmap[x,y] = resmaps[bkgcomp[x,y]][x,y]
+                if bkgmaps[bkgcomp[x,y],x,y] == 0:
+                    resmap[x,y] = mn 
+                else:
+                    resmap[x,y] = resmaps[bkgcomp[x,y]][x,y]
+
+            import pylab as plt
+            for i, res in enumerate(resmaps): plt.subplot(221+i); plt.imshow(res, vmin=np.min(resmaps), vmax=np.max(resmaps))
+            plt.show()
+            import pdb; pdb.set_trace()
+
+        else:
+            resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
 
 
         kern = sub_kernels[mixcomp]
