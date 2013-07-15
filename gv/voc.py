@@ -69,11 +69,14 @@ def load_specific_files(class_name, img_ids, has_objects=None, padding=0):
     return files, tot
 
 _VOC_PROFILES = [153, 220, 263, 317, 522, 871, 1060, 1119, 1662, 2182, 3790, 3936]
+_VOC_PROFILES2 = _VOC_PROFILES + [1, 2, 5, 6, 8, 9, 10, 11, 13, 15, 16, 30, 31, 42, 43, 44, 45, 46, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 61, 62, 63, 64, 65, 66, 67, 68, 70, 73, 75, 76, 100]
 _VOC_EASY_NONPROFILES = [26, 1237, 1334, 1488, 1494, 1576, 2153, 2178, 2247, 2534]
 
 def load_files(class_name, dataset='train'):
     if dataset == 'profile':
         return load_specific_files(class_name, _VOC_PROFILES)
+    elif dataset == 'profile2':
+        return load_specific_files(class_name, _VOC_PROFILES2)
     elif dataset == 'easy':
         return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPRIFLES)
 

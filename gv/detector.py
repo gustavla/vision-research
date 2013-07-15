@@ -1,5 +1,6 @@
 from __future__ import division
 
+import matplotlib
 import amitgroup as ag
 import numpy as np
 import scipy.signal
@@ -9,6 +10,8 @@ from .binary_descriptor import BinaryDescriptor
 import gv
 import sys
 from copy import deepcopy
+from itertools import product
+from scipy.misc import logsumexp
 
 # TODO: Build into train_basis_...
 #cad_kernels = np.load('cad_kernel.npy')
@@ -495,7 +498,29 @@ class BernoulliDetector(Detector):
 
         #feats = gv.sub.subsample(spread_feats, psize) 
         sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
-        bbs, resmap = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
+        bbs, resmap = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp, TMP_IMG=img, TMP_IMG_ID=img_id)
+
+        # Some plotting code that we might want to place somewhere
+        if 0:
+            if resmap is not None:
+                import pylab as plt 
+                plt.clf()
+                plt.subplot(211)
+                plt.imshow(TMP_IMG, interpolation='nearest', cmap=plt.cm.gray) 
+                plt.subplot(212)
+                #import pdb; pdb.set_trace()
+                plt.imshow(resmap, interpolation='nearest')
+                plt.colorbar()
+
+                if 0:
+                    plt.subplot(224)
+                    plt.imshow(bkgcomp, interpolation='nearest', vmin=0, vmax=K-1)
+                plt.colorbar()
+
+                fn = 'day-output/out-id{0}-factor{1}-mixcomp{2}.png'.format(TMP_IMG_ID, factor, mixcomp)
+                plt.savefig(fn)
+
+
 
         final_bbs = bbs
 
@@ -703,7 +728,7 @@ class BernoulliDetector(Detector):
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # TODO: VERY TEMPORARY
-        K = 4
+        K = 0
         if self.num_mixtures == K:
             # Get background level
             if mixcomp % K != 0:
@@ -711,7 +736,18 @@ class BernoulliDetector(Detector):
 
             mc = mixcomp // K
 
-            bkgmaps = np.asarray([self.response_map(sub_feats, spread_bkg, 0.5 * np.ones(100), mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
+            #alpha = (self.support[mixcomp] > 0.5)
+            alpha = gv.sub.subsample(self.support[mixcomp] > 0.5, (2, 2))[3:-3,3:-3]
+            bbkg = [0.5 * np.ones(alpha.shape + (self.num_features,)) * np.expand_dims(alpha, -1) + spread_bkg[mixcomp] * ~np.expand_dims(alpha, -1)] * 100
+            #import pdb; pdb.set_trace()
+
+            #import pylab as plt
+            #plt.clf()
+            #plt.imshow(alpha, interpolation='nearest')
+            #plt.savefig('day-output/alpha-{0}'.format(TMP_IMG_ID))
+        
+
+            bkgmaps = np.asarray([self.response_map(sub_feats, spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
             resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(K)]
 
             bkgcomp = np.argmax(bkgmaps, axis=0)
@@ -731,14 +767,8 @@ class BernoulliDetector(Detector):
                 else:
                     resmap[x,y] = resmaps[bkgcomp[x,y]][x,y]
 
-            import pylab as plt
-            for i, res in enumerate(resmaps): plt.subplot(221+i); plt.imshow(res, vmin=np.min(resmaps), vmax=np.max(resmaps))
-            plt.show()
-            import pdb; pdb.set_trace()
-
         else:
             resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
-
 
         kern = sub_kernels[mixcomp]
 
@@ -816,6 +846,9 @@ class BernoulliDetector(Detector):
         return bbs_sorted, resmap
 
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True):
+        if np.min(sub_feats.shape) <= 1:
+            return None
+    
         kern = sub_kernels[mixcomp]
         if self.settings.get('per_mixcomp_bkg'):
             spread_bkg =  spread_bkg[mixcomp]
@@ -823,14 +856,7 @@ class BernoulliDetector(Detector):
         sh = kern.shape
         padding = (sh[0]//2, sh[1]//2, 0)
 
-        #print type(sub_feats)
-        #print sub_feats.pos((0, 0))
-        #print sub_feats.pos((sub_feats.shape[0], sub_feats.shape[1]))
         bigger = gv.ndfeature.zeropad(sub_feats, padding)
-        #print bigger.pos((padding[0], padding[1]))
-        #print bigger.pos((bigger.shape[0]-padding[0], bigger.shape[1]-padding[1]))
-
-        #import pdb; pdb.set_trace()
 
         # Since the kernel is spread, we need to convert the background
         # model to spread
@@ -844,56 +870,69 @@ class BernoulliDetector(Detector):
         # TEMP
         spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
         kern = np.clip(kern, eps, 1 - eps) 
-        #spread_bkg = np.load('new-bkg.npy')
-
-        #spread_bkg *= 1.8
-        if 0:
-            spread_bkg = np.clip(spread_bkg, 0.02, 0.98)
-            kern = np.clip(kern, 0.02, 0.98)
-
-        #spread_bkg[:] = 0.025
-
-        # TODO Boost
-        #spread_bkg *= 1.25
 
         weights = np.log(kern/(1-kern) * ((1-spread_bkg)/spread_bkg))
-
-        # Some experiments (will be removed)
-
-        #weights -= weights.mean() * 1.25
-
-        if 0:
-            # - 
-            wp = np.maximum(weights, 0)
-            wm = np.minimum(weights, 0)
-
-            wp /= wp.sum()
-            wm /= np.fabs(wm.sum())
-
-            weights = wp + 2 * wm
     
-        #print 'mixcomp', mixcomp
         from .fast import multifeature_correlate2d
-        #print bigger.shape, weights.shape
-        #index = 26 
-        #res = multifeature_correlate2d(bigger[...,index:index+1], weights[...,index:index+1].astype(np.float64)) 
+
         res = multifeature_correlate2d(bigger, weights.astype(np.float64))
         lower, upper = gv.ndfeature.inner_frame(bigger, (weights.shape[0]/2, weights.shape[1]/2))
-        #res = gv.ndfeature(res, lower=bigger.lower, upper=bigger.upper) 
-        #res2 = gv.ndfeature(res, lower=sub_feats.lower, upper=sub_feats.upper) 
-        #res = gv.ndfeature_inflate_frame(res, (-weights.shape[0]//2, -weights.shape[1]//2))
         res = gv.ndfeature(res, lower=lower, upper=upper)
 
-        #import sys; sys.exit(0)
-        #import pdb; pdb.set_trace()
-
-
         # Standardization
-
-
         if standardize:
             testing_type = self.settings.get('testing_type', 'object-model')
+
+            # TODO: Temporary slow version
+            if testing_type == 'NEW':
+                neg_llhs = self.fixed_train_mean[mixcomp]['neg_llhs']
+                pos_llhs = self.fixed_train_mean[mixcomp]['pos_llhs']
+                #import pdb; pdb.set_trace()
+                #a(res < neg_llhs).
+
+                def logpdf(x, loc=0.0, scale=1.0):
+                    return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
+
+                def score2(R, neg_hist, pos_hist, neg_logs, pos_logs):
+                    neg_N = 0
+                    for j, weight in enumerate(neg_hist[0]):
+                        if weight > 0:
+                            llh = (neg_hist[1][j+1] + neg_hist[1][j]) / 2
+                            neg_logs[neg_N] = np.log(weight) + logpdf(R, loc=llh, scale=200)
+                            neg_N += 1
+
+                    pos_N = 0
+                    for j, weight in enumerate(pos_hist[0]):
+                        if weight > 0:
+                            llh = (pos_hist[1][j+1] + pos_hist[1][j]) / 2
+                            pos_logs[pos_N] = np.log(weight) + logpdf(R, loc=llh, scale=200)
+                            pos_N += 1
+
+                    return logsumexp(pos_logs[:pos_N]) - logsumexp(neg_logs[:neg_N])
+                
+                def score(R, neg_llhs, pos_llhs):
+                    neg_logs = np.zeros_like(neg_llhs)
+                    pos_logs = np.zeros_like(pos_llhs)
+
+                    for j, llh in enumerate(neg_llhs):
+                        neg_logs[j] = logpdf(R, loc=llh, scale=200)
+
+                    for j, llh in enumerate(pos_llhs):
+                        pos_logs[j] = logpdf(R, loc=llh, scale=200)
+
+                    return logsumexp(pos_logs) - logsumexp(neg_logs)
+
+                neg_hist = np.histogram(neg_llhs, bins=10, normed=True)
+                pos_hist = np.histogram(pos_llhs, bins=10, normed=True)
+
+                neg_logs = np.zeros_like(neg_hist[0])
+                pos_logs = np.zeros_like(pos_hist[0])
+
+                for x, y in product(xrange(res.shape[0]), xrange(res.shape[1])):
+                    res[x,y] = score2(res[x,y], neg_hist, pos_hist, neg_logs, pos_logs)
+
             if testing_type == 'fixed':
+                print "Adjusting with {0} for {1}".format(self.fixed_train_mean[mixcomp], mixcomp)
                 res -= self.fixed_train_mean[mixcomp]
                 res /= self.fixed_train_std[mixcomp]
             elif testing_type == 'object-model':
@@ -1078,7 +1117,7 @@ class BernoulliDetector(Detector):
         if self.fixed_spread_bkg is not None:
             d['fixed_spread_bkg'] = self.fixed_spread_bkg 
 
-        if self.settings['testing_type'] == 'fixed':
+        if self.settings['testing_type'] in ('fixed', 'fixed2', 'NEW'):
             d['fixed_train_std'] = self.fixed_train_std
             d['fixed_train_mean'] = self.fixed_train_mean
 
