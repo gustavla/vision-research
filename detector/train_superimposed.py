@@ -355,6 +355,44 @@ def _calc_standardization_for_mixcomp2(mixcomp, settings, bb, kern, bkg, indices
 def _calc_standardization_for_mixcomp2_star(args):
     return _calc_standardization_for_mixcomp2(*args)
 
+
+def _logpdf(x, loc=0.0, scale=1.0):
+    return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
+
+def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
+    info = {}
+
+    mn = min(np.min(neg_llhs), np.min(pos_llhs))
+    mx = max(np.max(neg_llhs), np.max(pos_llhs))
+    span = (mn, mx)
+    
+    # Points along our linearization
+    x = np.linspace(span[0], span[1], 100)
+    delta = x[1] - x[0]
+
+    neg_logs = np.zeros_like(neg_llhs)
+    pos_logs = np.zeros_like(pos_llhs)
+
+    def score(R, neg_llhs, pos_llhs):
+        for j, llh in enumerate(neg_llhs):
+            neg_logs[j] = _logpdf(R, loc=llh, scale=200)
+
+        for j, llh in enumerate(pos_llhs):
+            pos_logs[j] = _logpdf(R, loc=llh, scale=200)
+
+        from scipy.misc import logsumexp
+        return logsumexp(pos_logs) - logsumexp(neg_logs)
+
+
+    y = np.zeros_like(x)
+    for i in xrange(len(x)):
+        y[i] = score(x[i], neg_llhs, pos_llhs)
+
+    info['start'] = mn
+    info['step'] = delta
+    info['points'] = y
+    return info
+
 def superimposed_model(settings, threading=True):
     offset = settings['detector'].get('train_offset', 0)
     limit = settings['detector'].get('train_limit')
@@ -481,6 +519,9 @@ def superimposed_model(settings, threading=True):
 
         for kern, bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp2_star, argses):
             kernels.append(kern)
+
+            if detector.settings.get('collapse_bkg'):
+                bkg = np.apply_over_axes(np.mean, bkg, [0, 1]).ravel()
             bkgs.append(bkg)
             orig_sizes.append(orig_size)
             new_support.append(sup)
@@ -523,25 +564,31 @@ def superimposed_model(settings, threading=True):
     # Determine the standardization values
     ag.info("Determining standardization values")
 
-    detector.fixed_train_mean = np.zeros(detector.num_mixtures)
+    #fixed_train_mean = np.zeros(detector.num_mixtures)
     #detector.fixed_train_mean = []
-    detector.fixed_train_std = np.ones(detector.num_mixtures)
-        
-    if ONE_MIXCOMP is None:
-        #argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
-        argses = [(i, settings, bbs[i//K], kernels[i], bkgs[i], list(np.where(comps == i//K)[0]), files, all_negs[i//K][i%K]) for i in xrange(detector.num_mixtures)]
-        #for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
-        for i, (llhs, neg_llhs) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
-            mean = np.mean(neg_llhs)
-            std = np.std(neg_llhs)
-            detector.fixed_train_mean[i] = mean
-            detector.fixed_train_std[i] = std
-            #detector.fixed_train_mean.append({
-            #    'pos_llhs': llhs,
-            #    'neg_llhs': neg_llhs,
-            #})
+    #fixed_train_std = np.ones(detector.num_mixtures)
 
-    detector.settings['testing_type'] = 'fixed'
+    if testing_type in ('fixed', 'non-parametric'):
+        detector.standardization_info = []
+        if ONE_MIXCOMP is None:
+            #argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
+            argses = [(i, settings, bbs[i//K], kernels[i], bkgs[i], list(np.where(comps == i//K)[0]), files, all_negs[i//K][i%K]) for i in xrange(detector.num_mixtures)]
+            #for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
+            for i, (llhs, neg_llhs) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
+                #detector.standardization_info.append(dict(mean=mean, std=std))
+                #detector.fixed_train_mean.append({
+                #    'pos_llhs': llhs,
+                #    'neg_llhs': neg_llhs,
+                #})
+
+                if testing_type == 'fixed':
+                    mean = np.mean(neg_llhs)
+                    std = np.std(neg_llhs)
+                    detector.standardization_info.append(dict(mean=mean, std=std))
+                elif testing_type == 'non-parametric':
+                    detector.standardization_info.append(_standardization_info_for_linearized_non_parameteric(neg_llhs, llhs))
+
+    detector.settings['testing_type'] = testing_type 
     #detector.settings['testing_type'] = 'NEW'
 
     return detector 

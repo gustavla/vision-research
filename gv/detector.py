@@ -65,6 +65,7 @@ class BernoulliDetector(Detector):
         self.support = None
         self.fixed_bkg = None
         self.fixed_spread_bkg = None
+        self.standardization_info = None
 
         self.use_alpha = None
 
@@ -259,12 +260,6 @@ class BernoulliDetector(Detector):
 
         radii = self.settings['spread_radii']
         if testing_type == 'fixed':
-            #L = len(self.settings['levels'])
-            self.fixed_train_mean = np.zeros(self.num_mixtures)
-            self.fixed_train_std = np.zeros(self.num_mixtures)
-
-            #for i, (sub, spread) in enumerate(self.settings['levels']):
-
             psize = self.settings['subsample_size']
             radii = self.settings['spread_radii']
 
@@ -303,23 +298,8 @@ class BernoulliDetector(Detector):
                 llh = np.sum(Xi * a)
                 llhs[mixcomp].append(llh)
 
-            self.fixed_train_mean = np.asarray([np.mean(llhs[k]) for k in xrange(self.num_mixtures)]) 
-            self.fixed_train_std = np.asarray([np.std(llhs[k]) for k in xrange(self.num_mixtures)])
+            self.standardization_info = [dict(mean=np.mean(llhs[k]), std=np.std(llhs[k])) for k in xrange(self.num_mixtures)]
 
-            if 0:
-                #print('sub_output', sub_output.shape)
-                theta = kernels.reshape((kernels.shape[0], -1))
-                X = np.asarray(output) #sub_output.reshape((sub_output.shape[0], -1))
-
-                llhs = np.dot(X, np.log(theta/(1-theta) * ((1-bkg)/bkg)).T)
-                #C = np.log((1-theta)/(1-bkg)).sum(axis=1)
-                #llhs += C
-                
-                lrt = llhs.max(axis=1)
-
-                self.fixed_train_mean[i] = lrt.mean()
-                self.fixed_train_std[i] = lrt.std()
-    
         return mixture, kernel_templates, kernel_sizes, support
 
     def extract_unspread_features(self, image):
@@ -356,8 +336,6 @@ class BernoulliDetector(Detector):
         """
         bkg_type = self.settings.get('bkg_type')
 
-        #return np.load('spread_bkg.npy')
-    
         if bkg_type == 'constant':
             bkg_value = self.settings['fixed_bkg']
             return np.ones(self.num_features) * bkg_value 
@@ -498,7 +476,7 @@ class BernoulliDetector(Detector):
 
         #feats = gv.sub.subsample(spread_feats, psize) 
         sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
-        bbs, resmap = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp, TMP_IMG=img, TMP_IMG_ID=img_id)
+        bbs, resmap = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
 
         # Some plotting code that we might want to place somewhere
         if 0:
@@ -885,8 +863,8 @@ class BernoulliDetector(Detector):
 
             # TODO: Temporary slow version
             if testing_type == 'NEW':
-                neg_llhs = self.fixed_train_mean[mixcomp]['neg_llhs']
-                pos_llhs = self.fixed_train_mean[mixcomp]['pos_llhs']
+                neg_llhs = self.standardization_info[mixcomp]['neg_llhs']
+                pos_llhs = self.standardization_info[mixcomp]['pos_llhs']
                 #import pdb; pdb.set_trace()
                 #a(res < neg_llhs).
 
@@ -932,9 +910,12 @@ class BernoulliDetector(Detector):
                     res[x,y] = score2(res[x,y], neg_hist, pos_hist, neg_logs, pos_logs)
 
             if testing_type == 'fixed':
-                print "Adjusting with {0} for {1}".format(self.fixed_train_mean[mixcomp], mixcomp)
-                res -= self.fixed_train_mean[mixcomp]
-                res /= self.fixed_train_std[mixcomp]
+                res -= self.standardization_info[mixcomp]['mean']
+                res /= self.standardization_info[mixcomp]['std']
+            elif testing_type == 'non-parametric':
+                from .fast import nonparametric_rescore
+                info = self.standardization_info[mixcomp]
+                nonparametric_rescore(res, info['start'], info['step'], info['points'])
             elif testing_type == 'object-model':
                 a = weights
                 res -= (kern * a).sum()
@@ -1086,8 +1067,7 @@ class BernoulliDetector(Detector):
             obj.fixed_bkg = d.get('fixed_bkg')
             obj.fixed_spread_bkg = d.get('fixed_spread_bkg')
 
-            obj.fixed_train_std = d.get('fixed_train_std')
-            obj.fixed_train_mean = d.get('fixed_train_mean')
+            obj.standardization_info = d.get('standardization_info')
 
             obj._preprocess()
             return obj
@@ -1116,9 +1096,8 @@ class BernoulliDetector(Detector):
 
         if self.fixed_spread_bkg is not None:
             d['fixed_spread_bkg'] = self.fixed_spread_bkg 
-
-        if self.settings['testing_type'] in ('fixed', 'fixed2', 'NEW'):
-            d['fixed_train_std'] = self.fixed_train_std
-            d['fixed_train_mean'] = self.fixed_train_mean
+    
+        if self.standardization_info is not None:
+            d['standardization_info'] = self.standardization_info
 
         return d

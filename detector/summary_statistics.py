@@ -4,14 +4,14 @@ from settings import load_settings
 parser = argparse.ArgumentParser(description='Train mixture model on edge data')
 parser.add_argument('settings', metavar='<settings file>', type=argparse.FileType('r'), help='Filename of settings file')
 #parser.add_argument('--spread', action='store_true')
-parser.add_argument('--limit', nargs=1, type=int, default=[10])
-parser.add_argument('--factor', nargs=1, type=float, default=[1.0])
+parser.add_argument('--limit', type=int, default=10)
+parser.add_argument('--factor', type=float, default=1.0)
 parser.add_argument('--sort', action='store_true')
 
 args = parser.parse_args()
 settings_file = args.settings
-limit = args.limit[0]
-factor = args.factor[0]
+limit = args.limit
+factor = args.factor
 do_sorting = args.sort
 
 import gv
@@ -59,8 +59,7 @@ for f in files:
 
     edges = ag.features.bedges(im, **descriptor.bedges_settings())
 
-    feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, crop_border=cut))
-    feats = gv.sub.subsample(feats, psize)
+    feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cut))
     x = np.rollaxis(feats, 2).reshape((descriptor.num_parts, -1))
     tot += x.shape[1]
     pi += x.sum(axis=1)
@@ -75,7 +74,8 @@ for f in files:
     #plt.show()
     
 bkg = pi / tot
-print 'edges', e_count.astype(np.float64) / e_tot
+edges = e_count.astype(np.float64) / e_tot
+print 'edges', edges.mean(), edges 
 print 'bkg-avg', bkg.mean()
 print 'bkg-min', bkg.min()
 print 'bkg-max', bkg.max()

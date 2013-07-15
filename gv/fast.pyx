@@ -188,3 +188,33 @@ def llh(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=3] kernel_, np.nda
             response[i,j] = res / sqrt(Z)
 
     return response_
+
+def nonparametric_rescore(np.ndarray[real,ndim=2] res, start, step, np.ndarray[real,ndim=1] points):
+    cdef:
+        int N = len(points)
+        real[:,:] res_mv = res
+        real real_start = <real>start
+        real real_step = <real>step
+        real real_end = <real>(real_start + real_step * (N-1))
+        int dim0 = res.shape[0]
+        int dim1 = res.shape[1]
+        int i, j, index
+        real s
+        real pre_slope = (points[1] - points[0]) / step
+        real post_slope = (points[N-1] - points[N-2]) / step
+        real[:] points_mv = points 
+
+    with nogil:
+        for i in range(dim0):
+            for j in range(dim1):
+                s = res_mv[i,j]
+                if s < real_start:
+                    s = points[0] + (s - real_start) * pre_slope
+                else:
+                    index = <int>((s - real_start) // real_step)
+                    if index >= N-1:
+                        s = points[N-1] + (s - real_end) * post_slope
+                    else:
+                        s = points[index] + ((s - real_start) / real_step - index) * (points[index+1] - points[index])
+
+                res_mv[i,j] = s
