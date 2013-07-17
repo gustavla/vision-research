@@ -479,12 +479,12 @@ class BernoulliDetector(Detector):
         bbs, resmap = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
 
         # Some plotting code that we might want to place somewhere
-        if 0:
+        if 1:
             if resmap is not None:
                 import pylab as plt 
                 plt.clf()
                 plt.subplot(211)
-                plt.imshow(TMP_IMG, interpolation='nearest', cmap=plt.cm.gray) 
+                plt.imshow(img, interpolation='nearest', cmap=plt.cm.gray) 
                 plt.subplot(212)
                 #import pdb; pdb.set_trace()
                 plt.imshow(resmap, interpolation='nearest')
@@ -493,9 +493,9 @@ class BernoulliDetector(Detector):
                 if 0:
                     plt.subplot(224)
                     plt.imshow(bkgcomp, interpolation='nearest', vmin=0, vmax=K-1)
-                plt.colorbar()
+                    plt.colorbar()
 
-                fn = 'day-output/out-id{0}-factor{1}-mixcomp{2}.png'.format(TMP_IMG_ID, factor, mixcomp)
+                fn = 'day-output/out-id{0}-factor{1}-mixcomp{2}.png'.format(img_id, factor, mixcomp)
                 plt.savefig(fn)
 
 
@@ -706,7 +706,7 @@ class BernoulliDetector(Detector):
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # TODO: VERY TEMPORARY
-        K = 0
+        K = 2
         if self.num_mixtures == K:
             # Get background level
             if mixcomp % K != 0:
@@ -715,8 +715,9 @@ class BernoulliDetector(Detector):
             mc = mixcomp // K
 
             #alpha = (self.support[mixcomp] > 0.5)
-            alpha = gv.sub.subsample(self.support[mixcomp] > 0.5, (2, 2))[3:-3,3:-3]
-            bbkg = [0.5 * np.ones(alpha.shape + (self.num_features,)) * np.expand_dims(alpha, -1) + spread_bkg[mixcomp] * ~np.expand_dims(alpha, -1)] * 100
+            #alpha = gv.sub.subsample(self.support[mixcomp] > 0.5, (2, 2))[3:-3,3:-3]
+            #bbkg = [0.5 * np.ones(alpha.shape + (self.num_features,)) * np.expand_dims(alpha, -1) + spread_bkg[mixcomp] * ~np.expand_dims(alpha, -1)] * 100
+            bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             #import pdb; pdb.set_trace()
 
             #import pylab as plt
@@ -745,6 +746,16 @@ class BernoulliDetector(Detector):
                 else:
                     resmap[x,y] = resmaps[bkgcomp[x,y]][x,y]
 
+            if 1:
+                import pylab as plt 
+                for index, rm in enumerate(resmaps):
+                    plt.clf()
+                    #import pdb; pdb.set_trace()
+                    plt.imshow(rm, interpolation='nearest')
+                    plt.colorbar()
+
+                    fn = 'day-output/rm{0}-factor{1}-mixcomp{2}.png'.format(index, factor, mixcomp)
+                    plt.savefig(fn)
         else:
             resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
 
