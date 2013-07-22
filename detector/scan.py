@@ -66,7 +66,7 @@ if side is not None:
 
     factor = side/max(detector.orig_kernel_size)
     print(factor)
-    bbs, x, feats, img_resized = detector.detect_coarse_single_factor(grayscale_img, factor, mixcomp)
+    bbs, x, bkgcomp, feats, img_resized = detector.detect_coarse_single_factor(grayscale_img, factor, mixcomp)
     detector.label_corrects(bbs, fileobj)
     #bbs = detector.nonmaximal_suppression(bbs)
 
@@ -77,6 +77,9 @@ if side is not None:
     for bb in bbs:
         print(bb)
     plot_results(detector, img, x, feats, mixcomp, bbs, img_resized=img_resized)
+    import pylab as plt
+    plt.show()
+    plt.imshow(bkgcomp, interpolation='nearest'); plt.colorbar(); plt.show()
     print('max response', x.max())
 else:
     if mixcomp is None:

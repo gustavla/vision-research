@@ -39,9 +39,13 @@ if 0:
 
 fig = plt.figure(figsize=(13, 9))
 
-for i in xrange(L):
+# Limit the number viewed
+offset = 0
+#L = 3
+
+for i in xrange(offset, offset+L):
     dct = detector.standardization_info[i]
-    plt.subplot(L, 2, 1 + 2*i)
+    plt.subplot(L, 2, 1 + 2*(i-offset))
     print i
     print dct
     print '#neg', len(dct['neg_llhs'])
@@ -145,7 +149,7 @@ for i in xrange(L):
     if i == L-1:
         plt.xlabel('LLH (without const.)')
 
-    plt.subplot(L, 2, 2 + 2*i)
+    plt.subplot(L, 2, 2 + 2*(i-offset))
     if i == 0:
         plt.title('Background model')
     plt.plot(np.apply_over_axes(np.mean, detector.fixed_spread_bkg[i], [0, 1]).ravel())

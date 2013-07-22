@@ -476,7 +476,7 @@ class BernoulliDetector(Detector):
 
         #feats = gv.sub.subsample(spread_feats, psize) 
         sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
-        bbs, resmap = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
+        bbs, resmap, bkgcomp = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
 
         # Some plotting code that we might want to place somewhere
         if 0:
@@ -502,7 +502,7 @@ class BernoulliDetector(Detector):
 
         final_bbs = bbs
 
-        return final_bbs, resmap, spread_feats, img_resized
+        return final_bbs, resmap, bkgcomp, spread_feats, img_resized
 
     def calc_score(self, img, factor, bbobj, score=0):
         llhs = score
@@ -581,7 +581,7 @@ class BernoulliDetector(Detector):
         if 0:
             bbs = []
             for mixcomp in mixcomps:
-                bbs0, resmap, feats, img_resized = self.detect_coarse_single_factor(img, 1.0, mixcomp, img_id=fileobj.img_id)
+                bbs0, resmap, bkgcomp, feats, img_resized = self.detect_coarse_single_factor(img, 1.0, mixcomp, img_id=fileobj.img_id)
                 bbs += bbs0
 
             # Do NMS here
@@ -620,7 +620,7 @@ class BernoulliDetector(Detector):
             for i, factor in enumerate(factors):
                 #print 'factor', factor
                 for mixcomp in mixcomps:
-                    bbs0, resmap, feats, img_resized = self.detect_coarse_single_factor(img, factor, mixcomp, img_id=fileobj.img_id)
+                    bbs0, resmap, bkgcomp, feats, img_resized = self.detect_coarse_single_factor(img, factor, mixcomp, img_id=fileobj.img_id)
                     bbs += bbs0
         
             # Do NMS here
@@ -690,7 +690,7 @@ class BernoulliDetector(Detector):
             for mixcomp in mixcomps:
                 ag.info("Detect for mixture component", mixcomp)
             #for mixcomp in [1]:
-                bbsthis, _ = self._detect_coarse_at_factor(edge_pyramid[i], sub_kernels, spread_bkg_pyramid[i][1], factor, mixcomp)
+                bbsthis, _, _ = self._detect_coarse_at_factor(edge_pyramid[i], sub_kernels, spread_bkg_pyramid[i][1], factor, mixcomp)
                 bbs += bbsthis
 
         ag.info("Maximal suppression")
@@ -706,8 +706,8 @@ class BernoulliDetector(Detector):
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # TODO: VERY TEMPORARY
-        if 1: #self.num_mixtures == K:
-            K = self.num_mixtures
+        if True:
+            K = self.num_mixtures 
             # Get background level
             if mixcomp % K != 0:
                 return [], None 
@@ -881,7 +881,7 @@ class BernoulliDetector(Detector):
         bbs_sorted = self.nonmaximal_suppression(bbs)
         bbs_sorted = bbs_sorted[:15]
 
-        return bbs_sorted, resmap
+        return bbs_sorted, resmap, bkgcomp
 
     def response_map_NEW_MULTI(self, sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomps, level=0, standardize=True):
         if np.min(sub_feats.shape) <= 1:
