@@ -12,7 +12,7 @@ import itertools
 from collections import namedtuple
 from superimpose_experiment import generate_random_patches
 
-K = 8
+K = 20 
 
 #Patch = namedtuple('Patch', ['filename', 'selection'])
 

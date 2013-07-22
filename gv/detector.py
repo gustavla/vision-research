@@ -706,7 +706,7 @@ class BernoulliDetector(Detector):
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # TODO: VERY TEMPORARY
-        K = 8
+        K = 20
         if self.num_mixtures == K:
             # Get background level
             if mixcomp % K != 0:
@@ -745,7 +745,6 @@ class BernoulliDetector(Detector):
             bkgmaps = -bkg_model_dists(bigger, collapsed_spread_bkg, self.fixed_spread_bkg[k].shape[:2])
 
             bkgmaps = np.rollaxis(bkgmaps, 2)
-            print '+++',  bkgmaps.shape
 
             #bkgmaps = np.asarray([self.response_map(sub_feats, spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
             #bkgmaps = np.asarray([self.response_map(sub_feats, collapsed_spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
