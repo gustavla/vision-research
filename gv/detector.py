@@ -479,7 +479,7 @@ class BernoulliDetector(Detector):
         bbs, resmap = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
 
         # Some plotting code that we might want to place somewhere
-        if 1:
+        if 0:
             if resmap is not None:
                 import pylab as plt 
                 plt.clf()
@@ -718,10 +718,10 @@ class BernoulliDetector(Detector):
             #alpha = (self.support[mixcomp] > 0.5)
             #alpha = gv.sub.subsample(self.support[mixcomp] > 0.5, (2, 2))[3:-3,3:-3]
             #bbkg = [0.5 * np.ones(alpha.shape + (self.num_features,)) * np.expand_dims(alpha, -1) + spread_bkg[mixcomp] * ~np.expand_dims(alpha, -1)] * 100
-            collapsed_spread_bkg = [
-                np.tile(np.clip(np.apply_over_axes(np.mean, self.fixed_spread_bkg[k], [0, 1]), eps, 1-eps), self.fixed_spread_bkg[k].shape[:2]+(1,))
+            collapsed_spread_bkg = np.asarray([
+                np.apply_over_axes(np.mean, self.fixed_spread_bkg[k], [0, 1]).ravel()
                 for k in xrange(K)
-            ]
+            ])
             #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             #import pdb; pdb.set_trace()
@@ -737,12 +737,22 @@ class BernoulliDetector(Detector):
                 #scores = 
             
             from .fast import bkg_model_dists 
-    
-            bkgmaps = [-bkg_model_dists(sub_feats, collapsed_spread_bkg[k], self.fixed_spread_bkg[k].shape[:2]) for k in xrange(K)]
+
+            sh = sub_kernels[mixcomp].shape
+            padding = (sh[0]//2, sh[1]//2, 0)
+            bigger = ag.util.zeropad(sub_feats, padding)
+           
+            bkgmaps = -bkg_model_dists(bigger, collapsed_spread_bkg, self.fixed_spread_bkg[k].shape[:2])
+
+            bkgmaps = np.rollaxis(bkgmaps, 2)
+            print '+++',  bkgmaps.shape
 
             #bkgmaps = np.asarray([self.response_map(sub_feats, spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
             #bkgmaps = np.asarray([self.response_map(sub_feats, collapsed_spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
-            resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(K)]
+            #resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(K)]
+            bkgcomp = np.argmax(bkgmaps, axis=0)
+            resmap = self.response_map_NEW_MULTI(sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomp)
+            #resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, 4)
 
             if 0:
                 mean = np.mean([self.standardization_info[i]['bkg_mean'] for i in xrange(K)])
@@ -760,28 +770,33 @@ class BernoulliDetector(Detector):
             #    bkgmaps[i] -= self.standardization_info[i]['bkg_mean']
             #    bkgmaps[i] /= self.standardization_info[i]['bkg_std']
 
-            bkgcomp = np.argmax(bkgmaps, axis=0)
-            resmap = gv.ndfeature(np.zeros_like(resmaps[0]), lower=resmaps[0].lower, upper=resmaps[0].upper)
+            #resmap = gv.ndfeature(np.zeros_like(resmaps[0]), lower=resmaps[0].lower, upper=resmaps[0].upper)
         
         
             #invalid = (bkgmaps[bkgcomp] == 0)
             #resmap = invalid * resmap.min() + ~invalid * resmap
 
-            mn = np.min(resmaps)
+            #mn = np.min(resmaps)
 
             # Don't allow score where all bkg probs were 0
-            from itertools import product
-            for x, y in product(xrange(resmap.shape[0]), xrange(resmap.shape[1])):
-                if False and bkgmaps[bkgcomp[x,y],x,y] == 0:
-                    resmap[x,y] = mn 
-                else:
-                    #resmap[x,y] = 0
-                    #for k in xrange(K):
-                    #    resmap[x,y] += resmaps[k][x,y] * bkgweight[k][x,y]
-                    resmap[x,y] = resmaps[bkgcomp[x,y]][x,y]
+            if 0:
+                from itertools import product
+                for x, y in product(xrange(resmap.shape[0]), xrange(resmap.shape[1])):
+                    if False and bkgmaps[bkgcomp[x,y],x,y] == 0:
+                        resmap[x,y] = 0#mn 
+                    else:
+                        #resmap[x,y] = 0
+                        #for k in xrange(K):
+                        #    resmap[x,y] += resmaps[k][x,y] * bkgweight[k][x,y]
+                        resmap[x,y] = resmaps[bkgcomp[x,y]][x,y]
 
             if 0:
                 import pylab as plt 
+                plt.clf()
+                plt.imshow(bkgcomp, interpolation='nearest')
+                plt.colorbar()
+                plt.savefig('day-output/comp-factor{0}-mixcomp{1}.png'.format(factor, mixcomp))
+
                 for index, rm in enumerate(resmaps):
                     plt.clf()
                     #import pdb; pdb.set_trace()
@@ -867,6 +882,65 @@ class BernoulliDetector(Detector):
         bbs_sorted = bbs_sorted[:15]
 
         return bbs_sorted, resmap
+
+    def response_map_NEW_MULTI(self, sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomps, level=0, standardize=True):
+        if np.min(sub_feats.shape) <= 1:
+            return None
+
+        K = len(sub_kernels)
+    
+        #kern = sub_kernels[mixcomp]
+        #if self.settings.get('per_mixcomp_bkg'):
+            #spread_bkg =  spread_bkg[mixcomp]
+
+        sh = sub_kernels[0].shape
+        padding = (sh[0]//2, sh[1]//2, 0)
+
+        bigger = gv.ndfeature.zeropad(sub_feats, padding)
+
+        # Since the kernel is spread, we need to convert the background
+        # model to spread
+        radii = self.settings['spread_radii']
+        neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
+
+        eps = self.settings['min_probability']
+        #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
+
+        
+        # TEMP
+        #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
+        #kern = np.clip(kern, eps, 1 - eps) 
+        clipped_bkg = np.asarray([np.clip(b, eps, 1-eps) for b in spread_bkg])
+        clipped_kernels = np.asarray([np.clip(kern, eps, 1-eps) for kern in sub_kernels])
+
+        #all_weights = np.asarray([np.log(clipped_kernels[k]/(1-clipped_kernels[k]) * ((1-clipped_bkg[k])/clipped_bkg[k])) for k in xrange(K)])
+        all_weights = np.log(clipped_kernels / (1 - clipped_kernels) * ((1 - clipped_bkg) / clipped_bkg))
+    
+        from .fast import multifeature_correlate2d_multi
+        res = multifeature_correlate2d_multi(bigger, all_weights.astype(np.float64), bkgcomps.astype(np.int32))
+        #from .fast import multifeature_correlate2d
+        #res = multifeature_correlate2d(bigger, all_weights[4].astype(np.float64))
+        lower, upper = gv.ndfeature.inner_frame(bigger, (all_weights.shape[1]/2, all_weights.shape[2]/2))
+        res = gv.ndfeature(res, lower=lower, upper=upper)
+
+        # Standardization
+        if standardize:
+            testing_type = self.settings.get('testing_type', 'object-model')
+        else:
+            testing_type = 'none'
+
+        # TODO: Temporary slow version
+        if testing_type == 'non-parametric':
+            if 1:
+                from .fast import nonparametric_rescore
+                for k in xrange(K):
+                    res0 = res.copy() 
+                    info = self.standardization_info[k]
+                    nonparametric_rescore(res0, info['start'], info['step'], info['points']) 
+                    res[bkgcomps == k] = res0[bkgcomps == k]
+
+        return res
+
 
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True):
         if np.min(sub_feats.shape) <= 1:
@@ -960,9 +1034,10 @@ class BernoulliDetector(Detector):
             res -= self.standardization_info[mixcomp]['mean']
             res /= self.standardization_info[mixcomp]['std']
         elif testing_type == 'non-parametric':
-            from .fast import nonparametric_rescore
-            info = self.standardization_info[mixcomp]
-            nonparametric_rescore(res, info['start'], info['step'], info['points'])
+            if 0:
+                from .fast import nonparametric_rescore
+                info = self.standardization_info[mixcomp]
+                nonparametric_rescore(res, info['start'], info['step'], info['points'])
         elif testing_type == 'object-model':
             a = weights
             res -= (kern * a).sum()
