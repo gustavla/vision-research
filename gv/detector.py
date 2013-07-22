@@ -706,7 +706,7 @@ class BernoulliDetector(Detector):
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # TODO: VERY TEMPORARY
-        K = 2
+        K = 8
         if self.num_mixtures == K:
             # Get background level
             if mixcomp % K != 0:
@@ -714,9 +714,15 @@ class BernoulliDetector(Detector):
 
             mc = mixcomp // K
 
+            eps = self.settings['min_probability']
             #alpha = (self.support[mixcomp] > 0.5)
             #alpha = gv.sub.subsample(self.support[mixcomp] > 0.5, (2, 2))[3:-3,3:-3]
             #bbkg = [0.5 * np.ones(alpha.shape + (self.num_features,)) * np.expand_dims(alpha, -1) + spread_bkg[mixcomp] * ~np.expand_dims(alpha, -1)] * 100
+            collapsed_spread_bkg = [
+                np.tile(np.clip(np.apply_over_axes(np.mean, self.fixed_spread_bkg[k], [0, 1]), eps, 1-eps), self.fixed_spread_bkg[k].shape[:2]+(1,))
+                for k in xrange(K)
+            ]
+            #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             #import pdb; pdb.set_trace()
 
@@ -724,10 +730,35 @@ class BernoulliDetector(Detector):
             #plt.clf()
             #plt.imshow(alpha, interpolation='nearest')
             #plt.savefig('day-output/alpha-{0}'.format(TMP_IMG_ID))
-        
 
-            bkgmaps = np.asarray([self.response_map(sub_feats, spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
+            #def foo(feats, bkg):
+                # Construct integral map of feats
+                #integral_feats = feats.cumsum(0).cumsum(1)
+                #scores = 
+            
+            from .fast import bkg_model_dists 
+    
+            bkgmaps = [-bkg_model_dists(sub_feats, collapsed_spread_bkg[k], self.fixed_spread_bkg[k].shape[:2]) for k in xrange(K)]
+
+            #bkgmaps = np.asarray([self.response_map(sub_feats, spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
+            #bkgmaps = np.asarray([self.response_map(sub_feats, collapsed_spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
             resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(K)]
+
+            if 0:
+                mean = np.mean([self.standardization_info[i]['bkg_mean'] for i in xrange(K)])
+                std = np.mean([self.standardization_info[i]['bkg_std'] for i in xrange(K)])
+
+                bkgmaps -= mean
+                bkgmaps /= std
+
+                from scipy.misc import logsumexp
+                bkglogweight = bkgmaps - logsumexp(bkgmaps, axis=0)
+                bkgweight = np.exp(bkglogweight)
+
+            # Standardize the resmaps
+            #for i in xrange(K):
+            #    bkgmaps[i] -= self.standardization_info[i]['bkg_mean']
+            #    bkgmaps[i] /= self.standardization_info[i]['bkg_std']
 
             bkgcomp = np.argmax(bkgmaps, axis=0)
             resmap = gv.ndfeature(np.zeros_like(resmaps[0]), lower=resmaps[0].lower, upper=resmaps[0].upper)
@@ -741,12 +772,15 @@ class BernoulliDetector(Detector):
             # Don't allow score where all bkg probs were 0
             from itertools import product
             for x, y in product(xrange(resmap.shape[0]), xrange(resmap.shape[1])):
-                if bkgmaps[bkgcomp[x,y],x,y] == 0:
+                if False and bkgmaps[bkgcomp[x,y],x,y] == 0:
                     resmap[x,y] = mn 
                 else:
+                    #resmap[x,y] = 0
+                    #for k in xrange(K):
+                    #    resmap[x,y] += resmaps[k][x,y] * bkgweight[k][x,y]
                     resmap[x,y] = resmaps[bkgcomp[x,y]][x,y]
 
-            if 1:
+            if 0:
                 import pylab as plt 
                 for index, rm in enumerate(resmaps):
                     plt.clf()
@@ -871,75 +905,77 @@ class BernoulliDetector(Detector):
         # Standardization
         if standardize:
             testing_type = self.settings.get('testing_type', 'object-model')
+        else:
+            testing_type = 'none'
 
-            # TODO: Temporary slow version
-            if testing_type == 'NEW':
-                neg_llhs = self.standardization_info[mixcomp]['neg_llhs']
-                pos_llhs = self.standardization_info[mixcomp]['pos_llhs']
-                #import pdb; pdb.set_trace()
-                #a(res < neg_llhs).
+        # TODO: Temporary slow version
+        if testing_type == 'NEW':
+            neg_llhs = self.standardization_info[mixcomp]['neg_llhs']
+            pos_llhs = self.standardization_info[mixcomp]['pos_llhs']
+            #import pdb; pdb.set_trace()
+            #a(res < neg_llhs).
 
-                def logpdf(x, loc=0.0, scale=1.0):
-                    return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
+            def logpdf(x, loc=0.0, scale=1.0):
+                return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
 
-                def score2(R, neg_hist, pos_hist, neg_logs, pos_logs):
-                    neg_N = 0
-                    for j, weight in enumerate(neg_hist[0]):
-                        if weight > 0:
-                            llh = (neg_hist[1][j+1] + neg_hist[1][j]) / 2
-                            neg_logs[neg_N] = np.log(weight) + logpdf(R, loc=llh, scale=200)
-                            neg_N += 1
+            def score2(R, neg_hist, pos_hist, neg_logs, pos_logs):
+                neg_N = 0
+                for j, weight in enumerate(neg_hist[0]):
+                    if weight > 0:
+                        llh = (neg_hist[1][j+1] + neg_hist[1][j]) / 2
+                        neg_logs[neg_N] = np.log(weight) + logpdf(R, loc=llh, scale=200)
+                        neg_N += 1
 
-                    pos_N = 0
-                    for j, weight in enumerate(pos_hist[0]):
-                        if weight > 0:
-                            llh = (pos_hist[1][j+1] + pos_hist[1][j]) / 2
-                            pos_logs[pos_N] = np.log(weight) + logpdf(R, loc=llh, scale=200)
-                            pos_N += 1
+                pos_N = 0
+                for j, weight in enumerate(pos_hist[0]):
+                    if weight > 0:
+                        llh = (pos_hist[1][j+1] + pos_hist[1][j]) / 2
+                        pos_logs[pos_N] = np.log(weight) + logpdf(R, loc=llh, scale=200)
+                        pos_N += 1
 
-                    return logsumexp(pos_logs[:pos_N]) - logsumexp(neg_logs[:neg_N])
-                
-                def score(R, neg_llhs, pos_llhs):
-                    neg_logs = np.zeros_like(neg_llhs)
-                    pos_logs = np.zeros_like(pos_llhs)
+                return logsumexp(pos_logs[:pos_N]) - logsumexp(neg_logs[:neg_N])
+            
+            def score(R, neg_llhs, pos_llhs):
+                neg_logs = np.zeros_like(neg_llhs)
+                pos_logs = np.zeros_like(pos_llhs)
 
-                    for j, llh in enumerate(neg_llhs):
-                        neg_logs[j] = logpdf(R, loc=llh, scale=200)
+                for j, llh in enumerate(neg_llhs):
+                    neg_logs[j] = logpdf(R, loc=llh, scale=200)
 
-                    for j, llh in enumerate(pos_llhs):
-                        pos_logs[j] = logpdf(R, loc=llh, scale=200)
+                for j, llh in enumerate(pos_llhs):
+                    pos_logs[j] = logpdf(R, loc=llh, scale=200)
 
-                    return logsumexp(pos_logs) - logsumexp(neg_logs)
+                return logsumexp(pos_logs) - logsumexp(neg_logs)
 
-                neg_hist = np.histogram(neg_llhs, bins=10, normed=True)
-                pos_hist = np.histogram(pos_llhs, bins=10, normed=True)
+            neg_hist = np.histogram(neg_llhs, bins=10, normed=True)
+            pos_hist = np.histogram(pos_llhs, bins=10, normed=True)
 
-                neg_logs = np.zeros_like(neg_hist[0])
-                pos_logs = np.zeros_like(pos_hist[0])
+            neg_logs = np.zeros_like(neg_hist[0])
+            pos_logs = np.zeros_like(pos_hist[0])
 
-                for x, y in product(xrange(res.shape[0]), xrange(res.shape[1])):
-                    res[x,y] = score2(res[x,y], neg_hist, pos_hist, neg_logs, pos_logs)
+            for x, y in product(xrange(res.shape[0]), xrange(res.shape[1])):
+                res[x,y] = score2(res[x,y], neg_hist, pos_hist, neg_logs, pos_logs)
 
-            if testing_type == 'fixed':
-                res -= self.standardization_info[mixcomp]['mean']
-                res /= self.standardization_info[mixcomp]['std']
-            elif testing_type == 'non-parametric':
-                from .fast import nonparametric_rescore
-                info = self.standardization_info[mixcomp]
-                nonparametric_rescore(res, info['start'], info['step'], info['points'])
-            elif testing_type == 'object-model':
-                a = weights
-                res -= (kern * a).sum()
-                res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
-            elif testing_type == 'background-model':
-                a = weights
-                res -= (spread_bkg * a).sum()
-                res /= np.sqrt((a**2 * spread_bkg * (1 - spread_bkg)).sum())
-            elif testing_type == 'zero-model':
-                pass
-            elif testing_type == 'none':
-                # We need to add the constant term that isn't included in weights
-                res += np.log((1 - kern) / (1 - spread_bkg)).sum() 
+        if testing_type == 'fixed':
+            res -= self.standardization_info[mixcomp]['mean']
+            res /= self.standardization_info[mixcomp]['std']
+        elif testing_type == 'non-parametric':
+            from .fast import nonparametric_rescore
+            info = self.standardization_info[mixcomp]
+            nonparametric_rescore(res, info['start'], info['step'], info['points'])
+        elif testing_type == 'object-model':
+            a = weights
+            res -= (kern * a).sum()
+            res /= np.sqrt((a**2 * kern * (1 - kern)).sum())
+        elif testing_type == 'background-model':
+            a = weights
+            res -= (spread_bkg * a).sum()
+            res /= np.sqrt((a**2 * spread_bkg * (1 - spread_bkg)).sum())
+        elif testing_type == 'zero-model':
+            pass
+        elif testing_type == 'none':
+            # We need to add the constant term that isn't included in weights
+            res += np.log((1 - kern) / (1 - spread_bkg)).sum() 
 
         return res
 

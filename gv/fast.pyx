@@ -218,3 +218,42 @@ def nonparametric_rescore(np.ndarray[real,ndim=2] res, start, step, np.ndarray[r
                         s = points[index] + ((s - real_start) / real_step - index) * (points[index+1] - points[index])
 
                 res_mv[i,j] = s
+
+def bkg_model_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bkgs, size):
+    assert feats.shape[2] == bkgs.shape[1]
+    cdef:
+        int size0 = size[0]
+        int size1 = size[1]
+        int num_bkgs = bkgs.shape[0]
+        int dim0 = feats.shape[0] - size0 + 1
+        int dim1 = feats.shape[1] - size1 + 1
+        int dim2 = feats.shape[2]
+
+        np.ndarray[real,ndim=3] integral_feats = np.zeros((feats.shape[0]+1, feats.shape[1]+1, feats.shape[2]))
+        np.ndarray[real,ndim=3] dists = np.zeros((dim0, dim1, num_bkgs))
+
+        real[:,:,:] int_mv = integral_feats
+        real[:,:,:] dists_mv = dists
+        real[:,:] bkgs_mv = bkgs
+
+        real v, w, s
+        np.int32_t count 
+        int i, j, f, b
+
+    integral_feats[1:,1:] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / (size0 * size1)
+    
+    for i in range(dim0):
+        for j in range(dim1):
+            v = 0
+            for f in range(dim2): 
+                # Get background value here
+                s = int_mv[i+size0,j+size1,f] - \
+                    int_mv[i,j+size1,f] - \
+                    int_mv[i+size0,j,f] + \
+                    int_mv[i,j,f]
+
+                for b in range(num_bkgs):
+                    w = (bkgs[b,f] - s)
+                    dists_mv[i,j,b] += w * w
+
+    return dists
