@@ -706,8 +706,8 @@ class BernoulliDetector(Detector):
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # TODO: VERY TEMPORARY
-        K = 20
-        if self.num_mixtures == K:
+        if 1: #self.num_mixtures == K:
+            K = self.num_mixtures
             # Get background level
             if mixcomp % K != 0:
                 return [], None 
@@ -723,7 +723,7 @@ class BernoulliDetector(Detector):
                 for k in xrange(K)
             ])
             #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
-            bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
+            #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             #import pdb; pdb.set_trace()
 
             #import pylab as plt
@@ -845,7 +845,8 @@ class BernoulliDetector(Detector):
 
                     index_pos = (i-padding[0], j-padding[1])
     
-                    dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
+                    #dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
+                    dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp+bkgcomp[i,j])
 
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)
