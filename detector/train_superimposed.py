@@ -304,10 +304,20 @@ def _create_kernel_for_mixcomp2(mixcomp, settings, bb, indices, files, neg_files
 def _create_kernel_for_mixcomp2_star(args):
     return _create_kernel_for_mixcomp2(*args)
 
-def _classify(neg_feats, pos_feats, bkgs):
+def _classify__(neg_feats, pos_feats, bkgs):
     K = len(bkgs)
     collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1])
     scores = [-np.sum((collapsed_feats - bkgs[k])**2) for k in xrange(K)]
+    bkg_id = np.argmax(scores)
+    return bkg_id
+
+def logf(B, bmf, L):
+    return -(B - bmf)**2 / (2 * 1 / L * bmf * (1 - bmf)) - 0.5 * np.log(1 / L * bmf * (1 - bmf))
+
+def _classify(neg_feats, pos_feats, bkgs):
+    K = len(bkgs)   
+    collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1])
+    scores = [logf(collapsed_feats, np.clip(bkgs[k], 0.01, 0.99), 300).sum() for k in xrange(K)]
     bkg_id = np.argmax(scores)
     return bkg_id
     

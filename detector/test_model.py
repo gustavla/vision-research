@@ -8,7 +8,7 @@ parser.add_argument('obj_class', metavar='<object class>', type=str, help='Objec
 parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output file')
 parser.add_argument('--limit', nargs=1, type=int, default=[None])
 parser.add_argument('--mini', action='store_true', default=False)
-parser.add_argument('--contest', type=str, choices=('voc-val', 'voc-profile', 'voc-profile2', 'voc-easy', 'uiuc', 'uiuc-multiscale'), default='voc-val', help='Contest to try on')
+parser.add_argument('--contest', type=str, choices=('voc-val', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-easy', 'uiuc', 'uiuc-multiscale'), default='voc-val', help='Contest to try on')
 parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
 
 args = parser.parse_args()
@@ -40,6 +40,8 @@ elif contest == 'voc-profile':
     files, tot = gv.voc.load_files(obj_class, dataset='profile')
 elif contest == 'voc-profile2':
     files, tot = gv.voc.load_files(obj_class, dataset='profile2')
+elif contest == 'voc-profile3':
+    files, tot = gv.voc.load_files(obj_class, dataset='profile3')
 elif contest == 'voc-easy':
     files, tot = gv.voc.load_files(obj_class, dataset='easy')
 elif contest == 'uiuc':

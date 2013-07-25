@@ -710,7 +710,7 @@ class BernoulliDetector(Detector):
             K = self.num_mixtures 
             # Get background level
             if mixcomp % K != 0:
-                return [], None 
+                return [], None, None
 
             mc = mixcomp // K
 
@@ -736,13 +736,14 @@ class BernoulliDetector(Detector):
                 #integral_feats = feats.cumsum(0).cumsum(1)
                 #scores = 
             
-            from .fast import bkg_model_dists 
+            from .fast import bkg_model_dists, bkg_model_dists2
 
             sh = sub_kernels[mixcomp].shape
             padding = (sh[0]//2, sh[1]//2, 0)
             bigger = ag.util.zeropad(sub_feats, padding)
            
-            bkgmaps = -bkg_model_dists(bigger, collapsed_spread_bkg, self.fixed_spread_bkg[k].shape[:2])
+            #bkgmaps = -bkg_model_dists(bigger, collapsed_spread_bkg, self.fixed_spread_bkg[k].shape[:2], padding=0)
+            bkgmaps = -bkg_model_dists2(bigger, np.clip(collapsed_spread_bkg, 0.01, 0.99), self.fixed_spread_bkg[k].shape[:2], 1500, padding=0)
 
             bkgmaps = np.rollaxis(bkgmaps, 2)
 

@@ -257,17 +257,20 @@ def nonparametric_rescore(np.ndarray[real,ndim=2] res, start, step, np.ndarray[r
 
                 res_mv[i,j] = s
 
-def bkg_model_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bkgs, size):
+def bkg_model_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bkgs, size, padding=0):
     assert feats.shape[2] == bkgs.shape[1]
     cdef:
-        int size0 = size[0]
-        int size1 = size[1]
+        int size0 = <int>size[0]
+        int size1 = <int>size[1]
+        int ip = <int>padding
         int num_bkgs = bkgs.shape[0]
         int dim0 = feats.shape[0] - size0 + 1
         int dim1 = feats.shape[1] - size1 + 1
         int dim2 = feats.shape[2]
 
-        np.ndarray[real,ndim=3] integral_feats = np.zeros((feats.shape[0]+1, feats.shape[1]+1, feats.shape[2]))
+        int if_dim0 = feats.shape[0] + 1 + 2*ip
+        int if_dim1 = feats.shape[1] + 1 + 2*ip
+        np.ndarray[real,ndim=3] integral_feats = np.zeros((if_dim0, if_dim1, feats.shape[2]))
         np.ndarray[real,ndim=3] dists = np.zeros((dim0, dim1, num_bkgs))
 
         real[:,:,:] int_mv = integral_feats
@@ -278,20 +281,83 @@ def bkg_model_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bkg
         np.int32_t count 
         int i, j, f, b
 
-    integral_feats[1:,1:] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / (size0 * size1)
-    
-    for i in range(dim0):
-        for j in range(dim1):
-            v = 0
-            for f in range(dim2): 
-                # Get background value here
-                s = int_mv[i+size0,j+size1,f] - \
-                    int_mv[i,j+size1,f] - \
-                    int_mv[i+size0,j,f] + \
-                    int_mv[i,j,f]
+    integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / ((size0 + 2*ip) * (size1 + 2*ip))
 
-                for b in range(num_bkgs):
-                    w = (bkgs[b,f] - s)
-                    dists_mv[i,j,b] += w * w
+    with nogil:
+        # Fill in to the right
+        for i in range(if_dim0-ip, if_dim0):
+            for j in xrange(if_dim1):
+                int_mv[i,j] = int_mv[if_dim0-ip-1,j]
+
+        for i in range(if_dim0):
+            for j in xrange(if_dim1-ip, if_dim1):
+                int_mv[i,j] = int_mv[i,if_dim1-ip-1]
+
+        for i in range(dim0):
+            for j in range(dim1):
+                v = 0
+                for f in range(dim2): 
+                    # Get background value here
+                    s = int_mv[i+size0+2*ip,j+size1+2*ip,f] - \
+                        int_mv[i           ,j+size1+2*ip,f] - \
+                        int_mv[i+size0+2*ip,j           ,f] + \
+                        int_mv[i           ,j           ,f]
+
+                    for b in range(num_bkgs):
+                        w = (bkgs[b,f] - s)
+                        dists_mv[i,j,b] += w * w
+
+    return dists
+
+def bkg_model_dists2(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bkgs, size, L, padding=0):
+    assert feats.shape[2] == bkgs.shape[1]
+    cdef:
+        int size0 = <int>size[0]
+        int size1 = <int>size[1]
+        int ip = <int>padding
+        int iL = <int>L
+        int num_bkgs = bkgs.shape[0]
+        int dim0 = feats.shape[0] - size0 + 1
+        int dim1 = feats.shape[1] - size1 + 1
+        int dim2 = feats.shape[2]
+
+        int if_dim0 = feats.shape[0] + 1 + 2*ip
+        int if_dim1 = feats.shape[1] + 1 + 2*ip
+        np.ndarray[real,ndim=3] integral_feats = np.zeros((if_dim0, if_dim1, feats.shape[2]))
+        np.ndarray[real,ndim=3] dists = np.zeros((dim0, dim1, num_bkgs))
+
+        real[:,:,:] int_mv = integral_feats
+        real[:,:,:] dists_mv = dists
+        real[:,:] bkgs_mv = bkgs
+
+        real v, w, s, bbf
+        np.int32_t count 
+        int i, j, f, b
+
+    integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / ((size0 + 2*ip) * (size1 + 2*ip))
+
+    with nogil:
+        # Fill in to the right
+        for i in range(if_dim0-ip, if_dim0):
+            for j in xrange(if_dim1):
+                int_mv[i,j] = int_mv[if_dim0-ip-1,j]
+
+        for i in range(if_dim0):
+            for j in xrange(if_dim1-ip, if_dim1):
+                int_mv[i,j] = int_mv[i,if_dim1-ip-1]
+
+        for i in range(dim0):
+            for j in range(dim1):
+                v = 0
+                for f in range(dim2): 
+                    # Get background value here
+                    s = int_mv[i+size0+2*ip,j+size1+2*ip,f] - \
+                        int_mv[i           ,j+size1+2*ip,f] - \
+                        int_mv[i+size0+2*ip,j           ,f] + \
+                        int_mv[i           ,j           ,f]
+
+                    for b in range(num_bkgs):
+                        w = -(s - bbf) * (s - bbf) / (2 * bbf * (1 - bbf) / iL) - 0.5 * log(bbf * (1 - bbf) / iL)
+                        dists_mv[i,j,b] += w
 
     return dists
