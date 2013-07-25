@@ -275,7 +275,7 @@ class PartsDescriptor(BinaryDescriptor):
             if self._log_parts.shape[1] % 2 == 0:
                 feats = feats[:-1]
             if self._log_parts.shape[2] % 2 == 0:
-                feats = partprobs[:,:-1]
+                feats = feats[:,:-1]
 
         sett = self.settings.copy()
         sett.update(settings)

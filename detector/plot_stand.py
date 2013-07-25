@@ -3,9 +3,11 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Plot llhs')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
+parser.add_argument('--adjusted', action='store_true')
 
 args = parser.parse_args()
 model_file = args.model
+adjusted = args.adjusted
 
 import numpy as np
 import gv
@@ -21,10 +23,16 @@ pos_mn = np.min([np.min(dct['pos_llhs']) for dct in detector.standardization_inf
 pos_mx = np.max([np.max(dct['pos_llhs']) for dct in detector.standardization_info])
 
 print neg_mn, pos_mn
-mn = min(neg_mn, pos_mn) 
-mx = max(neg_mx, pos_mx)
+if adjusted:
+    mn = -300
+    mx = 300
+    dt = 10
+else:
+    mn = min(neg_mn, pos_mn) 
+    mx = max(neg_mx, pos_mx)
+    dt = 100
 
-bins = np.arange(mn, mx, 100)
+bins = np.arange(mn, mx, dt)
 
 bkg_mx = np.max([np.max(sbkg) for sbkg in detector.fixed_spread_bkg])
 
@@ -43,6 +51,8 @@ fig = plt.figure(figsize=(13, 9))
 offset = 0
 #L = 3
 
+from gv.fast import nonparametric_rescore 
+
 for i in xrange(offset, offset+L):
     dct = detector.standardization_info[i]
     plt.subplot(L, 2, 1 + 2*(i-offset))
@@ -53,11 +63,21 @@ for i in xrange(offset, offset+L):
     print 'unique negs', len(np.unique(dct['neg_llhs']))
     print '------------'
     #import pdb; pdb.set_trace()
-    plt.hist(dct['neg_llhs'], alpha=0.5, label='neg', bins=bins, normed=True)
-    plt.hist(dct['pos_llhs'], alpha=0.5, label='pos', bins=bins, normed=True)
+
+    if adjusted:
+        neg_R = dct['neg_llhs'].copy().reshape((-1, 1))
+        pos_R = dct['pos_llhs'].copy().reshape((-1, 1))
+        nonparametric_rescore(neg_R, dct['start'], dct['step'], dct['points'])
+        nonparametric_rescore(pos_R, dct['start'], dct['step'], dct['points'])
+        plt.hist(neg_R, alpha=0.5, label='neg', bins=bins, normed=True)
+        plt.hist(pos_R, alpha=0.5, label='pos', bins=bins, normed=True)
+
+    else:
+        plt.hist(dct['neg_llhs'], alpha=0.5, label='neg', bins=bins, normed=True)
+        plt.hist(dct['pos_llhs'], alpha=0.5, label='pos', bins=bins, normed=True)
+   
     neg_N = len(dct['neg_llhs'])
     pos_N = len(dct['pos_llhs'])
-
 
     if 0:
         mu1 = np.mean(dct['neg_llhs'])
@@ -137,17 +157,22 @@ for i in xrange(offset, offset+L):
         sigma = 100.0
     #pos_y = np.maximum(neg_y, pos_y)
     #plt.plot(x0, np.log(pos_y + eps2) - np.log(neg_y + eps), linewidth=2.0, color='red')
-    plt.twinx()
-
-    info = detector.standardization_info[i]
-    x0 = np.asarray([info['start'] + info['step'] * k for k in xrange(len(info['points']))])
-    y = info['points']
-    plt.plot(x0, y, linewidth=2.0, color='red')
-    #plt.plot(x0, y2, linewidth=1.0, color='blue')
+    if not adjusted:
+        plt.twinx()
+        info = detector.standardization_info[i]
+        x0 = np.asarray([info['start'] + info['step'] * k for k in xrange(len(info['points']))])
+        y = info['points']
+        plt.plot(x0, y, linewidth=2.0, color='red')
+        #plt.plot(x0, y2, linewidth=1.0, color='blue')
 
     plt.xlim((mn, mx))
+    #plt.ylim((0, 0.04))
     if i == L-1:
-        plt.xlabel('LLH (without const.)')
+        if adjusted:
+            label = 'score'
+        else:
+            label = 'LLH (without const.)'
+        plt.xlabel(label)
 
     plt.subplot(L, 2, 2 + 2*(i-offset))
     if i == 0:

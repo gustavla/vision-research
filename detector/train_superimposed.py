@@ -317,7 +317,7 @@ def logf(B, bmf, L):
 def _classify(neg_feats, pos_feats, bkgs):
     K = len(bkgs)   
     collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1])
-    scores = [logf(collapsed_feats, np.clip(bkgs[k], 0.01, 0.99), 300).sum() for k in xrange(K)]
+    scores = [logf(collapsed_feats, np.clip(bkgs[k], 0.01, 0.99), 10).sum() for k in xrange(K)]
     bkg_id = np.argmax(scores)
     return bkg_id
     
