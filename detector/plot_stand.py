@@ -23,7 +23,12 @@ pos_mn = np.min([np.min(dct['pos_llhs']) for dct in detector.standardization_inf
 pos_mx = np.max([np.max(dct['pos_llhs']) for dct in detector.standardization_info])
 
 print neg_mn, pos_mn
-if adjusted:
+
+if 0:
+    mn = -15
+    mx = 15
+    dt = 0.5 
+elif adjusted:
     mn = -300
     mx = 300
     dt = 10
@@ -64,7 +69,55 @@ for i in xrange(offset, offset+L):
     print '------------'
     #import pdb; pdb.set_trace()
 
-    if adjusted:
+    if 1:
+        neg_R = dct['neg_llhs'].copy().reshape((-1, 1))
+        pos_R = dct['pos_llhs'].copy().reshape((-1, 1))
+        mean, std = np.mean(neg_R), np.std(neg_R)
+
+        from scipy.stats import norm
+        def st(x):
+            center = np.mean([np.mean(neg_R), np.mean(pos_R)])
+            #return (norm.ppf(norm.sf(neg_R, loc=x, scale=50).mean()) + norm.ppf(norm.sf(pos_R, loc=x, scale=50).mean()))/2
+            n = -3.0 + norm.ppf(norm.sf(neg_R, loc=x, scale=200).mean())
+            p = 3.0 + norm.ppf(norm.sf(pos_R, loc=x, scale=200).mean())
+            if np.fabs(x - center) <= 500:# > center:
+                alpha = ((x - center) + 500) / 1000
+                return p * alpha + n * (1 - alpha)
+            elif x > center + 500:
+                return p
+            else:
+                return n
+
+        if 1:
+            if i == 0:
+                x = np.linspace(neg_R.min(), pos_R.max(), 200)
+                print x.min(), x.max()
+                y = np.asarray([st(xi) for xi in x])
+                #import pdb; pdb.set_trace()
+                def finitemax(x):
+                    return x[np.isfinite(x)].max()
+                y = np.r_[y[0], np.asarray([(y[j] if (y[j] >= finitemax(y[:j]) and np.isfinite(y[j])) else finitemax(y[:j]))+0.0001*j for j in xrange(1, len(y))])]
+
+                plt.subplot(111)
+                plt.plot(x, y)
+                plt.show()
+                
+                import sys; sys.exit(0)
+
+        #neg_R -= mean
+        #neg_R /= std
+        #pos_R -= mean
+        #pos_R /= std
+        #st = np.vectorize(st)
+        pos_R_st = np.asarray([st(R0) for R0 in pos_R])
+        neg_R_st = np.asarray([st(R0) for R0 in neg_R])
+
+        #nonparametric_rescore(neg_R, dct['start'], dct['step'], dct['points'])
+        #nonparametric_rescore(pos_R, dct['start'], dct['step'], dct['points'])
+        plt.hist(neg_R_st, alpha=0.5, label='neg', bins=bins, normed=True)
+        plt.hist(pos_R_st, alpha=0.5, label='pos', bins=bins, normed=True)
+
+    elif adjusted:
         neg_R = dct['neg_llhs'].copy().reshape((-1, 1))
         pos_R = dct['pos_llhs'].copy().reshape((-1, 1))
         nonparametric_rescore(neg_R, dct['start'], dct['step'], dct['points'])

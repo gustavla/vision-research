@@ -584,7 +584,7 @@ def _calc_standardization_for_mixcomp3_star(args):
 def _logpdf(x, loc=0.0, scale=1.0):
     return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
 
-def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
+def _standardization_info_for_linearized_non_parameteric_OLD(neg_llhs, pos_llhs):
     info = {}
 
     mn = min(np.min(neg_llhs), np.min(pos_llhs))
@@ -619,6 +619,41 @@ def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
     info['step'] = delta
     info['points'] = y
     return info
+
+def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
+    info = {}
+
+    from scipy.stats import norm
+    def st(x):
+        center = np.mean([np.mean(neg_llhs), np.mean(pos_llhs)])
+        #return (norm.ppf(norm.sf(neg_llhs, loc=x, scale=50).mean()) + norm.ppf(norm.sf(pos_llhs, loc=x, scale=50).mean()))/2
+        n = -3.0 + norm.ppf(norm.sf(neg_llhs, loc=x, scale=200).mean())
+        p = +3.0 + norm.ppf(norm.sf(pos_llhs, loc=x, scale=200).mean())
+        if np.fabs(x - center) <= 500:# > center:
+            alpha = ((x - center) + 500) / 1000
+            return p * alpha + n * (1 - alpha)
+        elif x > center + 500:
+            return p
+        else:
+            return n
+
+    mn = min(np.min(neg_llhs), np.min(pos_llhs))
+    mx = max(np.max(neg_llhs), np.max(pos_llhs))
+    span = (mn, mx)
+
+    x = np.linspace(span[0], span[1], 100)
+
+    y = np.asarray([st(xi) for xi in x])
+    #import pdb; pdb.set_trace()
+    def finitemax(x):
+        return x[np.isfinite(x)].max()
+    y = np.r_[y[0], np.asarray([(y[j] if (y[j] >= finitemax(y[:j]) and np.isfinite(y[j])) else finitemax(y[:j]))+0.0001*j for j in xrange(1, len(y))])]
+    
+    info['start'] = mn
+    info['step'] = delta
+    info['points'] = y
+    return info
+
 
 def superimposed_model(settings, threading=True):
     offset = settings['detector'].get('train_offset', 0)
