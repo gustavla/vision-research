@@ -2,10 +2,8 @@ from __future__ import division
 import os.path
 import numpy as np
 from xml.dom.minidom import parse
-from collections import namedtuple
 import gv
-
-ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
+from .datasets import ImgFile
 
 def _get_text(nodelist):
     rc = []

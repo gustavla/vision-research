@@ -1,6 +1,7 @@
 from __future__ import print_function
 from __future__ import division
 import argparse
+import gv
 
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
@@ -8,7 +9,7 @@ parser.add_argument('obj_class', metavar='<object class>', type=str, help='Objec
 parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output file')
 parser.add_argument('--limit', nargs=1, type=int, default=[None])
 parser.add_argument('--mini', action='store_true', default=False)
-parser.add_argument('--contest', type=str, choices=('voc-val', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-easy', 'uiuc', 'uiuc-multiscale'), default='voc-val', help='Contest to try on')
+parser.add_argument('--contest', type=str, choices=gv.datasets.contests(), default='voc-val', help='Contest to try on')
 parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
 
 args = parser.parse_args()
@@ -23,7 +24,6 @@ contest = args.contest
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pylab as plt
-import gv
 import amitgroup as ag
 import numpy as np
 import scipy.integrate
@@ -34,20 +34,8 @@ detector = gv.Detector.load(model_file)
 #dataset = ['val', 'train'][mini]
 #dataset = ['val', 'train'][mini]
 #dataset = 'val'
-if contest == 'voc-val':
-    files, tot = gv.voc.load_files(obj_class, dataset='val')
-elif contest == 'voc-profile':
-    files, tot = gv.voc.load_files(obj_class, dataset='profile')
-elif contest == 'voc-profile2':
-    files, tot = gv.voc.load_files(obj_class, dataset='profile2')
-elif contest == 'voc-profile3':
-    files, tot = gv.voc.load_files(obj_class, dataset='profile3')
-elif contest == 'voc-easy':
-    files, tot = gv.voc.load_files(obj_class, dataset='easy')
-elif contest == 'uiuc':
-    files, tot = gv.uiuc.load_testing_files()
-elif contest == 'uiuc-multiscale':
-    files, tot = gv.uiuc.load_testing_files(single_scale=False)
+
+files, tot = gv.datasets.load_files(contest, obj_class)
 
 tot_tp = 0
 tot_tp_fp = 0

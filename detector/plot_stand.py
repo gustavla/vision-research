@@ -22,16 +22,12 @@ neg_mx = np.max([np.max(dct['neg_llhs']) for dct in detector.standardization_inf
 pos_mn = np.min([np.min(dct['pos_llhs']) for dct in detector.standardization_info])
 pos_mx = np.max([np.max(dct['pos_llhs']) for dct in detector.standardization_info])
 
-print neg_mn, pos_mn
+#print neg_mn, pos_mn
 
-if 0:
-    mn = -15
-    mx = 15
+if adjusted:
+    mn = -10
+    mx = 10
     dt = 0.5 
-elif adjusted:
-    mn = -300
-    mx = 300
-    dt = 10
 else:
     mn = min(neg_mn, pos_mn) 
     mx = max(neg_mx, pos_mx)
@@ -58,18 +54,22 @@ offset = 0
 
 from gv.fast import nonparametric_rescore 
 
+ax0 = None
 for i in xrange(offset, offset+L):
     dct = detector.standardization_info[i]
-    plt.subplot(L, 2, 1 + 2*(i-offset))
-    print i
-    print dct
-    print '#neg', len(dct['neg_llhs'])
-    print '#pos', len(dct['pos_llhs'])
-    print 'unique negs', len(np.unique(dct['neg_llhs']))
-    print '------------'
+    if i == 0:
+        ax0 = plt.subplot(L, 2, 1 + 2*(i-offset))
+    else:
+        plt.subplot(L, 2, 1 + 2*(i-offset), sharex=ax0) 
+    #print i
+    #print dct
+    #print '#neg', len(dct['neg_llhs'])
+    #print '#pos', len(dct['pos_llhs'])
+    #print 'unique negs', len(np.unique(dct['neg_llhs']))
+    #print '------------'
     #import pdb; pdb.set_trace()
 
-    if 1:
+    if 0:
         neg_R = dct['neg_llhs'].copy().reshape((-1, 1))
         pos_R = dct['pos_llhs'].copy().reshape((-1, 1))
         mean, std = np.mean(neg_R), np.std(neg_R)
@@ -218,7 +218,7 @@ for i in xrange(offset, offset+L):
         plt.plot(x0, y, linewidth=2.0, color='red')
         #plt.plot(x0, y2, linewidth=1.0, color='blue')
 
-    plt.xlim((mn, mx))
+    #plt.xlim((mn, mx))
     #plt.ylim((0, 0.04))
     if i == L-1:
         if adjusted:
@@ -234,6 +234,9 @@ for i in xrange(offset, offset+L):
     plt.ylim((0, bkg_mx))
     if i == L-1:
         plt.xlabel('Part #')
+
+plt.subplot(L, 2, 1)
+plt.xlim((mn, mx))
 
 plt.legend()
 plt.show()
