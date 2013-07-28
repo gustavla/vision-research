@@ -304,22 +304,23 @@ def _create_kernel_for_mixcomp2(mixcomp, settings, bb, indices, files, neg_files
 def _create_kernel_for_mixcomp2_star(args):
     return _create_kernel_for_mixcomp2(*args)
 
-def _classify__(neg_feats, pos_feats, bkgs):
+def _classify(neg_feats, pos_feats, bkgs):
     K = len(bkgs)
     collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1])
     scores = [-np.sum((collapsed_feats - bkgs[k])**2) for k in xrange(K)]
     bkg_id = np.argmax(scores)
     return bkg_id
 
-def logf(B, bmf, L):
-    return -(B - bmf)**2 / (2 * 1 / L * bmf * (1 - bmf)) - 0.5 * np.log(1 / L * bmf * (1 - bmf))
+if 0:
+    def logf(B, bmf, L):
+        return -(B - bmf)**2 / (2 * 1 / L * bmf * (1 - bmf)) - 0.5 * np.log(1 / L * bmf * (1 - bmf))
 
-def _classify(neg_feats, pos_feats, bkgs):
-    K = len(bkgs)   
-    collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1])
-    scores = [logf(collapsed_feats, np.clip(bkgs[k], 0.01, 0.99), 10).sum() for k in xrange(K)]
-    bkg_id = np.argmax(scores)
-    return bkg_id
+    def _classify(neg_feats, pos_feats, bkgs):
+        K = len(bkgs)   
+        collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1])
+        scores = [logf(collapsed_feats, np.clip(bkgs[k], 0.01, 0.99), 10).sum() for k in xrange(K)]
+        bkg_id = np.argmax(scores)
+        return bkg_id
     
 def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files, bkgs):
     #return 0, 1, 2, 3 
@@ -582,6 +583,7 @@ def _calc_standardization_for_mixcomp3_star(args):
 
 
 def _logpdf(x, loc=0.0, scale=1.0):
+    #return -(np.clip((x - loc) / scale, -4, 4)*scale)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
     return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
 
 def _standardization_info_for_linearized_non_parameteric_OLD(neg_llhs, pos_llhs):
@@ -625,35 +627,87 @@ def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
 
     from scipy.stats import norm
     def st(x):
-        center = np.mean([np.mean(neg_llhs), np.mean(pos_llhs)])
+        ps = np.asarray([np.mean(neg_llhs), np.mean(pos_llhs)])
+        center = np.mean(ps)
         #return (norm.ppf(norm.sf(neg_llhs, loc=x, scale=50).mean()) + norm.ppf(norm.sf(pos_llhs, loc=x, scale=50).mean()))/2
         n = -3.0 + norm.ppf(norm.sf(neg_llhs, loc=x, scale=200).mean())
         p = +3.0 + norm.ppf(norm.sf(pos_llhs, loc=x, scale=200).mean())
-        if np.fabs(x - center) <= 500:# > center:
-            alpha = ((x - center) + 500) / 1000
+        diff = np.fabs(ps[0] - ps[1])
+        if np.fabs(x - center) <= diff/2:# > center:
+            alpha = ((x - center) + diff/2) / diff
             return p * alpha + n * (1 - alpha)
-        elif x > center + 500:
+        elif x > center + diff/2:
             return p
         else:
             return n
+
+    def st(x):
+        ps = np.asarray([np.mean(neg_llhs), np.mean(pos_llhs)])
+        #ps = np.asarray([np.median(neg_llhs), np.median(pos_llhs)])
+        k = 6.0 / (ps[1] - ps[0])
+        m = 3.0 - k * ps[1]
+        return k * x + m
 
     mn = min(np.min(neg_llhs), np.min(pos_llhs))
     mx = max(np.max(neg_llhs), np.max(pos_llhs))
     span = (mn, mx)
 
     x = np.linspace(span[0], span[1], 100)
+    delta = x[1] - x[0]
 
     y = np.asarray([st(xi) for xi in x])
     #import pdb; pdb.set_trace()
-    def finitemax(x):
-        return x[np.isfinite(x)].max()
-    y = np.r_[y[0], np.asarray([(y[j] if (y[j] >= finitemax(y[:j]) and np.isfinite(y[j])) else finitemax(y[:j]))+0.0001*j for j in xrange(1, len(y))])]
+    #def finitemax(x):
+        #return x[np.isfinite(x)].max()
+    #y = np.r_[y[0], np.asarray([(y[j] if (y[j] >= finitemax(y[:j]) and np.isfinite(y[j])) else finitemax(y[:j]))+0.0001*j for j in xrange(1, len(y))])]
     
     info['start'] = mn
     info['step'] = delta
     info['points'] = y
     return info
 
+def _standardization_info_for_linearized_non_parameteric_NONPARAMETRIC(neg_llhs, pos_llhs):
+    info = {}
+
+    from scipy.stats import norm
+    def st(x, R):
+         if x > R.mean():
+              return norm.isf(norm.cdf(R, loc=x, scale=150).mean())
+         else:
+              return norm.ppf(norm.sf(R, loc=x, scale=150).mean())
+
+    def comb(x, sh, nR, pR):
+         xn = np.median(nR)
+         xp = np.median(pR)
+         p = st(x, pR)+sh
+         n = st(x, nR)-sh
+         diff = xp - xn
+         if n > 0 and p < 0:
+              #alpha = (x - (xn + xp)/2) / (diff/4)
+              #s = 1 / (1 + np.exp(-alpha*7))
+              return 0#np.inf#n * (1 - s) + p * s
+         elif p > 0:
+              return p
+         else:
+              return n
+
+    mn = min(np.min(neg_llhs), np.min(pos_llhs))
+    mx = max(np.max(neg_llhs), np.max(pos_llhs))
+    span = (mn, mx)
+
+    x = np.linspace(span[0], span[1], 100)
+    delta = x[1] - x[0]
+
+    y = np.asarray([comb(xi, 3, neg_llhs, pos_llhs) for xi in x])
+    #import pdb; pdb.set_trace()
+    #def finitemax(x):
+        #return x[np.isfinite(x)].max()
+    #y = np.r_[y[0], np.asarray([(y[j] if (y[j] >= finitemax(y[:j]) and np.isfinite(y[j])) else finitemax(y[:j]))+0.0001*j for j in xrange(1, len(y))])]
+    
+    info['start'] = mn
+    info['step'] = delta
+    info['points'] = y
+    return info
 
 def superimposed_model(settings, threading=True):
     offset = settings['detector'].get('train_offset', 0)
@@ -925,7 +979,7 @@ def superimposed_model(settings, threading=True):
 
             detector.standardization_info = []
             if testing_type == 'non-parametric':
-                argses = [(i, settings, bbs[i], kernels[i*K:i*K + K], bkgs[i*K:i*K + K], bkg_centers, list(np.where(comps == i)[0]), files, neg_files, 100) for i in xrange(detector.num_mixtures//K)]
+                argses = [(i, settings, bbs[i], kernels[i*K:i*K + K], bkgs[i*K:i*K + K], bkg_centers, list(np.where(comps == i)[0]), files, neg_files, 3) for i in xrange(detector.num_mixtures//K)]
                 for i, si in enumerate(imapf(_calc_standardization_for_mixcomp3_star, argses)):
                     detector.standardization_info += si 
 

@@ -742,9 +742,9 @@ class BernoulliDetector(Detector):
             padding = (sh[0]//2, sh[1]//2, 0)
             bigger = ag.util.zeropad(sub_feats, padding)
            
-            #bkgmaps = -bkg_model_dists(bigger, collapsed_spread_bkg, self.fixed_spread_bkg[k].shape[:2], padding=10)
-            print 'L = ', np.prod(sh[:2])
-            bkgmaps = -bkg_model_dists2(bigger, np.clip(collapsed_spread_bkg, 0.01, 0.99), self.fixed_spread_bkg[k].shape[:2], np.prod(sh[:2]), padding=0)
+            bkgmaps = -bkg_model_dists(bigger, collapsed_spread_bkg, self.fixed_spread_bkg[k].shape[:2], padding=0)
+            #print 'L = ', np.prod(sh[:2])
+            #bkgmaps = -bkg_model_dists2(bigger, np.clip(collapsed_spread_bkg, 0.01, 0.99), self.fixed_spread_bkg[k].shape[:2], np.prod(sh[:2]), padding=0)
 
             bkgmaps = np.rollaxis(bkgmaps, 2)
 
