@@ -3,11 +3,13 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Plot llhs')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
+parser.add_argument('mixcomp', type=int)
 parser.add_argument('--adjusted', action='store_true')
 
 args = parser.parse_args()
 model_file = args.model
 adjusted = args.adjusted
+mixcomp = args.mixcomp
 
 import numpy as np
 import gv
@@ -15,12 +17,12 @@ import matplotlib.pylab as plt
 
 detector = gv.Detector.load(model_file)
 
-L = len(detector.standardization_info)
+L = len(detector.standardization_info[mixcomp])
 
-neg_mn = np.min([np.min(dct['neg_llhs']) for dct in detector.standardization_info])
-neg_mx = np.max([np.max(dct['neg_llhs']) for dct in detector.standardization_info])
-pos_mn = np.min([np.min(dct['pos_llhs']) for dct in detector.standardization_info])
-pos_mx = np.max([np.max(dct['pos_llhs']) for dct in detector.standardization_info])
+neg_mn = np.min([np.min(dct['neg_llhs']) for dct in detector.standardization_info[mixcomp]])
+neg_mx = np.max([np.max(dct['neg_llhs']) for dct in detector.standardization_info[mixcomp]])
+pos_mn = np.min([np.min(dct['pos_llhs']) for dct in detector.standardization_info[mixcomp]])
+pos_mx = np.max([np.max(dct['pos_llhs']) for dct in detector.standardization_info[mixcomp]])
 
 #print neg_mn, pos_mn
 
@@ -56,7 +58,7 @@ from gv.fast import nonparametric_rescore
 
 ax0 = None
 for i in xrange(offset, offset+L):
-    dct = detector.standardization_info[i]
+    dct = detector.standardization_info[mixcomp][i]
     if i == 0:
         ax0 = plt.subplot(L, 2, 1 + 2*(i-offset))
     else:
@@ -212,7 +214,7 @@ for i in xrange(offset, offset+L):
     #plt.plot(x0, np.log(pos_y + eps2) - np.log(neg_y + eps), linewidth=2.0, color='red')
     if not adjusted:
         plt.twinx()
-        info = detector.standardization_info[i]
+        info = detector.standardization_info[mixcomp][i]
         x0 = np.asarray([info['start'] + info['step'] * k for k in xrange(len(info['points']))])
         y = info['points']
         plt.plot(x0, y, linewidth=2.0, color='red')
@@ -230,7 +232,8 @@ for i in xrange(offset, offset+L):
     plt.subplot(L, 2, 2 + 2*(i-offset))
     if i == 0:
         plt.title('Background model')
-    plt.plot(np.apply_over_axes(np.mean, detector.fixed_spread_bkg[i], [0, 1]).ravel())
+    #plt.plot(np.apply_over_axes(np.mean, detector.fixed_spread_bkg[i], [0, 1]).ravel())
+    plt.plot(detector.bkg_centers[i])
     plt.ylim((0, bkg_mx))
     if i == L-1:
         plt.xlabel('Part #')

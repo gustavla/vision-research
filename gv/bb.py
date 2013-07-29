@@ -6,7 +6,7 @@ def _repr(tup):
     return "("+(", ".join(["{"+str(i)+":0.1f}" for i in xrange(4)])).format(*tup)+")"
 
 class DetectionBB(object):
-    def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, index_pos=(0, 0), truncated=False, scale=0, mixcomp=None, plusscore=0.0, score0=0.0, score1=0.0):
+    def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, index_pos=(0, 0), truncated=False, scale=0, mixcomp=None, plusscore=0.0, score0=0.0, score1=0.0, bkgcomp=None):
         self.score = score
         self.score0 = score0
         self.score1 = score1
@@ -17,11 +17,19 @@ class DetectionBB(object):
         self.truncated = truncated
         self.scale = scale
         self.mixcomp = mixcomp
+        self.bkgcomp = bkgcomp
         self.plusscore = plusscore
         self.index_pos = index_pos
 
     def __repr__(self):
-        return "DetectionBB(score={0:.2f}, box={1}, correct={2}, confidence={3:.2f}, mixcomp={4}, scale={5})".format(self.score, _repr(self.box), self.correct, self.confidence, self.mixcomp, self.scale)
+        return "DetectionBB(score={score:.2f}, box={box}, correct={correct}, confidence={confidence:.2f}, mixcomp={mixcomp}, bkgcomp={bkgcomp}, scale={scale})".format(
+            score=self.score, 
+            box=_repr(self.box), 
+            correct=self.correct, 
+            confidence=self.confidence, 
+            mixcomp=self.mixcomp, 
+            bkgcomp=self.bkgcomp,
+            scale=self.scale)
 
     def __cmp__(self, b):
         return cmp(self.score, b.score)

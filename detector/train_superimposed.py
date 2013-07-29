@@ -12,8 +12,6 @@ import itertools
 from collections import namedtuple
 from superimpose_experiment import generate_random_patches
 
-K = 8 
-
 #Patch = namedtuple('Patch', ['filename', 'selection'])
 
 #def load_patch_image(patch):
@@ -72,7 +70,7 @@ def fetch_bkg_model(settings, neg_files):
     return counts / tot 
     
 
-def _partition_bkg_files(seed, count, settings, size, neg_files, files, bb):
+def _partition_bkg_files(count, settings, size, neg_files, num_bkg_mixtures):
     im_size = settings['detector']['image_size'] # TEMP
 
     gen = generate_random_patches(neg_files, size, seed=0)
@@ -101,8 +99,8 @@ def _partition_bkg_files(seed, count, settings, size, neg_files, files, bb):
         if i == count:
             break
 
-        gray_im, alpha = _load_cad_image(files[i%len(files)], im_size, bb)
-        superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
+        #gray_im, alpha = _load_cad_image(files[i%len(files)], im_size, bb)
+        #superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
 
         #im = superimposed_im
         im = neg_im
@@ -134,12 +132,12 @@ def _partition_bkg_files(seed, count, settings, size, neg_files, files, bb):
     print "Starting GMM"
     #from sklearn.mixture import GMM, KMeans
     from sklearn.cluster import KMeans
-    if K > 1:
+    if num_bkg_mixtures > 1:
         #mixture = GMM(K)
-        mixture = KMeans(K)
-        print "Created GMM"
+        mixture = KMeans(num_bkg_mixtures)
+        print "Created clustering"
         mixture.fit(feats)
-        print "Fit GMM"
+        print "Running clustering"
 
         mixcomps = mixture.predict(feats)
     else:
@@ -153,8 +151,8 @@ def _partition_bkg_files(seed, count, settings, size, neg_files, files, bb):
         full_mixcomps[use] = mixcomps
     full_mixcomps = mixcomps
 
-    bkgs = [feats[full_mixcomps == k].mean(axis=0) for k in xrange(K)]
-    return np.asarray([(full_mixcomps == k) & use for k in xrange(K)]), bkgs
+    bkgs = np.asarray([feats[full_mixcomps == k].mean(axis=0) for k in xrange(num_bkg_mixtures)])
+    return bkgs
 
 def _partition_bkg_files_star(args):
     return _partition_bkg_files(*args)
@@ -340,8 +338,8 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
     duplicates = settings['detector'].get('duplicates', 1)
     cb = settings['detector'].get('crop_border')
 
-    all_kern = [None for k in xrange(K)]
-    all_bkg = [None for k in xrange(K)]
+    all_kern = [None] * K
+    all_bkg = [None] * K
     totals = np.zeros(K) 
 
     alpha_cum = None
@@ -515,6 +513,7 @@ def _calc_standardization_for_mixcomp2_star(args):
 def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg, bkgs, indices, files, neg_files, duplicates_mult=1):
     im_size = settings['detector']['image_size']
     size = gv.bb.size(bb)
+    K = len(bkgs)
 
     # Use the same seed for all mixture components! That will make them easier to compare,
     # without having to sample to infinity.
@@ -800,9 +799,6 @@ def superimposed_model(settings, threading=True):
 
     print "Checkpoint 7"
 
-    #all_mixcomps = [_partition_bkg_files() for 
-    
-    #argses = [(i,) for i in xrange(detector.num_mixtures)] 
     kernels = []
     bkgs = []
     bkg_centers = []
@@ -810,159 +806,39 @@ def superimposed_model(settings, threading=True):
     new_support = []
     neg_selectors = [None] * 100
 
-    ONE_MIXCOMP = None
+    print "Checkpoint 8"
+    all_negs = []
 
+    # TODO: This uses the shape of the first component. This should be fairly arbitrary
+    bkg_centers = _partition_bkg_files(len(comps) * settings['detector']['duplicates'], settings, gv.bb.size(bbs[0]), neg_files, detector.num_bkg_mixtures)
 
-    if ONE_MIXCOMP is not None:
-        kern, bkg, orig_size, sup = _create_kernel_for_mixcomp_star(argses[ONE_MIXCOMP]) 
-        kernels.append(kern)
-        bkgs.append(bkg)
+    print "Checkpoint 9"
+
+    # FOR ONLY ONE MIXCOMP
+    argses = [(m, settings, bbs[m], np.where(comps == m)[0], files, neg_files, bkg_centers) for m in xrange(detector.num_mixtures)]
+    #all_kern, all_bkg, orig_size, sup = _create_kernel_for_mixcomp3
+    for all_kern, all_bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp3_star, argses):
+        kernels.append(all_kern) 
+        bkgs.append(all_bkg)
         orig_sizes.append(orig_size)
         new_support.append(sup)
-        detector.num_mixtures = 1
-
-        detector.settings['per_mixcomp_bkg'] = True
-    
-    else:
-        print "Checkpoint 8"
-        all_negs = []
-        if 1:
-            neg_selectors = []
-            argses2 = [(i, len(np.where(comps == i)[0]) * settings['detector']['duplicates'], settings, gv.bb.size(bbs[i]), neg_files, files, bbs[0]) for i in xrange(detector.num_mixtures)]
-            for m, (neg_sel, bkg_center) in enumerate(imapf(_partition_bkg_files_star, argses2)):
-                #print "neg_ims size:", map(np.shape, neg_ims)
-                #all_negs.append(neg_ims)
-                for k, negs in enumerate(neg_sel):
-                    print "COMP", k, negs.sum()
-                neg_selectors.append(neg_sel)
-                bkg_centers.extend(bkg_center)
-
-        elif 1:
-            # TODO: Temporary
-            #brick_files = sorted(glob.glob(os.path.expanduser('/var/tmp/d/bricks/*')))
-            N1 = len(neg_files)
-            N2 = len(brick_files)
-            #neg_files = 
-            neg_files = neg_files + brick_files
-            neg_selectors = [[
-                [1] * N1 + [0] * N2,
-                [0] * N1 + [1] * N2,
-            ]]
-
-            if 0:
-                Ns = [len(np.where(comps == k)[0]) * settings['detector']['duplicates'] for k in xrange(detector.num_mixtures)]
-
-                for i, N in enumerate(Ns):
-                    size = gv.bb.size(bbs[i])
-                    neg_ims = []
-                    for k in xrange(K): 
-                        if k == 0:
-                            gen = generate_random_patches(neg_files, size, seed=i)
-                            ims = list(itertools.islice(gen, N))
-                        else:
-                            gen = generate_random_patches(brick_files, size, seed=i)
-                            ims = list(itertools.islice(gen, N))
-                        neg_ims.append(ims)
-                    all_negs.append(neg_ims)
-        else:
-            kernels = []
-            bkgs = []
-            Ns = [len(np.where(comps == k)[0]) * settings['detector']['duplicates'] for k in xrange(detector.num_mixtures)]
-
-            argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)] 
-
-            for kern, bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp2_star, argses):
-                kernels.append(kern)
-
-                if detector.settings.get('collapse_bkg'):
-                    bkg = np.apply_over_axes(np.mean, bkg, [0, 1]).ravel()
-                bkgs.append(bkg)
-                orig_sizes.append(orig_size)
-                new_support.append(sup)
-
-
-            #argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
-            argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files, None, 5) for i in xrange(detector.num_mixtures)]
-            #for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
-            neg_selectors = []
-            for i, (llhs, neg_llhs) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
-                # Extract the backgrounds scoring the most as the object 
-                from scipy.stats import mstats
-                quantiles = mstats.mquantiles(neg_llhs, np.linspace(0, 1, 10)) 
-                mn, mx = quantiles[-2:]
-                avg = np.mean([mn, mx])
-                dist = mx - avg
-                selectors = (np.fabs(neg_llhs - avg) <= dist)
-                N = selectors.sum()
-                #ims = [neg_ims[i][j % N] for j in indices]
-                neg_selectors.append(selectors) 
-                #print 'IMAGES', len(ims)
-                #all_negs.append([ims])
-
-        if 0:
-            import pylab as plt
-            for comp, neg_ims_list in enumerate(all_negs):
-                for bkg_comp, neg_ims in enumerate(neg_ims_list): 
-                    for i, im in enumerate(neg_ims):
-                        gv.img.save_image(im, 'bkg-mixtures/comp{0}-bkg{1}-{2}.png'.format(comp, bkg_comp, i))
-            
-
-
-        print "Checkpoint 9"
-
-        if 0:
-            argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, neg_files, neg_selectors[i][k]) for i in xrange(detector.num_mixtures) for k in xrange(K)] 
-            for kern, bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp2_star, argses):
-                print "HERE"
-                kernels.append(kern)
-
-                if detector.settings.get('collapse_bkg'):
-                    bkg = np.apply_over_axes(np.mean, bkg, [0, 1]).ravel()
-                bkgs.append(bkg)
-                orig_sizes.append(orig_size)
-                new_support.append(sup)
-        else:
-            # FOR ONLY ONE MIXCOMP
-            all_kern, all_bkg, orig_size, sup = _create_kernel_for_mixcomp3(0, settings, bbs[0], np.where(comps == 0)[0], files, neg_files, bkg_centers)
-            for k in xrange(K):
-                kernels.append(all_kern[k]) 
-                bkgs.append(all_bkg[k])
-                orig_sizes.append(orig_size)
-                new_support.append(sup)
                 
-
         print "Checkpoint 10"
 
         detector.settings['per_mixcomp_bkg'] = True
-
-    # TODO
-    detector.num_mixtures *= K
 
     detector.kernel_templates = kernels
     detector.kernel_sizes = orig_sizes
     detector.settings['kernel_ready'] = True
     detector.use_alpha = False
     detector.support = new_support
+    detector.bkg_centers = bkg_centers
 
     # Determine the background
     ag.info("Determining background")
-    #spread_bkg = np.mean([kern[:2].reshape((-1, kern.shape[-1])).mean(axis=0) for kern in kernels], axis=0)
-    #spread_bkg = np.mean([kern.reshape((-1, kern.shape[-1])).mean(axis=0) for kern in kernels], axis=0)
-    #spread_bkg = kernels[0][1].mean(axis=0)
-    if ONE_MIXCOMP is not None:
-        eps = detector.settings['min_probability']
-        detector.fixed_bkg = None
-        detector.fixed_spread_bkg = bkgs
-    else:
-        #spread_bkg = fetch_bkg_model(settings, neg_files)
 
-        #eps = detector.settings['min_probability']
-        #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
-
-        #print 'spread_bkg shape:', spread_bkg.shape
-        detector.fixed_bkg = None # Not needed, since kernel_ready is True
-        #detector.fixed_spread_bkg = spread_bkg
-        detector.fixed_spread_bkg = bkgs
+    detector.fixed_bkg = None
+    detector.fixed_spread_bkg = bkgs
 
     detector.settings['bkg_type'] = 'from-file'
 
@@ -973,45 +849,45 @@ def superimposed_model(settings, threading=True):
     #detector.fixed_train_mean = []
     #fixed_train_std = np.ones(detector.num_mixtures)
 
+    K = detector.num_bkg_mixtures
+
     if testing_type in ('fixed', 'non-parametric'):
         detector.standardization_info = []
-        if ONE_MIXCOMP is None:
+        if testing_type == 'non-parametric':
+            #argses = [(m, settings, bbs[m], kernels[m]
+            argses = [(m, settings, bbs[m], kernels[m], bkgs[m], bkg_centers, list(np.where(comps == m)[0]), files, neg_files, 3) for k in xrange(detector.num_bkg_mixtures)]
 
-            detector.standardization_info = []
-            if testing_type == 'non-parametric':
-                argses = [(i, settings, bbs[i], kernels[i*K:i*K + K], bkgs[i*K:i*K + K], bkg_centers, list(np.where(comps == i)[0]), files, neg_files, 3) for i in xrange(detector.num_mixtures//K)]
-                for i, si in enumerate(imapf(_calc_standardization_for_mixcomp3_star, argses)):
-                    detector.standardization_info += si 
+            detector.standardization_info = list(imapf(_calc_standardization_for_mixcomp3_star, argses))
 
-            else:
-                #argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
-                argses = [(i, settings, bbs[i//K], kernels[i], bkgs[i], list(np.where(comps == i//K)[0]), files, neg_files, neg_selectors[i//K][i%K]) for i in xrange(detector.num_mixtures)]
-                print "STOP 2"
-                #for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
-                for i, (llhs, neg_llhs) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
-                    #detector.standardization_info.append(dict(mean=mean, std=std))
-                    #detector.fixed_train_mean.append({
-                    #    'pos_llhs': llhs,
-                    #    'neg_llhs': neg_llhs,
-                    #})
-                    print "STOP 3"
+        else:
+            #argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
+            argses = [(i, settings, bbs[i//K], kernels[i], bkgs[i], list(np.where(comps == i//K)[0]), files, neg_files, neg_selectors[i//K][i%K]) for i in xrange(detector.num_mixtures)]
+            print "STOP 2"
+            #for i, (mean, std) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
+            for i, (llhs, neg_llhs) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
+                #detector.standardization_info.append(dict(mean=mean, std=std))
+                #detector.fixed_train_mean.append({
+                #    'pos_llhs': llhs,
+                #    'neg_llhs': neg_llhs,
+                #})
+                print "STOP 3"
 
-                    if testing_type == 'fixed':
-                        mean = np.mean(neg_llhs)
-                        std = np.std(neg_llhs)
-                        detector.standardization_info.append(dict(mean=mean, std=std))
-                    elif testing_type == 'non-parametric':
-                        info = _standardization_info_for_linearized_non_parameteric(neg_llhs, llhs)
-                        # Optionally add original likelihoods for inspection
-                        info['pos_llhs'] = llhs
-                        info['neg_llhs'] = neg_llhs 
-                        detector.standardization_info.append(info)
+                if testing_type == 'fixed':
+                    mean = np.mean(neg_llhs)
+                    std = np.std(neg_llhs)
+                    detector.standardization_info.append(dict(mean=mean, std=std))
+                elif testing_type == 'non-parametric':
+                    info = _standardization_info_for_linearized_non_parameteric(neg_llhs, llhs)
+                    # Optionally add original likelihoods for inspection
+                    info['pos_llhs'] = llhs
+                    info['neg_llhs'] = neg_llhs 
+                    detector.standardization_info.append(info)
 
-                argses = [(i, settings, bbs[i//K], bkgs[i], 0.5 * np.ones(bkgs[i].shape), list(np.where(comps == i//K)[0]), files, neg_files, neg_selectors[i//K][i%K]) for i in xrange(detector.num_mixtures)]
-                for i, (llhs, neg_llhs) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
+            argses = [(i, settings, bbs[i//K], bkgs[i], 0.5 * np.ones(bkgs[i].shape), list(np.where(comps == i//K)[0]), files, neg_files, neg_selectors[i//K][i%K]) for i in xrange(detector.num_mixtures)]
+            for i, (llhs, neg_llhs) in enumerate(imapf(_calc_standardization_for_mixcomp2_star, argses)):
 
-                    detector.standardization_info[i]['bkg_mean'] = np.mean(neg_llhs)
-                    detector.standardization_info[i]['bkg_std'] = np.std(neg_llhs)
+                detector.standardization_info[i]['bkg_mean'] = np.mean(neg_llhs)
+                detector.standardization_info[i]['bkg_std'] = np.std(neg_llhs)
 
     detector.settings['testing_type'] = testing_type 
     #detector.settings['testing_type'] = 'NEW'

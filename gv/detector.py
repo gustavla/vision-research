@@ -64,6 +64,7 @@ class BernoulliDetector(Detector):
         self.support = None
         self.fixed_bkg = None
         self.fixed_spread_bkg = None
+        self.bkg_centers = None
         self.standardization_info = None
 
         self.use_alpha = None
@@ -81,9 +82,13 @@ class BernoulliDetector(Detector):
         return self.settings['train_unspread']
 
     @property
+    def num_bkg_mixtures(self):
+        return self.settings.get('num_bkg_mixtures', 1)
+
+    @property
     def num_features(self):
         return self.descriptor.num_features
-    
+
     @property
     def use_basis(self):
         return self.kernel_basis is not None
@@ -367,6 +372,16 @@ class BernoulliDetector(Detector):
 
     #def subsample(self, edges):
         #return gv.sub.subsample(edges, self.settings['subsample_size'])
+
+    if 0:
+        def prepare_mixcomp_kernels(self, mixcomp, unspread_bkg, settings={}):
+            sett = self.settings.copy()
+            sett.update(settings) 
+
+            if sett.get('kernel_ready'):
+                return self.kernel_templates[mixcomp]
+            
+            assert 0, "Use prepare_kernels"
 
     def prepare_kernels(self, unspread_bkg, settings={}):
         sett = self.settings.copy()
@@ -706,21 +721,15 @@ class BernoulliDetector(Detector):
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # TODO: VERY TEMPORARY
         if True:
-            K = self.num_mixtures 
-            # Get background level
-            if mixcomp % K != 0:
-                return [], None, None
-
-            mc = mixcomp // K
-
             eps = self.settings['min_probability']
             #alpha = (self.support[mixcomp] > 0.5)
             #alpha = gv.sub.subsample(self.support[mixcomp] > 0.5, (2, 2))[3:-3,3:-3]
             #bbkg = [0.5 * np.ones(alpha.shape + (self.num_features,)) * np.expand_dims(alpha, -1) + spread_bkg[mixcomp] * ~np.expand_dims(alpha, -1)] * 100
-            collapsed_spread_bkg = np.asarray([
-                np.apply_over_axes(np.mean, self.fixed_spread_bkg[k], [0, 1]).ravel()
-                for k in xrange(K)
-            ])
+            if 0:
+                collapsed_spread_bkg = np.asarray([
+                    np.apply_over_axes(np.mean, self.fixed_spread_bkg[k], [0, 1]).ravel()
+                    for k in xrange(K)
+                ])
             #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             #import pdb; pdb.set_trace()
@@ -737,11 +746,11 @@ class BernoulliDetector(Detector):
             
             from .fast import bkg_model_dists, bkg_model_dists2
 
-            sh = sub_kernels[mixcomp].shape
+            sh = sub_kernels[mixcomp][0].shape
             padding = (sh[0]//2, sh[1]//2, 0)
             bigger = ag.util.zeropad(sub_feats, padding)
            
-            bkgmaps = -bkg_model_dists(bigger, collapsed_spread_bkg, self.fixed_spread_bkg[k].shape[:2], padding=0)
+            bkgmaps = -bkg_model_dists(bigger, self.bkg_centers, self.fixed_spread_bkg[mixcomp][0].shape[:2], padding=0)
             #print 'L = ', np.prod(sh[:2])
             #bkgmaps = -bkg_model_dists2(bigger, np.clip(collapsed_spread_bkg, 0.01, 0.99), self.fixed_spread_bkg[k].shape[:2], np.prod(sh[:2]), padding=0)
 
@@ -811,7 +820,7 @@ class BernoulliDetector(Detector):
         kern = sub_kernels[mixcomp]
 
         # TODO: Decide this in a way common to response_map
-        sh = kern.shape
+        sh = kern[0].shape
         padding = (sh[0]//2, sh[1]//2, 0)
 
         # Get size of original kernel (but downsampled)
@@ -847,7 +856,7 @@ class BernoulliDetector(Detector):
                     index_pos = (i-padding[0], j-padding[1])
     
                     #dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
-                    dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp+bkgcomp[i,j])
+                    dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=bkgcomp[i,j])
 
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)
@@ -888,13 +897,13 @@ class BernoulliDetector(Detector):
         if np.min(sub_feats.shape) <= 1:
             return None
 
-        K = len(sub_kernels)
+        K = self.num_bkg_mixtures 
     
         #kern = sub_kernels[mixcomp]
         #if self.settings.get('per_mixcomp_bkg'):
             #spread_bkg =  spread_bkg[mixcomp]
 
-        sh = sub_kernels[0].shape
+        sh = sub_kernels[mixcomp][0].shape
         padding = (sh[0]//2, sh[1]//2, 0)
 
         bigger = gv.ndfeature.zeropad(sub_feats, padding)
@@ -911,8 +920,10 @@ class BernoulliDetector(Detector):
         # TEMP
         #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
         #kern = np.clip(kern, eps, 1 - eps) 
-        clipped_bkg = np.asarray([np.clip(b, eps, 1-eps) for b in spread_bkg])
-        clipped_kernels = np.asarray([np.clip(kern, eps, 1-eps) for kern in sub_kernels])
+        #clipped_bkg = np.asarray([np.clip(b, eps, 1-eps) for b in spread_bkg[mixcomp]])
+        #clipped_kernels = np.asarray([np.clip(kern, eps, 1-eps) for kern in sub_kernels[mixcomp]])
+        clipped_bkg = np.clip(spread_bkg[mixcomp], eps, 1 - eps)
+        clipped_kernels = np.clip(sub_kernels[mixcomp], eps, 1 - eps)
 
         #all_weights = np.asarray([np.log(clipped_kernels[k]/(1-clipped_kernels[k]) * ((1-clipped_bkg[k])/clipped_bkg[k])) for k in xrange(K)])
         all_weights = np.log(clipped_kernels / (1 - clipped_kernels) * ((1 - clipped_bkg) / clipped_bkg))
@@ -930,15 +941,16 @@ class BernoulliDetector(Detector):
         else:
             testing_type = 'none'
 
-        # TODO: Temporary slow version
+        
         if testing_type == 'non-parametric':
-            if 1:
-                from .fast import nonparametric_rescore
-                for k in xrange(K):
-                    res0 = res.copy() 
-                    info = self.standardization_info[k]
-                    nonparametric_rescore(res0, info['start'], info['step'], info['points']) 
-                    res[bkgcomps == k] = res0[bkgcomps == k]
+            from .fast import nonparametric_rescore
+            for k in xrange(K):
+                res0 = res.copy() 
+                info = self.standardization_info[mixcomp][k]
+                nonparametric_rescore(res0, info['start'], info['step'], info['points']) 
+                res[bkgcomps == k] = res0[bkgcomps == k]
+        else:
+            assert 0, "Nothing else has been adapted to this new function"
 
         return res
 
@@ -1186,6 +1198,7 @@ class BernoulliDetector(Detector):
             obj.kernel_sizes = d.get('kernel_sizes')
             obj.use_alpha = d['use_alpha']
             obj.support = d.get('support')
+            obj.bkg_centers = d.get('bkg_centers')
 
             obj.fixed_bkg = d.get('fixed_bkg')
             obj.fixed_spread_bkg = d.get('fixed_spread_bkg')
@@ -1213,6 +1226,7 @@ class BernoulliDetector(Detector):
         d['use_alpha'] = self.use_alpha
         d['support'] = self.support
         d['settings'] = self.settings
+        d['bkg_centers'] = self.bkg_centers
 
         if self.fixed_bkg is not None:
             d['fixed_bkg'] = self.fixed_bkg

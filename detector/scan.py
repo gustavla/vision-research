@@ -36,8 +36,6 @@ detector = gv.Detector.load(model_file)
 
 fileobj = gv.datasets.load_file(contest, img_id, obj_class=obj_class, path=img_file)
 
-import pdb; pdb.set_trace()
-
 #elif contest == 'voc':
 #    fileobj = gv.voc.load_file(obj_class, img_id)
 #elif contest == 'uiuc':
