@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
 parser.add_argument('obj_class', metavar='<object class>', type=str, help='Object class')
 parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output file')
-parser.add_argument('--limit', nargs=1, type=int, default=[None])
+parser.add_argument('--limit', type=int, default=None)
 parser.add_argument('--mini', action='store_true', default=False)
 parser.add_argument('--contest', type=str, choices=gv.datasets.contests(), default='voc-val', help='Contest to try on')
 parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
@@ -16,7 +16,7 @@ args = parser.parse_args()
 model_file = args.model
 obj_class = args.obj_class
 output_file = args.output
-limit = args.limit[0]
+limit = args.limit
 mini = args.mini
 threading = not args.no_threading
 contest = args.contest

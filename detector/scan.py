@@ -8,7 +8,7 @@ parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'
 parser.add_argument('img_id', metavar='<image id>', type=int, help='ID of image in VOC repository')
 parser.add_argument('--class', dest='obj_class', nargs=1, default=[None], type=str, help='Object class for marking corrects')
 parser.add_argument('--kernel-size', dest='side', nargs=1, default=[None], metavar='SIDE', type=float, help='Run single side length of kernel')
-parser.add_argument('--contest', type=str, choices=gv.datasets.datasets(), default='voc', help='Contest to try on')
+parser.add_argument('--contest', type=str, choices=gv.datasets.datasets(), default='voc-val', help='Contest to try on')
 parser.add_argument('--image-file', type=str, nargs=1, default=[None])
 parser.add_argument('--limit', nargs=1, default=[None], type=int, help='Limit bounding boxes')
 
@@ -35,6 +35,8 @@ from plotting import plot_results
 detector = gv.Detector.load(model_file)
 
 fileobj = gv.datasets.load_file(contest, img_id, obj_class=obj_class, path=img_file)
+
+import pdb; pdb.set_trace()
 
 #elif contest == 'voc':
 #    fileobj = gv.voc.load_file(obj_class, img_id)

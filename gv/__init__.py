@@ -2,12 +2,15 @@ from __future__ import absolute_import
 from .detector import *
 from .real_detector import RealDetector
 from . import img
-from . import voc
-from . import uiuc
 from . import bb
 from . import sub 
 from . import rescalc
 from . import datasets
+# Datasets
+from . import voc
+from . import uiuc
+from . import custom
+
 from .ndfeature import ndfeature
 
 from .binary_descriptor import *
