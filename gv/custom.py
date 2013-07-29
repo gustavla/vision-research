@@ -17,15 +17,15 @@ def _img_path(dataset, img_id):
 def _convert_line_to_file(dataset, line):
     v = line.split(':')
     img_id = int(v[0])
-    box_strs = v[1].strip().split(' ')
     bbs = [] 
-    rx = re.compile(r'\(\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\s*\)')
-    for s in box_strs:
-        matches = rx.findall(s)
-        for match in matches:
-            bb = tuple(map(int, match))
-            bbobj = gv.bb.DetectionBB(box=bb)
-            bbs.append(bbobj)
+    rx = re.compile(r'\((-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\)')
+
+    matches = rx.findall(v[1])
+    print matches
+    for match in matches:
+        bb = tuple(map(int, match))
+        bbobj = gv.bb.DetectionBB(box=bb)
+        bbs.append(bbobj)
 
     return ImgFile(path=_img_path(dataset, img_id), boxes=bbs, img_id=img_id)
 
