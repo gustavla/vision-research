@@ -21,7 +21,6 @@ def _convert_line_to_file(dataset, line):
     rx = re.compile(r'\((-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\)')
 
     matches = rx.findall(v[1])
-    print matches
     for match in matches:
         bb = tuple(map(int, match))
         bbobj = gv.bb.DetectionBB(box=bb)
