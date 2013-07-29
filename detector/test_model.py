@@ -21,9 +21,6 @@ mini = args.mini
 threading = not args.no_threading
 contest = args.contest
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pylab as plt
 import amitgroup as ag
 import numpy as np
 import scipy.integrate
@@ -96,7 +93,7 @@ for tp, tp_fp, tp_fn, dets in res:
     per_file_dets.append(dets)
 
 
-if 1:
+if 0:
     from operator import itemgetter
     plt.clf()
     for i, file_dets in enumerate(per_file_dets):

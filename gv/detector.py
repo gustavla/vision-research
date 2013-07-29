@@ -1,6 +1,5 @@
 from __future__ import division
 
-import matplotlib
 import amitgroup as ag
 import numpy as np
 import scipy.signal
