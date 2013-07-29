@@ -6,7 +6,7 @@ ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
 def contests():
     return ('voc-val', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-easy', 
             'uiuc', 'uiuc-multiscale', 
-            'custom-cad-profie')
+            'custom-cad-profile')
 
 def datasets():
     return ('none', 'voc', 'uiuc', 'uiuc-multiscale', 
