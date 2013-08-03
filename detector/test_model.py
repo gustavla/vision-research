@@ -69,9 +69,7 @@ def detect(fileobj):
         if bbobj.correct and not bbobj.difficult:
             tp += 1
 
-    print("Testing file {0} (tp:{1} tp+fp:{2} tp+fn:{3})".format(fileobj.img_id, tp, tp_fp, tp_fn))
-
-    return (tp, tp_fp, tp_fn, detections)
+    return (tp, tp_fp, tp_fn, detections, fileobj.img_id)
 
 
 if threading:
@@ -83,14 +81,23 @@ else:
 
 res = imapf(detect, files)
 
-per_file_dets = []
+#per_file_dets = []
 
-for tp, tp_fp, tp_fn, dets in res:
+for tp, tp_fp, tp_fn, dets, img_id in res:
     tot_tp += tp
     tot_tp_fp += tp_fp
     tot_tp_fn += tp_fn
     detections.extend(dets)
-    per_file_dets.append(dets)
+
+    # Get a snapshot of the current precision recall
+    detarr = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
+    detarr.sort(order='confidence')
+    p, r = gv.rescalc.calc_precision_recall(detarr, tot_tp_fn)
+    ap = gv.rescalc.calc_ap(p, r) 
+
+    print("{ap:6.02f}% Testing file {img_id} (tp:{tp} tp+fp:{tp_fp} tp+fn:{tp_fn})".format(ap=100*ap, img_id=img_id, tp=tp, tp_fp=tp_fp, tp_fn=tp_fn))
+
+    #per_file_dets.append(dets)
 
 
 if 0:

@@ -64,7 +64,7 @@ class BernoulliDetector(Detector):
         self.support = None
         self.fixed_bkg = None
         self.fixed_spread_bkg = None
-        self.bkg_centers = None
+        self.bkg_mixture_params = None
         self.standardization_info = None
 
         self.use_alpha = None
@@ -630,19 +630,37 @@ class BernoulliDetector(Detector):
                     skips += 1
             num_levels = len(factors) + skips
 
-            bbs = []
-            for i, factor in enumerate(factors):
-                #print 'factor', factor
+            if 1:
+                bbs = []
+                for i, factor in enumerate(factors):
+                    for mixcomp in mixcomps:
+                        bbs0, resmap, bkgcomp, feats, img_resized = self.detect_coarse_single_factor(img, factor, mixcomp, img_id=fileobj.img_id)
+                        bbs += bbs0
+            else:
+                bbs = []
                 for mixcomp in mixcomps:
-                    bbs0, resmap, bkgcomp, feats, img_resized = self.detect_coarse_single_factor(img, factor, mixcomp, img_id=fileobj.img_id)
-                    bbs += bbs0
-        
-            # Do NMS here
-            final_bbs = self.nonmaximal_suppression(bbs)
+                    bbsi = []
+                    for i, factor in enumerate(factors):
+                        bbs0, resmap, bkgcomp, feats, img_resized = self.detect_coarse_single_factor(img, factor, mixcomp, img_id=fileobj.img_id)
 
-            # Mark corrects here
-            if fileobj is not None:
-                self.label_corrects(final_bbs, fileobj)
+                        bbsi += bbs0
+
+                    bbsi = self.nonmaximal_suppression(bbsi)
+                    if fileobj is not None:
+                        self.label_corrects(bbsi, fileobj)
+    
+                    bbs += bbsi
+        
+            if 1:
+                # Do NMS here
+                final_bbs = self.nonmaximal_suppression(bbs)
+
+                # Mark corrects here
+                if fileobj is not None:
+                    self.label_corrects(final_bbs, fileobj)
+
+            else:
+                final_bbs = bbs
 
 
             return final_bbs
@@ -744,13 +762,14 @@ class BernoulliDetector(Detector):
                 #integral_feats = feats.cumsum(0).cumsum(1)
                 #scores = 
             
-            from .fast import bkg_model_dists, bkg_model_dists2
+            #from .fast import bkg_model_dists, bkg_model_dists2
+            from .fast import bkg_beta_dists as bdist 
 
             sh = sub_kernels[mixcomp][0].shape
             padding = (sh[0]//2, sh[1]//2, 0)
             bigger = ag.util.zeropad(sub_feats, padding)
            
-            bkgmaps = -bkg_model_dists(bigger, self.bkg_centers, self.fixed_spread_bkg[mixcomp][0].shape[:2], padding=0)
+            bkgmaps = -bdist(bigger, self.bkg_mixture_params, self.fixed_spread_bkg[mixcomp][0].shape[:2], padding=0)
             #print 'L = ', np.prod(sh[:2])
             #bkgmaps = -bkg_model_dists2(bigger, np.clip(collapsed_spread_bkg, 0.01, 0.99), self.fixed_spread_bkg[k].shape[:2], np.prod(sh[:2]), padding=0)
 
@@ -941,16 +960,23 @@ class BernoulliDetector(Detector):
         else:
             testing_type = 'none'
 
-        
-        if testing_type == 'non-parametric':
+        for k in xrange(K):
             from .fast import nonparametric_rescore
-            for k in xrange(K):
+            info = self.standardization_info[mixcomp][k]
+            if testing_type == 'non-parametric':
                 res0 = res.copy() 
-                info = self.standardization_info[mixcomp][k]
                 nonparametric_rescore(res0, info['start'], info['step'], info['points']) 
-                res[bkgcomps == k] = res0[bkgcomps == k]
-        else:
-            assert 0, "Nothing else has been adapted to this new function"
+            elif testing_type == 'fixed':
+                res0 = res.copy() 
+                res0 -= self.standardization_info[mixcomp][k]['mean']
+                res0 /= self.standardization_info[mixcomp][k]['std']
+            else:
+                assert 0, "Nothing else has been adapted to this new function"
+                
+
+            res[bkgcomps == k] = res0[bkgcomps == k]
+            #res[bkgcomps == k] = (res0[bkgcomps == k] - info['comp_mean']) / info['comp_std']
+            
 
         return res
 
@@ -1198,7 +1224,7 @@ class BernoulliDetector(Detector):
             obj.kernel_sizes = d.get('kernel_sizes')
             obj.use_alpha = d['use_alpha']
             obj.support = d.get('support')
-            obj.bkg_centers = d.get('bkg_centers')
+            obj.bkg_mixture_params = d.get('bkg_mixture_params')
 
             obj.fixed_bkg = d.get('fixed_bkg')
             obj.fixed_spread_bkg = d.get('fixed_spread_bkg')
@@ -1226,7 +1252,7 @@ class BernoulliDetector(Detector):
         d['use_alpha'] = self.use_alpha
         d['support'] = self.support
         d['settings'] = self.settings
-        d['bkg_centers'] = self.bkg_centers
+        d['bkg_mixture_params'] = self.bkg_mixture_params
 
         if self.fixed_bkg is not None:
             d['fixed_bkg'] = self.fixed_bkg

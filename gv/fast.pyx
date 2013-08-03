@@ -421,3 +421,74 @@ def bkg_model_dists3(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bk
                         dists_mv[i,j,b] += w
 
     return dists
+
+def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixture_params, size, padding=0):
+    assert feats.shape[2] == mixture_params.shape[1]
+    cdef:
+        int size0 = <int>size[0]
+        int size1 = <int>size[1]
+        int ip = <int>padding
+        int num_bkgs = mixture_params.shape[0]
+        int dim0 = feats.shape[0] - size0 + 1
+        int dim1 = feats.shape[1] - size1 + 1
+        int dim2 = feats.shape[2]
+
+        int if_dim0 = feats.shape[0] + 1 + 2*ip
+        int if_dim1 = feats.shape[1] + 1 + 2*ip
+        np.ndarray[real,ndim=3] integral_feats = np.zeros((if_dim0, if_dim1, feats.shape[2]))
+        np.ndarray[real,ndim=3] dists = np.zeros((dim0, dim1, num_bkgs))
+
+        real[:,:,:] int_mv = integral_feats
+        real[:,:,:] dists_mv = dists
+        real[:,:,:] params_mv = mixture_params
+
+        real v, w
+        np.ndarray[real,ndim=1] s = np.zeros(dim2)
+        np.int32_t count 
+        int i, j, f, b
+
+    integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / ((size0 + 2*ip) * (size1 + 2*ip))
+
+    from scipy.stats import beta
+
+    # Fill in to the right
+    for i in range(if_dim0-ip, if_dim0):
+        for j in xrange(if_dim1):
+            int_mv[i,j] = int_mv[if_dim0-ip-1,j]
+
+    for i in range(if_dim0):
+        for j in xrange(if_dim1-ip, if_dim1):
+            int_mv[i,j] = int_mv[i,if_dim1-ip-1]
+
+#    for i in range(dim0):
+#        for j in range(dim1):
+#            v = 0
+#            for f in range(dim2): 
+#                # Get background value here
+#                s = int_mv[i+size0+2*ip,j+size1+2*ip,f] - \
+#                    int_mv[i           ,j+size1+2*ip,f] - \
+#                    int_mv[i+size0+2*ip,j           ,f] + \
+#                    int_mv[i           ,j           ,f]
+#
+#                for b in range(num_bkgs):
+#                    # TODO: Return as dist or score? Probably score.
+#                    dists_mv[i,j,b] -= beta.logpdf(s, params_mv[b,f,0], params_mv[b,f,1])
+
+    for i in range(dim0):
+        for j in range(dim1):
+            #v = 0
+            #for f in range(dim2): 
+            # Get background value here
+            s[:] = integral_feats[i+size0+2*ip,j+size1+2*ip] - \
+                   integral_feats[i           ,j+size1+2*ip] - \
+                   integral_feats[i+size0+2*ip,j           ] + \
+                   integral_feats[i           ,j           ]
+
+            dists[i,j] = -np.sum(beta.logpdf(s, mixture_params[...,0], mixture_params[...,1]), axis=1) 
+            #for b in xrange(num_bkgs):
+                #dists_mv[i,j,b] -= np.sum(beta.logpdf(s, mixture_params[b,:,0], mixture_params[b,:,1]))
+                #for b in range(num_bkgs):
+                    # TODO: Return as dist or score? Probably score.
+                    #dists_mv[i,j,b] -= beta.logpdf(s, params_mv[b,f,0], params_mv[b,f,1])
+
+    return dists

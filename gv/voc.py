@@ -82,7 +82,7 @@ def load_files(class_name, dataset='train'):
     elif dataset == 'profile3':
         return load_specific_files(class_name, _VOC_PROFILES3)
     elif dataset == 'easy':
-        return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPRIFLES)
+        return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPROFILES)
 
 
     path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))

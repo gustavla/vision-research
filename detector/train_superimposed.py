@@ -129,30 +129,37 @@ def _partition_bkg_files(count, settings, size, neg_files, num_bkg_mixtures):
     feats = np.asarray(feats)
     #neg_ims = np.asarray(neg_ims)
 
-    print "Starting GMM"
+    print "Partitioning..."
     #from sklearn.mixture import GMM, KMeans
-    from sklearn.cluster import KMeans
-    if num_bkg_mixtures > 1:
-        #mixture = GMM(K)
-        mixture = KMeans(num_bkg_mixtures)
-        print "Created clustering"
-        mixture.fit(feats)
-        print "Running clustering"
-
-        mixcomps = mixture.predict(feats)
-    else:
-        mixcomps = np.zeros(len(feats))
-
-    print "Predicted"
-
-    #return [neg_ims[mixcomps==i] for i in xrange(K)]
     if 0:
-        full_mixcomps = np.ones(use.shape, dtype=np.int32)
-        full_mixcomps[use] = mixcomps
-    full_mixcomps = mixcomps
+        from sklearn.cluster import KMeans
+        if num_bkg_mixtures > 1:
+            #mixture = GMM(K)
+            mixture = KMeans(num_bkg_mixtures)
+            print "Created clustering"
+            mixture.fit(feats)
+            print "Running clustering"
 
-    bkgs = np.asarray([feats[full_mixcomps == k].mean(axis=0) for k in xrange(num_bkg_mixtures)])
-    return bkgs
+            mixcomps = mixture.predict(feats)
+        else:
+            mixcomps = np.zeros(len(feats))
+
+        print "Predicted"
+
+        #return [neg_ims[mixcomps==i] for i in xrange(K)]
+        if 0:
+            full_mixcomps = np.ones(use.shape, dtype=np.int32)
+            full_mixcomps[use] = mixcomps
+        full_mixcomps = mixcomps
+
+        # TODO: Why not just mixture.cluster_centers_ directl?
+        bkgs = np.asarray([feats[full_mixcomps == k].mean(axis=0) for k in xrange(num_bkg_mixtures)])
+        return bkgs
+    else:
+        model = gv.BetaMixture(num_bkg_mixtures)
+        model.fit(feats)
+        
+        return model.theta_ 
 
 def _partition_bkg_files_star(args):
     return _partition_bkg_files(*args)
@@ -302,11 +309,29 @@ def _create_kernel_for_mixcomp2(mixcomp, settings, bb, indices, files, neg_files
 def _create_kernel_for_mixcomp2_star(args):
     return _create_kernel_for_mixcomp2(*args)
 
-def _classify(neg_feats, pos_feats, bkgs):
-    K = len(bkgs)
+def _classify(neg_feats, pos_feats, mixture_params):
+    K = len(mixture_params)
     collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1])
-    scores = [-np.sum((collapsed_feats - bkgs[k])**2) for k in xrange(K)]
+    scores = [-np.sum((collapsed_feats - mixture_params[k])**2) for k in xrange(K)]
     bkg_id = np.argmax(scores)
+    return bkg_id
+
+def _classify(neg_feats, pos_feats, mixture_params):
+    from scipy.stats import beta
+    M = len(mixture_params)
+    collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1]).ravel()
+    collapsed_feats = np.clip(collapsed_feats, 0.01, 1-0.01)
+    D = collapsed_feats.shape[0]
+    
+    qlogs = np.zeros(M)
+    for m in xrange(M):
+        #v = qlogs[m] 
+        v = 0.0
+        for d in xrange(D):
+            v += beta.logpdf(collapsed_feats[d], mixture_params[m,d,0], mixture_params[m,d,1])
+        qlogs[m] = v
+
+    bkg_id = qlogs.argmax()
     return bkg_id
 
 if 0:
@@ -320,9 +345,9 @@ if 0:
         bkg_id = np.argmax(scores)
         return bkg_id
     
-def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files, bkgs):
+def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files, bkg_mixture_params):
     #return 0, 1, 2, 3 
-    K = len(bkgs)
+    K = len(bkg_mixture_params)
         
     im_size = settings['detector']['image_size']
     size = gv.bb.size(bb)
@@ -363,7 +388,7 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
             feats = descriptor.extract_features(superimposed_im, settings=setts)
 
-            bkg_id = _classify(neg_feats, feats, bkgs)
+            bkg_id = _classify(neg_feats, feats, bkg_mixture_params)
 
             #bkg_feats = gv.sub.subsample(bkg_feats, psize)
         
@@ -380,7 +405,7 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
                 all_kern[bkg_id] += feats
 
             totals[bkg_id] += 1
-    
+
     all_kern = [all_kern[k].astype(np.float64) / totals[k] for k in xrange(K)]
     all_bkg = [all_bkg[k].astype(np.float64) / totals[k] for k in xrange(K)]
     
@@ -510,10 +535,10 @@ def _calc_standardization_for_mixcomp2(mixcomp, settings, bb, kern, bkg, indices
 def _calc_standardization_for_mixcomp2_star(args):
     return _calc_standardization_for_mixcomp2(*args)
 
-def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg, bkgs, indices, files, neg_files, duplicates_mult=1):
+def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg, bkg_mixture_params, indices, files, neg_files, duplicates_mult=1):
     im_size = settings['detector']['image_size']
     size = gv.bb.size(bb)
-    K = len(bkgs)
+    K = len(bkg_mixture_params)
 
     # Use the same seed for all mixture components! That will make them easier to compare,
     # without having to sample to infinity.
@@ -550,7 +575,7 @@ def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg,
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
 
-            bkg_id = _classify(neg_feats, feats, bkgs)
+            bkg_id = _classify(neg_feats, feats, bkg_mixture_params)
 
             neg_llh = float((weights[bkg_id] * neg_feats).sum())
             all_neg_llhs[bkg_id].append(neg_llh)
@@ -558,14 +583,24 @@ def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg,
             pos_llh = float((weights[bkg_id] * feats).sum())
             all_pos_llhs[bkg_id].append(pos_llh)
 
+
     #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
 
     standardization_info = []
 
     for k in xrange(K):
+
         neg_llhs = np.asarray(all_neg_llhs[k])
+        if 0:
+            neg_llhs = neg_llhs.reshape((5, -1))
+            neg_llhs = neg_llhs.max(axis=0)
+
         pos_llhs = np.asarray(all_pos_llhs[k])
-        if len(neg_llhs) > 0 and len(pos_llhs):
+        if 0:
+            pos_llhs = pos_llhs.reshape((5, -1))
+            pos_llhs = pos_llhs.min(axis=0)
+
+        if len(neg_llhs) > 0 and len(pos_llhs) > 0:
             info = _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs)
         else:
             print "FAILED", k
@@ -585,7 +620,7 @@ def _logpdf(x, loc=0.0, scale=1.0):
     #return -(np.clip((x - loc) / scale, -4, 4)*scale)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
     return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
 
-def _standardization_info_for_linearized_non_parameteric_OLD(neg_llhs, pos_llhs):
+def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
     info = {}
 
     mn = min(np.min(neg_llhs), np.min(pos_llhs))
@@ -596,20 +631,41 @@ def _standardization_info_for_linearized_non_parameteric_OLD(neg_llhs, pos_llhs)
     x = np.linspace(span[0], span[1], 100)
     delta = x[1] - x[0]
 
-    neg_logs = np.zeros_like(neg_llhs)
-    pos_logs = np.zeros_like(pos_llhs)
 
-    print len(neg_logs), len(pos_logs)
+    #print len(neg_logs), len(pos_logs)
+
+    from  scipy.stats import norm, genextreme
+
+    sig = 100
+    N = 50
 
     def score(R, neg_llhs, pos_llhs):
+        neg_logs = np.zeros_like(neg_llhs)
+        pos_logs = np.zeros_like(pos_llhs)
+
         for j, llh in enumerate(neg_llhs):
-            neg_logs[j] = _logpdf(R, loc=llh, scale=200) - np.log(len(neg_logs))
+            #mu_n = norm.ppf(1 - 1/N, loc=llh, scale=sig)
+            #sigma_n = norm.ppf(1 - 1/N * np.exp(-1), loc=llh, scale=sig) - mu_n 
+            neg_logs[j] = norm.logpdf(R, loc=llh, scale=sig) - np.log(len(neg_logs))
+            #neg_logs[j] = genextreme.logpdf(R, 0, loc=mu_n, scale=sigma_n) - np.log(len(neg_logs))
 
         for j, llh in enumerate(pos_llhs):
-            pos_logs[j] = _logpdf(R, loc=llh, scale=200) - np.log(len(pos_logs))
+            pos_logs[j] = norm.logpdf(R, loc=llh, scale=sig) - np.log(len(pos_logs))
+
+        neg_mean = neg_llhs.mean()
+        neg_std = neg_llhs.std()
+        pos_mean = pos_llhs.mean()
+        pos_std = pos_llhs.std()
+
+        # Combine with regular normals to improve stability
+        #neg_logs2 = np.hstack([neg_logs, np.repeat(norm.logpdf(R, loc=neg_mean, scale=neg_std) - np.log(len(neg_logs)), len(neg_logs))])
+        #pos_logs2 = np.hstack([pos_logs, np.repeat(norm.logpdf(R, loc=pos_mean, scale=pos_std) - np.log(len(pos_logs)), len(pos_logs))])
+        #neg_logs2 = np.repeat(norm.logpdf(R, loc=neg_mean, scale=neg_std) - np.log(len(neg_logs)), len(neg_logs))
+        #pos_logs2 = np.repeat(norm.logpdf(R, loc=pos_mean, scale=pos_std) - np.log(len(pos_logs)), len(pos_logs))
 
         from scipy.misc import logsumexp
         return logsumexp(pos_logs) - logsumexp(neg_logs)
+        #return logsumexp(pos_logs2) - logsumexp(neg_logs2)
 
 
     y = np.zeros_like(x)
@@ -621,7 +677,7 @@ def _standardization_info_for_linearized_non_parameteric_OLD(neg_llhs, pos_llhs)
     info['points'] = y
     return info
 
-def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
+def _standardization_info_for_linearized_non_parameteric_LINEAR(neg_llhs, pos_llhs):
     info = {}
 
     from scipy.stats import norm
@@ -801,7 +857,7 @@ def superimposed_model(settings, threading=True):
 
     kernels = []
     bkgs = []
-    bkg_centers = []
+    bkg_mixture_params = []
     orig_sizes = []
     new_support = []
     neg_selectors = [None] * 100
@@ -810,12 +866,12 @@ def superimposed_model(settings, threading=True):
     all_negs = []
 
     # TODO: This uses the shape of the first component. This should be fairly arbitrary
-    bkg_centers = _partition_bkg_files(len(comps) * settings['detector']['duplicates'], settings, gv.bb.size(bbs[0]), neg_files, detector.num_bkg_mixtures)
+    bkg_mixture_params = _partition_bkg_files(len(comps) * settings['detector']['duplicates'], settings, gv.bb.size(bbs[0]), neg_files, detector.num_bkg_mixtures)
 
     print "Checkpoint 9"
 
     # FOR ONLY ONE MIXCOMP
-    argses = [(m, settings, bbs[m], np.where(comps == m)[0], files, neg_files, bkg_centers) for m in xrange(detector.num_mixtures)]
+    argses = [(m, settings, bbs[m], np.where(comps == m)[0], files, neg_files, bkg_mixture_params) for m in xrange(detector.num_mixtures)]
     #all_kern, all_bkg, orig_size, sup = _create_kernel_for_mixcomp3
     for all_kern, all_bkg, orig_size, sup in imapf(_create_kernel_for_mixcomp3_star, argses):
         kernels.append(all_kern) 
@@ -832,7 +888,7 @@ def superimposed_model(settings, threading=True):
     detector.settings['kernel_ready'] = True
     detector.use_alpha = False
     detector.support = new_support
-    detector.bkg_centers = bkg_centers
+    detector.bkg_mixture_params = bkg_mixture_params
 
     # Determine the background
     ag.info("Determining background")
@@ -853,12 +909,40 @@ def superimposed_model(settings, threading=True):
 
     if testing_type in ('fixed', 'non-parametric'):
         detector.standardization_info = []
-        if testing_type == 'non-parametric':
-            #argses = [(m, settings, bbs[m], kernels[m]
-            argses = [(m, settings, bbs[m], kernels[m], bkgs[m], bkg_centers, list(np.where(comps == m)[0]), files, neg_files, 3) for k in xrange(detector.num_bkg_mixtures)]
+        if testing_type == 'fixed':
+            argses = [(m, settings, bbs[m], kernels[m], bkgs[m], bkg_mixture_params, list(np.where(comps == m)[0]), files, neg_files, 3) for m in xrange(detector.num_mixtures)]
+            detector.standardization_info = list(imapf(_calc_standardization_for_mixcomp3_star, argses))
+            for all_infos in detector.standardization_info:
+                for info in all_infos:
+                    info['mean'] = info['neg_llhs'].mean()
+                    info['std'] = info['neg_llhs'].std()
 
+        elif testing_type == 'non-parametric':
+            #argses = [(m, settings, bbs[m], kernels[m]
+            argses = [(m, settings, bbs[m], kernels[m], bkgs[m], bkg_mixture_params, list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in xrange(detector.num_mixtures)]
             detector.standardization_info = list(imapf(_calc_standardization_for_mixcomp3_star, argses))
 
+            for all_infos in detector.standardization_info:
+                # Get the mean/std of all negatives after component-wise standardization
+                neg_lists = []
+                for info in all_infos:
+                    neg_R = info['neg_llhs'].copy().reshape((-1, 1))
+                    #pos_R = info['pos_llhs'].copy().reshape((-1, 1))
+                    from gv.fast import nonparametric_rescore 
+                    nonparametric_rescore(neg_R, info['start'], info['step'], info['points'])
+                    #nonparametric_rescore(pos_R, dct['start'], dct['step'], dct['points'])
+                    neg_lists.append(neg_R.ravel())
+
+                if 0:
+                    negs = np.hstack(neg_lists)
+                    negs_mean = negs.mean()
+                    negs_std = negs.std()
+                    
+                    # Populate this to all infos
+                    for info in all_infos:
+                        info['comp_mean'] = negs_mean
+                        info['comp_std'] = negs_std
+                    
         else:
             #argses = [(i, settings, bbs[i], kernels[i], bkgs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)]
             argses = [(i, settings, bbs[i//K], kernels[i], bkgs[i], list(np.where(comps == i//K)[0]), files, neg_files, neg_selectors[i//K][i%K]) for i in xrange(detector.num_mixtures)]
