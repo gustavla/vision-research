@@ -500,7 +500,6 @@ class BernoulliDetector(Detector):
                 plt.subplot(211)
                 plt.imshow(img, interpolation='nearest', cmap=plt.cm.gray) 
                 plt.subplot(212)
-                #import pdb; pdb.set_trace()
                 plt.imshow(resmap, interpolation='nearest')
                 plt.colorbar()
 
@@ -750,7 +749,6 @@ class BernoulliDetector(Detector):
                 ])
             #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
-            #import pdb; pdb.set_trace()
 
             #import pylab as plt
             #plt.clf()
@@ -779,8 +777,6 @@ class BernoulliDetector(Detector):
             #bkgmaps = np.asarray([self.response_map(sub_feats, collapsed_spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
             #resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(K)]
             bkgcomp = np.argmax(bkgmaps, axis=0)
-            import pdb; pdb.set_trace()
-            print np.bincount(bkgcomp.ravel(), minlength=self.num_bkg_mixtures)
             resmap = self.response_map_NEW_MULTI(sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomp)
             #resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, 4)
 
