@@ -484,6 +484,8 @@ def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixt
                    integral_feats[i+size0+2*ip,j           ] + \
                    integral_feats[i           ,j           ]
 
+            s[:] = np.clip(s, 0.01, 1-0.01)
+
             dists[i,j] = -np.sum(beta.logpdf(s, mixture_params[...,0], mixture_params[...,1]), axis=1) 
             #for b in xrange(num_bkgs):
                 #dists_mv[i,j,b] -= np.sum(beta.logpdf(s, mixture_params[b,:,0], mixture_params[b,:,1]))

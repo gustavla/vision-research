@@ -779,6 +779,8 @@ class BernoulliDetector(Detector):
             #bkgmaps = np.asarray([self.response_map(sub_feats, collapsed_spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
             #resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(K)]
             bkgcomp = np.argmax(bkgmaps, axis=0)
+            import pdb; pdb.set_trace()
+            print np.bincount(bkgcomp.ravel(), minlength=self.num_bkg_mixtures)
             resmap = self.response_map_NEW_MULTI(sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomp)
             #resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, 4)
 

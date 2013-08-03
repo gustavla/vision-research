@@ -119,7 +119,7 @@ for i in xrange(offset, offset+L):
         bi = 0 
     else:
         bi = i 
-    plt.plot(detector.bkg_centers[bi])
+    #plt.plot(detector.bkg_centers[bi])
     #plt.ylim((0, bkg_mx))
     if i == L-1:
         plt.xlabel('Part #')
