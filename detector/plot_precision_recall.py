@@ -30,7 +30,7 @@ for i, results_file in enumerate(results_files):
     ap = gv.rescalc.calc_ap(p, r) 
 
     print(results_file.name)
-    print('AP:', ap)
+    print('AP: {0:.02f}% ({1})'.format(100*ap, ap))
     #print(detections[-10:])
     print()
 

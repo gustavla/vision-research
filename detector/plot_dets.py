@@ -1,4 +1,3 @@
-
 from __future__ import division
 from __future__ import print_function
 import argparse
@@ -24,7 +23,7 @@ detections = data['detections']
 mixcomps = detections['mixcomp'].max() + 1
 
 #bins = np.arange(0.0, 0.2, 0.01)
-bins = np.arange(-3, 8, 0.25)
+bins = np.arange(-20, 20, 0.25)
 
 tps_fps = np.zeros((mixcomps, 2))
 

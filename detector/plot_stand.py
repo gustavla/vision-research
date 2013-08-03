@@ -3,13 +3,15 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Plot llhs')
 parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
-parser.add_argument('mixcomp', type=int)
+parser.add_argument('--mixcomp', type=int, default=None)
 parser.add_argument('--adjusted', action='store_true')
+parser.add_argument('-o', '--output', type=str, default=None)
 
 args = parser.parse_args()
 model_file = args.model
 adjusted = args.adjusted
 mixcomp = args.mixcomp
+output = args.output
 
 import numpy as np
 import gv
@@ -17,18 +19,24 @@ import matplotlib.pylab as plt
 
 detector = gv.Detector.load(model_file)
 
-L = len(detector.standardization_info[mixcomp])
 
-neg_mn = np.min([np.min(dct['neg_llhs']) for dct in detector.standardization_info[mixcomp]])
-neg_mx = np.max([np.max(dct['neg_llhs']) for dct in detector.standardization_info[mixcomp]])
-pos_mn = np.min([np.min(dct['pos_llhs']) for dct in detector.standardization_info[mixcomp]])
-pos_mx = np.max([np.max(dct['pos_llhs']) for dct in detector.standardization_info[mixcomp]])
+if mixcomp is None:
+    sinfo = [info[0] for info in detector.standardization_info]
+else:
+    sinfo = detector.standardization_info[mixcomp]
+
+L = len(sinfo)
+
+neg_mn = np.min([np.min(dct['neg_llhs']) for dct in sinfo])
+neg_mx = np.max([np.max(dct['neg_llhs']) for dct in sinfo])
+pos_mn = np.min([np.min(dct['pos_llhs']) for dct in sinfo])
+pos_mx = np.max([np.max(dct['pos_llhs']) for dct in sinfo])
 
 #print neg_mn, pos_mn
 
 if adjusted:
-    mn = -10
-    mx = 10
+    mn = -30
+    mx = 30
     dt = 0.5 
 else:
     mn = min(neg_mn, pos_mn) 
@@ -41,28 +49,21 @@ bkg_mx = np.max([np.max(sbkg) for sbkg in detector.fixed_spread_bkg])
 
 x0 = np.linspace(mn, mx, 100)
 
-if 0:
-    def pdf(x, loc=0.0, scale=1.0):
-        return np.exp(-(x - loc)**2 / (2*scale**2)) / np.sqrt(2*np.pi) / scale
-
-    def logpdf(x, loc=0.0, scale=1.0):
-        return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
-
 fig = plt.figure(figsize=(13, 9))
 
 # Limit the number viewed
 offset = 0
-#L = 3
 
 from gv.fast import nonparametric_rescore 
 
 ax0 = None
 for i in xrange(offset, offset+L):
-    dct = detector.standardization_info[mixcomp][i]
+    dct = sinfo[i]
     if i == 0:
         ax0 = plt.subplot(L, 2, 1 + 2*(i-offset))
     else:
-        plt.subplot(L, 2, 1 + 2*(i-offset), sharex=ax0) 
+        ax = plt.subplot(L, 2, 1 + 2*(i-offset), sharex=ax0) 
+
     #print i
     #print dct
     #print '#neg', len(dct['neg_llhs'])
@@ -71,59 +72,15 @@ for i in xrange(offset, offset+L):
     #print '------------'
     #import pdb; pdb.set_trace()
 
-    if 0:
-        neg_R = dct['neg_llhs'].copy().reshape((-1, 1))
-        pos_R = dct['pos_llhs'].copy().reshape((-1, 1))
-        mean, std = np.mean(neg_R), np.std(neg_R)
-
-        from scipy.stats import norm
-        def st(x):
-            center = np.mean([np.mean(neg_R), np.mean(pos_R)])
-            #return (norm.ppf(norm.sf(neg_R, loc=x, scale=50).mean()) + norm.ppf(norm.sf(pos_R, loc=x, scale=50).mean()))/2
-            n = -3.0 + norm.ppf(norm.sf(neg_R, loc=x, scale=200).mean())
-            p = 3.0 + norm.ppf(norm.sf(pos_R, loc=x, scale=200).mean())
-            if np.fabs(x - center) <= 500:# > center:
-                alpha = ((x - center) + 500) / 1000
-                return p * alpha + n * (1 - alpha)
-            elif x > center + 500:
-                return p
-            else:
-                return n
-
-        if 1:
-            if i == 0:
-                x = np.linspace(neg_R.min(), pos_R.max(), 200)
-                print x.min(), x.max()
-                y = np.asarray([st(xi) for xi in x])
-                #import pdb; pdb.set_trace()
-                def finitemax(x):
-                    return x[np.isfinite(x)].max()
-                y = np.r_[y[0], np.asarray([(y[j] if (y[j] >= finitemax(y[:j]) and np.isfinite(y[j])) else finitemax(y[:j]))+0.0001*j for j in xrange(1, len(y))])]
-
-                plt.subplot(111)
-                plt.plot(x, y)
-                plt.show()
-                
-                import sys; sys.exit(0)
-
-        #neg_R -= mean
-        #neg_R /= std
-        #pos_R -= mean
-        #pos_R /= std
-        #st = np.vectorize(st)
-        pos_R_st = np.asarray([st(R0) for R0 in pos_R])
-        neg_R_st = np.asarray([st(R0) for R0 in neg_R])
-
-        #nonparametric_rescore(neg_R, dct['start'], dct['step'], dct['points'])
-        #nonparametric_rescore(pos_R, dct['start'], dct['step'], dct['points'])
-        plt.hist(neg_R_st, alpha=0.5, label='neg', bins=bins, normed=True)
-        plt.hist(pos_R_st, alpha=0.5, label='pos', bins=bins, normed=True)
-
-    elif adjusted:
+    if adjusted:
         neg_R = dct['neg_llhs'].copy().reshape((-1, 1))
         pos_R = dct['pos_llhs'].copy().reshape((-1, 1))
         nonparametric_rescore(neg_R, dct['start'], dct['step'], dct['points'])
         nonparametric_rescore(pos_R, dct['start'], dct['step'], dct['points'])
+        #neg_R = (neg_R - dct['neg_llhs'].mean()) / dct['neg_llhs'].std()
+        #pos_R = (pos_R - dct['neg_llhs'].mean()) / dct['neg_llhs'].std()
+        #neg_R = (neg_R - dct['pos_llhs'].mean()) / dct['pos_llhs'].std()
+        #pos_R = (pos_R - dct['pos_llhs'].mean()) / dct['pos_llhs'].std()
         plt.hist(neg_R, alpha=0.5, label='neg', bins=bins, normed=True)
         plt.hist(pos_R, alpha=0.5, label='pos', bins=bins, normed=True)
 
@@ -134,94 +91,19 @@ for i in xrange(offset, offset+L):
     neg_N = len(dct['neg_llhs'])
     pos_N = len(dct['pos_llhs'])
 
-    if 0:
-        mu1 = np.mean(dct['neg_llhs'])
-        mu2 = np.mean(dct['pos_llhs'])
-
-        y = np.zeros_like(x0)
-
-        neg_y = np.zeros_like(x0)
-        for llh in dct['neg_llhs']:
-            neg_y += pdf(x0, loc=llh, scale=50) / neg_N# * 0.99 + 0.01 * pdf(x0, loc=mu1, scale=100) / neg_N
-
-        pos_y = np.zeros_like(x0)
-        for llh in dct['pos_llhs']:
-            pos_y += pdf(x0, loc=llh, scale=50) / pos_N# * 0.99 + 0.01 * pdf(x0, loc=mu2, scale=100) / pos_N
-
-        neg_logs = np.zeros_like(dct['neg_llhs'])
-        pos_logs = np.zeros_like(dct['pos_llhs'])
-
-        #neg_hist = np.histogram(neg_logs)
-        #pos_hist = np.histogram(pos_logs)
-
-        neg_hist = np.histogram(dct['neg_llhs'], bins=10, normed=True)
-        pos_hist = np.histogram(dct['pos_llhs'], bins=10, normed=True)
-
-        def score2(R, neg_hist, pos_hist):
-            neg_N = 0
-            for j, weight in enumerate(neg_hist[0]):
-                #import pdb; pdb.set_trace()
-                if weight > 0:
-                    llh = (neg_hist[1][j+1] + neg_hist[1][j]) / 2
-                    neg_logs[neg_N] = np.log(weight) + logpdf(R, loc=llh, scale=200)
-                    neg_N += 1
-
-            pos_N = 0
-            for j, weight in enumerate(pos_hist[0]):
-                if weight > 0:
-                    llh = (pos_hist[1][j+1] + pos_hist[1][j]) / 2
-                    pos_logs[pos_N] = np.log(weight) + logpdf(R, loc=llh, scale=200)
-                    pos_N += 1
-
-            from scipy.misc import logsumexp
-            return logsumexp(pos_logs[:pos_N]) - logsumexp(neg_logs[:neg_N])
-        
-        def score(R, neg_llhs, pos_llhs):
-            for j, llh in enumerate(neg_llhs):
-                neg_logs[j] = logpdf(R, loc=llh, scale=200)
-
-            for j, llh in enumerate(pos_llhs):
-                pos_logs[j] = logpdf(R, loc=llh, scale=200)
-
-            from scipy.misc import logsumexp
-            return logsumexp(pos_logs) - logsumexp(neg_logs)
-
-        y2 = np.zeros_like(y)
-
-        for k in xrange(len(x0)):
-            #for j, llh in enumerate(dct['neg_llhs']):
-                #neg_logs[j] = logpdf(x0[k], loc=llh, scale=200)
-    #
-            #for j, llh in enumerate(dct['pos_llhs']):
-                #pos_logs[j] = logpdf(x0[k], loc=llh, scale=200)
-
-            #y[k] = logsumexp(pos_logs) - logsumexp(neg_logs)
-            #y[k] = score(x0[k], dct['neg_llhs'], dct['pos_llhs'])
-            y[k] = score2(x0[k], neg_hist, pos_hist)
-            y2[k] = score(x0[k], dct['neg_llhs'], dct['pos_llhs'])
-
-    #plt.plot(x0, neg_y, linewidth=2.0, color='blue')
-    #plt.plot(x0, pos_y, linewidth=2.0, color='green')
-    if 0:
-        #plt.plot(
-        plt.twinx()
-        #plt.plot(x0, pos_y / (pos_y + neg_y), linewidth=2.0, color='red')
-        eps = 1e-290
-        eps2 = eps * 3
-        #import pdb; pdb.set_trace()
-        sigma = 100.0
-    #pos_y = np.maximum(neg_y, pos_y)
-    #plt.plot(x0, np.log(pos_y + eps2) - np.log(neg_y + eps), linewidth=2.0, color='red')
     if not adjusted:
+        print 'Plotting', i
         plt.twinx()
-        info = detector.standardization_info[mixcomp][i]
-        x0 = np.asarray([info['start'] + info['step'] * k for k in xrange(len(info['points']))])
+        info = sinfo[i]
+        #x0 = np.asarray([info['start'] + info['step'] * k for k in xrange(len(info['points']))])
         y = info['points']
+        x0 = np.arange(y.size) * info['step'] + info['start']
         plt.plot(x0, y, linewidth=2.0, color='red')
+        print x0[0], x0[-1], y[0], y[-1]
         #plt.plot(x0, y2, linewidth=1.0, color='blue')
 
-    #plt.xlim((mn, mx))
-    #plt.ylim((0, 0.04))
+    plt.xlim((mn, mx))
+    #plt.ylim((-30, 30))
     if i == L-1:
         if adjusted:
             label = 'score'
@@ -230,16 +112,23 @@ for i in xrange(offset, offset+L):
         plt.xlabel(label)
 
     plt.subplot(L, 2, 2 + 2*(i-offset))
-    if i == 0:
-        plt.title('Background model')
+    #if i == 0:
+        #plt.title('Background model')
     #plt.plot(np.apply_over_axes(np.mean, detector.fixed_spread_bkg[i], [0, 1]).ravel())
-    plt.plot(detector.bkg_centers[i])
-    plt.ylim((0, bkg_mx))
+    if mixcomp is None:
+        bi = 0 
+    else:
+        bi = i 
+    plt.plot(detector.bkg_centers[bi])
+    #plt.ylim((0, bkg_mx))
     if i == L-1:
         plt.xlabel('Part #')
 
-plt.subplot(L, 2, 1)
-plt.xlim((mn, mx))
+#plt.subplot(L, 2, 1)
+#plt.xlim((mn, mx))
 
-plt.legend()
-plt.show()
+#plt.legend()
+if output:
+    plt.savefig(output)
+else:
+    plt.show()

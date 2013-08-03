@@ -6,10 +6,12 @@ from . import bb
 from . import sub 
 from . import rescalc
 from . import datasets
+from . import io
 # Datasets
 from . import voc
 from . import uiuc
 from . import custom
+from .beta_mixture import BetaMixture, binary_search # Temporarily exposed
 
 from .ndfeature import ndfeature
 
