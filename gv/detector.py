@@ -500,7 +500,6 @@ class BernoulliDetector(Detector):
                 plt.subplot(211)
                 plt.imshow(img, interpolation='nearest', cmap=plt.cm.gray) 
                 plt.subplot(212)
-                #import pdb; pdb.set_trace()
                 plt.imshow(resmap, interpolation='nearest')
                 plt.colorbar()
 
@@ -750,7 +749,6 @@ class BernoulliDetector(Detector):
                 ])
             #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
             #bbkg = [0.5 * np.ones(spread_bkg[i].shape) for i in xrange(len(spread_bkg))]
-            #import pdb; pdb.set_trace()
 
             #import pylab as plt
             #plt.clf()
