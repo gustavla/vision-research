@@ -56,7 +56,7 @@ UI.menu("Plugins").add_item("Generate data") {
           Math.sin(rotation) * Math.sin(azimuth + Math::PI / 2.0), 
           Math.cos(rotation)
         ]
-        filename = "/Users/slimgee/git/data/xi3zao3-car/view%03d_%s.png" % [i, outputname]
+        filename = "/Users/slimgee/git/data/xi3zao3-car-more/view%03d_%s.png" % [i, outputname]
         if x != 0 or y != 0 then
           if not File.exists? filename then
             camera = Sketchup::Camera.new eye, target, up

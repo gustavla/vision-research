@@ -93,7 +93,7 @@ class BetaMixture(object):
             else:
                 for m in xrange(M):
                     for d in xrange(D):
-                        from scipy.optimize import newton_krylov, nonlin
+                        #from scipy.optimize import newton_krylov, nonlin
                         from scipy.special import psi
 
                         Ca = np.average(np.log(Xsafe[:,d]), weights=q[m])

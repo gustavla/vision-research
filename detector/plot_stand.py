@@ -35,9 +35,12 @@ pos_mx = np.max([np.max(dct['pos_llhs']) for dct in sinfo])
 #print neg_mn, pos_mn
 
 if adjusted:
-    mn = -30
-    mx = 30
-    dt = 0.5 
+    mn = -50
+    mx = 50
+    dt = 2.5 
+    #mn = -10
+    #mx = 10
+    #dt = 0.5 
 else:
     mn = min(neg_mn, pos_mn) 
     mx = max(neg_mx, pos_mx)
@@ -119,8 +122,8 @@ for i in xrange(offset, offset+L):
         bi = 0 
     else:
         bi = i 
-    #plt.plot(detector.bkg_centers[bi])
-    #plt.ylim((0, bkg_mx))
+    plt.plot(detector.bkg_mixture_params[bi])
+    plt.ylim((0, bkg_mx))
     if i == L-1:
         plt.xlabel('Part #')
 
