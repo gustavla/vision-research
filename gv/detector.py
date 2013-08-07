@@ -737,7 +737,7 @@ class BernoulliDetector(Detector):
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # TODO: VERY TEMPORARY
-        if True:
+        if self.num_bkg_mixtures > 1:
             eps = self.settings['min_probability']
             #alpha = (self.support[mixcomp] > 0.5)
             #alpha = gv.sub.subsample(self.support[mixcomp] > 0.5, (2, 2))[3:-3,3:-3]
@@ -760,8 +760,8 @@ class BernoulliDetector(Detector):
                 #integral_feats = feats.cumsum(0).cumsum(1)
                 #scores = 
             
-            #from .fast import bkg_model_dists, bkg_model_dists2
-            from .fast import bkg_beta_dists as bdist 
+            from .fast import bkg_model_dists as bdist
+            #from .fast import bkg_beta_dists as bdist 
 
             sh = sub_kernels[mixcomp][0].shape
             padding = (sh[0]//2, sh[1]//2, 0)
@@ -832,7 +832,8 @@ class BernoulliDetector(Detector):
                     fn = 'day-output/rm{0}-factor{1}-mixcomp{2}.png'.format(index, factor, mixcomp)
                     plt.savefig(fn)
         else:
-            resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
+            resmap = self.response_map(sub_feats, sub_kernels[0], spread_bkg[0], mixcomp, level=-1)
+            bkgcomp = np.zeros_like(resmap)
 
         kern = sub_kernels[mixcomp]
 

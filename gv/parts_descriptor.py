@@ -4,6 +4,7 @@ import copy
 import amitgroup as ag
 import numpy as np
 import gv
+import math
 from itertools import product
 from .binary_descriptor import BinaryDescriptor
 
@@ -201,6 +202,27 @@ class PartsDescriptor(BinaryDescriptor):
         #self.parts = mixture.templates
         #self.visparts = mixture.remix(raw_originals)
 
+        # Sort the parts according to orientation, for better diagonistics
+        E = self.parts.shape[-1]
+        E = self.parts.shape[-1]
+        ang = np.array([[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, 1]])
+        nang = ang / np.expand_dims(np.sqrt(ang[:,0]**2 + ang[:,1]**2), 1)
+        orrs = np.apply_over_axes(np.mean, self.parts, [1, 2]).reshape((self.num_parts, -1))
+        if E == 8:
+            orrs = orrs[...,:4] + orrs[...,4:]    
+        nang = nang[:4]
+        norrs = orrs / np.expand_dims(orrs.sum(axis=1), 1)
+        dirs = (np.expand_dims(norrs, -1) * nang).sum(axis=1)
+        self.orientations = np.asarray([math.atan2(x[1], x[0]) for x in dirs])
+        II = np.argsort(self.orientations)
+        
+        # Now resort the parts according to this sorting
+        self.orientations = self.orientations[II]
+        self.parts = self.parts[II]
+        self.unspread_parts = self.unspread_parts[II]
+        self.unspread_parts_padded = self.unspread_parts_padded[II]
+        self.visparts = self.visparts[II]
+
         self._preprocess_logs()
 
     def _preprocess_logs(self):
@@ -360,11 +382,19 @@ class PartsDescriptor(BinaryDescriptor):
         obj.unspread_parts_padded = d['unspread_parts_padded']
         obj.visparts = d['visparts']
         obj.settings = d['settings']
+        obj.orientations = d.get('orientations')
         obj._preprocess_logs()
         return obj
 
     def save_to_dict(self):
         # TODO: Experimental
         #return dict(num_parts=self.num_parts, patch_size=self.patch_size, parts=self.parts, visparts=self.visparts, settings=self.settings)
-        return dict(num_parts=self.num_parts, patch_size=self.patch_size, parts=self.parts, unspread_parts=self.unspread_parts, unspread_parts_padded=self.unspread_parts_padded, visparts=self.visparts, settings=self.settings)
+        return dict(num_parts=self.num_parts, 
+                    patch_size=self.patch_size, 
+                    parts=self.parts, 
+                    unspread_parts=self.unspread_parts, 
+                    unspread_parts_padded=self.unspread_parts_padded, 
+                    visparts=self.visparts, 
+                    orientations=self.orientations,
+                    settings=self.settings)
 

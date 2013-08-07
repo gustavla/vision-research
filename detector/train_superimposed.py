@@ -12,6 +12,9 @@ import itertools
 from collections import namedtuple
 from superimpose_experiment import generate_random_patches
 
+KMEANS = True 
+LOGRATIO = False 
+
 #Patch = namedtuple('Patch', ['filename', 'selection'])
 
 #def load_patch_image(patch):
@@ -86,6 +89,15 @@ def _partition_bkg_files(count, settings, size, neg_files, num_bkg_mixtures):
     
     orrs = np.apply_over_axes(np.mean, descriptor.parts, [1, 2]).reshape((-1, 4))
     norrs = orrs / np.expand_dims(orrs.sum(axis=1), 1)
+
+    if 0:
+        bkgs = np.zeros((num_bkg_mixtures, descriptor.num_features))
+        chunk = descriptor.num_features // num_bkg_mixtures
+        for m in xrange(num_bkg_mixtures):
+            fr = m * chunk
+            to = min((m + 1) * chunk, descriptor.num_features)
+            bkgs[m,fr:to] = 0.6 
+        return bkgs
        
     neg_ims = []
     feats = []
@@ -94,6 +106,11 @@ def _partition_bkg_files(count, settings, size, neg_files, num_bkg_mixtures):
     #prnd = np.random.RandomState(1)
     # TEMP
     #return [], np.clip(prnd.normal(loc=0.05, scale=0.05, size=(K, descriptor.num_features)), 0.0, 1.0)
+
+    means = []
+    stds = []
+
+    orientations = []
 
     for i, neg_im in enumerate(gen):
         if i == count:
@@ -110,6 +127,21 @@ def _partition_bkg_files(count, settings, size, neg_files, num_bkg_mixtures):
     
         all_feat = descriptor.extract_features(im, settings=setts)
         feat = np.apply_over_axes(np.mean, all_feat, [0, 1]).ravel() 
+    
+        if 0:
+            if 0.10 < feat.mean() < 0.20 and \
+               0.10 < feat.std() < 0.15:
+                feats.append(feat)
+            else:
+                use[i] = False
+        feats.append(feat)
+        
+        means.append(feat.mean()) 
+        stds.append(feat.std())
+
+        #angles = np.hstack([np.cos(descriptor.orientations) * feat, np.sin(descriptor.orientations) * feat])
+        #orientations.append(angles)
+
 
         if 0:
             featsum = feat.sum()
@@ -122,16 +154,39 @@ def _partition_bkg_files(count, settings, size, neg_files, num_bkg_mixtures):
                 #orientations = (np.expand_dims(feat, 1) * norrs).mean(axis=0)
                 #feats.append(orientations)
                 pass
-        feats.append(feat)
 
         #neg_ims.append(neg_im)
 
     feats = np.asarray(feats)
+    orientations = np.asarray(orientations)
+
+    means = np.asarray(means)
+    stds = np.asarray(stds)
+
+    #np.savez('means.npz', means=means, stds=stds)
     #neg_ims = np.asarray(neg_ims)
 
     print "Partitioning..."
     #from sklearn.mixture import GMM, KMeans
     if 0:
+        from sklearn.cluster import KMeans
+        if num_bkg_mixtures > 1:
+            mixture = KMeans(num_bkg_mixtures)
+            mixture.fit(orientations)
+            #mixcomps = mixture.predict(orientations)
+            mixcomps = mixture.labels_
+        else:
+            mixcomps = np.zeros(len(feats))
+
+        if 1:
+            full_mixcomps = np.ones(use.shape, dtype=np.int32)
+            full_mixcomps[use] = mixcomps
+        else:
+            full_mixcomps = mixcomps
+        
+        bkgs = np.asarray([feats[full_mixcomps == k].mean(axis=0) for k in xrange(num_bkg_mixtures)])
+        return bkgs 
+    elif 1:
         from sklearn.cluster import KMeans
         if num_bkg_mixtures > 1:
             #mixture = GMM(K)
@@ -140,7 +195,8 @@ def _partition_bkg_files(count, settings, size, neg_files, num_bkg_mixtures):
             mixture.fit(feats)
             print "Running clustering"
 
-            mixcomps = mixture.predict(feats)
+            #mixcomps = mixture.predict(feats)
+            mixcomps = mixture.labels_
         else:
             mixcomps = np.zeros(len(feats))
 
@@ -150,9 +206,13 @@ def _partition_bkg_files(count, settings, size, neg_files, num_bkg_mixtures):
         if 0:
             full_mixcomps = np.ones(use.shape, dtype=np.int32)
             full_mixcomps[use] = mixcomps
-        full_mixcomps = mixcomps
+        else:
+            full_mixcomps = mixcomps
 
-        # TODO: Why not just mixture.cluster_centers_ directl?
+        # TODO: Why not just mixture.cluster_centers_ directly?
+        #import pdb; pdb.set_trace()
+        #bkgs = np.asarray([feats[(full_mixcomps == k) & use].mean(axis=0) for k in xrange(num_bkg_mixtures)])
+        #bkgs = np.asarray([feats[(full_mixcomps == k) & use].mean(axis=0) for k in xrange(num_bkg_mixtures)])
         bkgs = np.asarray([feats[full_mixcomps == k].mean(axis=0) for k in xrange(num_bkg_mixtures)])
         return bkgs
     else:
@@ -309,30 +369,32 @@ def _create_kernel_for_mixcomp2(mixcomp, settings, bb, indices, files, neg_files
 def _create_kernel_for_mixcomp2_star(args):
     return _create_kernel_for_mixcomp2(*args)
 
-def _classify(neg_feats, pos_feats, mixture_params):
-    K = len(mixture_params)
-    collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1])
-    scores = [-np.sum((collapsed_feats - mixture_params[k])**2) for k in xrange(K)]
-    bkg_id = np.argmax(scores)
-    return bkg_id
+if KMEANS:
+    def _classify(neg_feats, pos_feats, mixture_params):
+        K = len(mixture_params)
+        collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1])
+        scores = [-np.sum((collapsed_feats - mixture_params[k])**2) for k in xrange(K)]
+        bkg_id = np.argmax(scores)
+        return bkg_id
 
-def _classify(neg_feats, pos_feats, mixture_params):
-    from scipy.stats import beta
-    M = len(mixture_params)
-    collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1]).ravel()
-    collapsed_feats = np.clip(collapsed_feats, 0.01, 1-0.01)
-    D = collapsed_feats.shape[0]
-    
-    qlogs = np.zeros(M)
-    for m in xrange(M):
-        #v = qlogs[m] 
-        v = 0.0
-        for d in xrange(D):
-            v += beta.logpdf(collapsed_feats[d], mixture_params[m,d,0], mixture_params[m,d,1])
-        qlogs[m] = v
+else:
+    def _classify(neg_feats, pos_feats, mixture_params):
+        from scipy.stats import beta
+        M = len(mixture_params)
+        collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1]).ravel()
+        collapsed_feats = np.clip(collapsed_feats, 0.01, 1-0.01)
+        D = collapsed_feats.shape[0]
+        
+        qlogs = np.zeros(M)
+        for m in xrange(M):
+            #v = qlogs[m] 
+            v = 0.0
+            for d in xrange(D):
+                v += beta.logpdf(collapsed_feats[d], mixture_params[m,d,0], mixture_params[m,d,1])
+            qlogs[m] = v
 
-    bkg_id = qlogs.argmax()
-    return bkg_id
+        bkg_id = qlogs.argmax()
+        return bkg_id
 
 if 0:
     def logf(B, bmf, L):
@@ -370,6 +432,7 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
     alpha_cum = None
 
     setts = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+    counts = np.zeros(K)
 
     for index in indices: 
         ag.info("Processing image of index {0} and mixture component {1}".format(index, mixcomp))
@@ -388,7 +451,12 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
             feats = descriptor.extract_features(superimposed_im, settings=setts)
 
-            bkg_id = _classify(neg_feats, feats, bkg_mixture_params)
+            if K > 1:
+                bkg_id = _classify(neg_feats, feats, bkg_mixture_params)
+            else:
+                bkg_id = 0
+
+            counts[bkg_id] += 1
 
             #bkg_feats = gv.sub.subsample(bkg_feats, psize)
         
@@ -405,6 +473,8 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
                 all_kern[bkg_id] += feats
 
             totals[bkg_id] += 1
+
+    print 'COUNTS', counts
 
     all_kern = [all_kern[k].astype(np.float64) / totals[k] for k in xrange(K)]
     all_bkg = [all_bkg[k].astype(np.float64) / totals[k] for k in xrange(K)]
@@ -575,14 +645,16 @@ def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg,
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
 
-            bkg_id = _classify(neg_feats, feats, bkg_mixture_params)
+            if K > 1:
+                bkg_id = _classify(neg_feats, feats, bkg_mixture_params)
+            else:
+                bkg_id = 0
 
             neg_llh = float((weights[bkg_id] * neg_feats).sum())
             all_neg_llhs[bkg_id].append(neg_llh)
 
             pos_llh = float((weights[bkg_id] * feats).sum())
             all_pos_llhs[bkg_id].append(pos_llh)
-
 
     #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
 
@@ -620,106 +692,108 @@ def _logpdf(x, loc=0.0, scale=1.0):
     #return -(np.clip((x - loc) / scale, -4, 4)*scale)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
     return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
 
-def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
-    info = {}
+if LOGRATIO:
+    def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
+        info = {}
 
-    mn = min(np.min(neg_llhs), np.min(pos_llhs))
-    mx = max(np.max(neg_llhs), np.max(pos_llhs))
-    span = (mn, mx)
-    
-    # Points along our linearization
-    x = np.linspace(span[0], span[1], 100)
-    delta = x[1] - x[0]
-
-
-    #print len(neg_logs), len(pos_logs)
-
-    from  scipy.stats import norm, genextreme
-
-    sig = 100
-    N = 50
-
-    def score(R, neg_llhs, pos_llhs):
-        neg_logs = np.zeros_like(neg_llhs)
-        pos_logs = np.zeros_like(pos_llhs)
-
-        for j, llh in enumerate(neg_llhs):
-            #mu_n = norm.ppf(1 - 1/N, loc=llh, scale=sig)
-            #sigma_n = norm.ppf(1 - 1/N * np.exp(-1), loc=llh, scale=sig) - mu_n 
-            neg_logs[j] = norm.logpdf(R, loc=llh, scale=sig) - np.log(len(neg_logs))
-            #neg_logs[j] = genextreme.logpdf(R, 0, loc=mu_n, scale=sigma_n) - np.log(len(neg_logs))
-
-        for j, llh in enumerate(pos_llhs):
-            pos_logs[j] = norm.logpdf(R, loc=llh, scale=sig) - np.log(len(pos_logs))
-
-        neg_mean = neg_llhs.mean()
-        neg_std = neg_llhs.std()
-        pos_mean = pos_llhs.mean()
-        pos_std = pos_llhs.std()
-
-        # Combine with regular normals to improve stability
-        #neg_logs2 = np.hstack([neg_logs, np.repeat(norm.logpdf(R, loc=neg_mean, scale=neg_std) - np.log(len(neg_logs)), len(neg_logs))])
-        #pos_logs2 = np.hstack([pos_logs, np.repeat(norm.logpdf(R, loc=pos_mean, scale=pos_std) - np.log(len(pos_logs)), len(pos_logs))])
-        #neg_logs2 = np.repeat(norm.logpdf(R, loc=neg_mean, scale=neg_std) - np.log(len(neg_logs)), len(neg_logs))
-        #pos_logs2 = np.repeat(norm.logpdf(R, loc=pos_mean, scale=pos_std) - np.log(len(pos_logs)), len(pos_logs))
-
-        from scipy.misc import logsumexp
-        return logsumexp(pos_logs) - logsumexp(neg_logs)
-        #return logsumexp(pos_logs2) - logsumexp(neg_logs2)
+        mn = min(np.min(neg_llhs), np.min(pos_llhs))
+        mx = max(np.max(neg_llhs), np.max(pos_llhs))
+        span = (mn, mx)
+        
+        # Points along our linearization
+        x = np.linspace(span[0], span[1], 100)
+        delta = x[1] - x[0]
 
 
-    y = np.zeros_like(x)
-    for i in xrange(len(x)):
-        y[i] = score(x[i], neg_llhs, pos_llhs)
+        #print len(neg_logs), len(pos_logs)
 
-    info['start'] = mn
-    info['step'] = delta
-    info['points'] = y
-    return info
+        from  scipy.stats import norm, genextreme
 
-def _standardization_info_for_linearized_non_parameteric_LINEAR(neg_llhs, pos_llhs):
-    info = {}
+        sig = 250
+        N = 50
 
-    from scipy.stats import norm
-    def st(x):
-        ps = np.asarray([np.mean(neg_llhs), np.mean(pos_llhs)])
-        center = np.mean(ps)
-        #return (norm.ppf(norm.sf(neg_llhs, loc=x, scale=50).mean()) + norm.ppf(norm.sf(pos_llhs, loc=x, scale=50).mean()))/2
-        n = -3.0 + norm.ppf(norm.sf(neg_llhs, loc=x, scale=200).mean())
-        p = +3.0 + norm.ppf(norm.sf(pos_llhs, loc=x, scale=200).mean())
-        diff = np.fabs(ps[0] - ps[1])
-        if np.fabs(x - center) <= diff/2:# > center:
-            alpha = ((x - center) + diff/2) / diff
-            return p * alpha + n * (1 - alpha)
-        elif x > center + diff/2:
-            return p
-        else:
-            return n
+        def score(R, neg_llhs, pos_llhs):
+            neg_logs = np.zeros_like(neg_llhs)
+            pos_logs = np.zeros_like(pos_llhs)
 
-    def st(x):
-        ps = np.asarray([np.mean(neg_llhs), np.mean(pos_llhs)])
-        #ps = np.asarray([np.median(neg_llhs), np.median(pos_llhs)])
-        k = 6.0 / (ps[1] - ps[0])
-        m = 3.0 - k * ps[1]
-        return k * x + m
+            for j, llh in enumerate(neg_llhs):
+                #mu_n = norm.ppf(1 - 1/N, loc=llh, scale=sig)
+                #sigma_n = norm.ppf(1 - 1/N * np.exp(-1), loc=llh, scale=sig) - mu_n 
+                neg_logs[j] = norm.logpdf(R, loc=llh, scale=sig) - np.log(len(neg_logs))
+                #neg_logs[j] = genextreme.logpdf(R, 0, loc=mu_n, scale=sigma_n) - np.log(len(neg_logs))
 
-    mn = min(np.min(neg_llhs), np.min(pos_llhs))
-    mx = max(np.max(neg_llhs), np.max(pos_llhs))
-    span = (mn, mx)
+            for j, llh in enumerate(pos_llhs):
+                pos_logs[j] = norm.logpdf(R, loc=llh, scale=sig) - np.log(len(pos_logs))
 
-    x = np.linspace(span[0], span[1], 100)
-    delta = x[1] - x[0]
+            neg_mean = neg_llhs.mean()
+            neg_std = neg_llhs.std()
+            pos_mean = pos_llhs.mean()
+            pos_std = pos_llhs.std()
 
-    y = np.asarray([st(xi) for xi in x])
-    #import pdb; pdb.set_trace()
-    #def finitemax(x):
-        #return x[np.isfinite(x)].max()
-    #y = np.r_[y[0], np.asarray([(y[j] if (y[j] >= finitemax(y[:j]) and np.isfinite(y[j])) else finitemax(y[:j]))+0.0001*j for j in xrange(1, len(y))])]
-    
-    info['start'] = mn
-    info['step'] = delta
-    info['points'] = y
-    return info
+            # Combine with regular normals to improve stability
+            #neg_logs2 = np.hstack([neg_logs, np.repeat(norm.logpdf(R, loc=neg_mean, scale=neg_std) - np.log(len(neg_logs)), len(neg_logs))])
+            #pos_logs2 = np.hstack([pos_logs, np.repeat(norm.logpdf(R, loc=pos_mean, scale=pos_std) - np.log(len(pos_logs)), len(pos_logs))])
+            #neg_logs2 = np.repeat(norm.logpdf(R, loc=neg_mean, scale=neg_std) - np.log(len(neg_logs)), len(neg_logs))
+            #pos_logs2 = np.repeat(norm.logpdf(R, loc=pos_mean, scale=pos_std) - np.log(len(pos_logs)), len(pos_logs))
+
+            from scipy.misc import logsumexp
+            return logsumexp(pos_logs) - logsumexp(neg_logs)
+            #return logsumexp(pos_logs2) - logsumexp(neg_logs2)
+
+
+        y = np.zeros_like(x)
+        for i in xrange(len(x)):
+            y[i] = score(x[i], neg_llhs, pos_llhs)
+
+        info['start'] = mn
+        info['step'] = delta
+        info['points'] = y
+        return info
+
+else:
+    def _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs):
+        info = {}
+
+        from scipy.stats import norm
+        def st(x):
+            ps = np.asarray([np.mean(neg_llhs), np.mean(pos_llhs)])
+            center = np.mean(ps)
+            #return (norm.ppf(norm.sf(neg_llhs, loc=x, scale=50).mean()) + norm.ppf(norm.sf(pos_llhs, loc=x, scale=50).mean()))/2
+            n = -3.0 + norm.ppf(norm.sf(neg_llhs, loc=x, scale=200).mean())
+            p = +3.0 + norm.ppf(norm.sf(pos_llhs, loc=x, scale=200).mean())
+            diff = np.fabs(ps[0] - ps[1])
+            if np.fabs(x - center) <= diff/2:# > center:
+                alpha = ((x - center) + diff/2) / diff
+                return p * alpha + n * (1 - alpha)
+            elif x > center + diff/2:
+                return p
+            else:
+                return n
+
+        def st(x):
+            ps = np.asarray([np.mean(neg_llhs), np.mean(pos_llhs)])
+            #ps = np.asarray([np.median(neg_llhs), np.median(pos_llhs)])
+            k = 6.0 / (ps[1] - ps[0])
+            m = 3.0 - k * ps[1]
+            return k * x + m
+
+        mn = min(np.min(neg_llhs), np.min(pos_llhs))
+        mx = max(np.max(neg_llhs), np.max(pos_llhs))
+        span = (mn, mx)
+
+        x = np.linspace(span[0], span[1], 100)
+        delta = x[1] - x[0]
+
+        y = np.asarray([st(xi) for xi in x])
+        #import pdb; pdb.set_trace()
+        #def finitemax(x):
+            #return x[np.isfinite(x)].max()
+        #y = np.r_[y[0], np.asarray([(y[j] if (y[j] >= finitemax(y[:j]) and np.isfinite(y[j])) else finitemax(y[:j]))+0.0001*j for j in xrange(1, len(y))])]
+        
+        info['start'] = mn
+        info['step'] = delta
+        info['points'] = y
+        return info
 
 def _standardization_info_for_linearized_non_parameteric_NONPARAMETRIC(neg_llhs, pos_llhs):
     info = {}
@@ -771,6 +845,7 @@ def superimposed_model(settings, threading=True):
     assert limit is not None, "Must specify limit in the settings file"
     files = sorted(glob.glob(settings['detector']['train_dir']))[offset:offset+limit]
     neg_files = sorted(glob.glob(settings['detector']['neg_dir']))
+    neg_files2 = sorted(glob.glob(settings['detector']['neg_dir2']))
 
     # Train a mixture model to get a clustering of the angles of the object
     descriptor = gv.load_descriptor(settings)
@@ -851,7 +926,7 @@ def superimposed_model(settings, threading=True):
 
     
 
-    argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)] 
+    #argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)] 
 
     print "Checkpoint 7"
 
@@ -865,8 +940,56 @@ def superimposed_model(settings, threading=True):
     print "Checkpoint 8"
     all_negs = []
 
-    # TODO: This uses the shape of the first component. This should be fairly arbitrary
-    bkg_mixture_params = _partition_bkg_files(len(comps) * settings['detector']['duplicates'], settings, gv.bb.size(bbs[0]), neg_files, detector.num_bkg_mixtures)
+    if detector.num_bkg_mixtures == 1:
+        bkg_mixture_params = np.ones(1)
+    else:
+         
+        # TODO: This uses the shape of the first component. This should be fairly arbitrary
+        #neglabels = np.zeros(len(neg_files2))
+        neg_files_partitions = [[] for k in xrange(detector.num_bkg_mixtures)] 
+        for fn in neg_files2:
+            # TODO: Very temporary
+            s = os.path.basename(fn)[3:] 
+            rot = int(s[:s.find('-')])
+            neg_files_partitions[rot].append(fn) 
+        
+        size = gv.bb.size(bbs[0])
+        gens = [generate_random_patches(neg_files_partitions[k], size, seed=0) for k in xrange(detector.num_bkg_mixtures)]
+        count = len(comps) * settings['detector']['duplicates'] // detector.num_bkg_mixtures
+
+        if KMEANS:
+            bkg_mixture_params = np.zeros((detector.num_bkg_mixtures, detector.num_features))
+        else:
+            bkg_mixture_params = np.zeros((detector.num_bkg_mixtures, detector.num_features, 2))
+
+        radii = settings['detector']['spread_radii']
+        psize = settings['detector']['subsample_size']
+        cb = settings['detector'].get('crop_border')
+        setts = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+
+        for k in xrange(detector.num_bkg_mixtures):
+            feats = []
+            from itertools import islice
+            for i, im in enumerate(islice(gens[k], 0, count)):
+                all_feat = descriptor.extract_features(im, settings=setts)
+                feat = np.apply_over_axes(np.mean, all_feat, [0, 1]).ravel() 
+                feats.append(feat)
+
+            feats = np.asarray(feats)
+
+            if KMEANS:
+                bkg_mixture_params[k] = np.mean(feats, axis=0)
+            else:
+                # Run the beta
+                #mixture = gv.BetaMixture(1)
+                ##mixture.fit(feats) 
+                #bkg_mixture_params[k] = mixture.theta_[0]
+                bkg_mixture_params[k] = gv.BetaMixture.fit_beta(feats)
+
+    #bkg_mixture_params = np.asarray(bkg_mixture_params)
+            
+    #for fn in neg_files2:
+    #bkg_mixture_params = _partition_bkg_files(len(comps) * settings['detector']['duplicates'], settings, gv.bb.size(bbs[0]), neg_files2, detector.num_bkg_mixtures)
 
     print "Checkpoint 9"
 

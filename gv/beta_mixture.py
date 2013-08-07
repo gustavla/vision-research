@@ -7,6 +7,9 @@ import amitgroup as ag
 import warnings
 
 def binary_search(f, lower, upper, tol=0.001, maxiter=10):
+    if maxiter == 0:
+        warnings.warn('Binary search did not converge', RuntimeWarning)
+        return (lower+upper)/2
     x0 = (lower+upper) / 2
     f0 = f(x0)
     if np.fabs(f0) < tol:
@@ -50,7 +53,7 @@ class BetaMixture(object):
         new_loglikelihood = self._compute_loglikelihoods(Xsafe)
          
         self.iterations = 0
-        while np.isinf(loglikelihood) or self.iterations < 2 or np.fabs((new_loglikelihood - loglikelihood)/loglikelihood) > tol:
+        while self.iterations < 200 and (np.isinf(loglikelihood) or self.iterations < 2 or np.fabs((new_loglikelihood - loglikelihood)/loglikelihood) > tol):
             loglikelihood = new_loglikelihood
             ag.info("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
             for m in xrange(M):
@@ -106,6 +109,10 @@ class BetaMixture(object):
     
 
                         self.theta_[m,d,1] = binary_search(lambda x: (psi(x) - psi(x+a)) - Cb, 0.0001, 10000.0, maxiter=20)
+
+                        # Make sure the alpha and the beta don't get too extreme. If one needs adjusting, we need
+                        # adjust both, to preserve its mean
+                            
                         #C = np.average(    
 
             #self.theta_ = np.clip(self.theta_, 0.1, 100.0)
@@ -115,6 +122,13 @@ class BetaMixture(object):
             self.iterations += 1
 
         ag.info("Iteration DONE: loglikelihood {}".format(new_loglikelihood))
+
+        if 1:
+            for m in xrange(M):
+                for d in xrange(D):
+                    if self.theta_[m,d].max() > 50:
+                        self.theta_[m,d] /= self.theta_[m,d].max() / 50
+            #self.theta_ = np.maximum(self.theta_, 1.0)
 
     def _compute_loglikelihoods(self, X):
         llh = 0.0
@@ -150,3 +164,61 @@ class BetaMixture(object):
                 self.theta_[m,d,0] = sm * (sm * (1 - sm) / sv - 1)
                 self.theta_[m,d,1] = (1 - sm) * (sm * (1 - sm) / sv - 1)
 
+    @classmethod
+    def fit_beta(cls, X):
+        N = X.shape[0]
+        D = X.shape[1]
+
+        Xsafe = np.clip(X, 0.01, 1-0.01)
+        
+        P = 20 
+        #params = np.asarray([(2+a, 52-a) for a in np.linspace(0, 50, P)])
+        #params = np.asarray([(b+a, b+c-a) for b in np.linspace(1, 2, 5) for c in np.linspace(1, 50, 10) for a in np.linspace(0, b, P)]) # The buggy one
+        params = np.asarray([(b+a, b+c-a) for b in np.linspace(1, 2, 5) for c in np.linspace(1, 50, 10) for a in np.linspace(0, c, P)])
+        #dists = np.asarray([beta.pdf(x, a, b) for a, b in params]) 
+
+        theta = np.zeros((D, 2))
+        
+        scores = np.zeros(len(params))
+        
+        for d in xrange(D):
+            # Check likelihood of the dists
+            for p in xrange(len(params)):
+                scores[p] = beta.logpdf(Xsafe[:,d], params[p,0], params[p,1]).sum()
+
+            ii = scores.argmax()
+
+            theta[d] = params[ii]
+
+        return theta
+        
+
+    @classmethod
+    def fit_beta2(cls, X):
+        N = X.shape[0]
+        D = X.shape[1]
+
+        theta = np.zeros((D, 2))
+        
+        for d in xrange(D):
+            sm = np.mean(X[:,d])
+            sv = np.var(X[:,d])
+
+            sm = np.clip(sm, 0.01, 1-0.01)
+            sv = np.clip(sv, 0.001, 1-0.001)
+
+            theta[d,0] = sm * (sm * (1 - sm) / sv - 1)
+            theta[d,1] = (1 - sm) * (sm * (1 - sm) / sv - 1)
+
+
+        print 'theta min/max', theta.min(), theta.max()
+        
+        #for d in xrange(D):
+            #if theta[d].max() > 20:
+                #theta[d] /= theta[d].max() / 20
+
+        for d in xrange(D):
+            if theta[d].min() < 0.5:
+                theta[d] /= theta[d].min() / 0.5 
+
+        return theta
