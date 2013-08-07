@@ -19,7 +19,10 @@ def calc_precision_recall(detections, tp_fn):
             recalls.append(tp / tp_fn)
             precisions.append(tp / tp_fp)
     
-    precisions.append(precisions[-1])
+    if len(precisions) >= 1:
+        precisions.append(precisions[-1])
+    else:
+        precisions.append(0)
     recalls.append(0)
     return np.asarray(precisions[::-1]), np.asarray(recalls[::-1])
 
