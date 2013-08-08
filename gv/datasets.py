@@ -4,7 +4,7 @@ from collections import namedtuple
 ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
 
 def contests():
-    return ('voc-val', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-easy', 
+    return ('voc-val', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-easy', 
             'uiuc', 'uiuc-multiscale', 
             'custom-cad-profile')
 
@@ -21,6 +21,8 @@ def load_files(contest, obj_class):
         files, tot = gv.voc.load_files(obj_class, dataset='profile2')
     elif contest == 'voc-profile3':
         files, tot = gv.voc.load_files(obj_class, dataset='profile3')
+    elif contest == 'voc-profile4':
+        files, tot = gv.voc.load_files(obj_class, dataset='profile4')
     elif contest == 'voc-easy':
         files, tot = gv.voc.load_files(obj_class, dataset='easy')
     elif contest == 'uiuc':

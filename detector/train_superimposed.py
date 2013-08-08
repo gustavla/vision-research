@@ -12,8 +12,8 @@ import itertools
 from collections import namedtuple
 from superimpose_experiment import generate_random_patches
 
-KMEANS = True 
-LOGRATIO = False 
+KMEANS = False 
+LOGRATIO = True 
 
 #Patch = namedtuple('Patch', ['filename', 'selection'])
 
