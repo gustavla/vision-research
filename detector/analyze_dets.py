@@ -48,7 +48,7 @@ eps = detector.settings['min_probability']
 #bkg = np.clip(bkg, eps, 1 - eps)
 
 analyze_mixcomp = -1 
-Y = np.zeros((2,) + kernels[analyze_mixcomp].shape, dtype=np.uint32)
+Y = np.zeros((2,) + kernels[analyze_mixcomp][0].shape, dtype=np.uint32)
 totals = np.zeros(2, dtype=np.uint32)
 
 for i, det in enumerate(detections[:limit]):
@@ -63,7 +63,7 @@ for i, det in enumerate(detections[:limit]):
     im = gv.img.asgray(im)
     im = gv.img.resize_with_factor_new(im, 1/det['scale'])
 
-    kern = kernels[k]
+    kern = kernels[k][det['bkgcomp']]
     bkg = all_bkg[k]
     kern = np.clip(kern, eps, 1 - eps)
     bkg = np.clip(bkg, eps, 1 - eps)
@@ -94,7 +94,7 @@ for i, det in enumerate(detections[:limit]):
     
     from gv.fast import nonparametric_rescore
     Rarray = R * np.ones((1, 1))
-    info = detector.standardization_info[k]
+    info = detector.standardization_info[k][det['bkgcomp']]
     nonparametric_rescore(Rarray, info['start'], info['step'], info['points'])
     #Rst = R
     Rst = Rarray[0,0]
@@ -103,14 +103,16 @@ for i, det in enumerate(detections[:limit]):
     fileobj.boxes[:] = [bbobj]
     
     fn = 'det-{0}.png {1}'.format(i, img_id)
-    print '{3} {0}: {1:.2f} {2:.2f} ({4})'.format(fn, Rst, det['confidence'], ['X', '.'][det['correct']], det['mixcomp'])
+    print '{3} {0}: {1:.2f} {2:.2f} ({4}, {5})'.format(fn, Rst, det['confidence'], ['X', '.'][det['correct']], det['mixcomp'], det['bkgcomp'])
+    #import IPython
+    #IPython.embed()
     #print 'scale', np.log(det['scale'])/np.log(2)
     #print i0, j0
 
 Z = Y.astype(np.float64) / totals.reshape((-1,) + (1,)*(Y.ndim-1))
-G = (Z * weights)
+#G = (Z * weights)
 
-if 1: 
+if 0: 
     Gmeans = [G[i].mean(axis=-1) for i in xrange(2)]
     m = max(np.fabs(Gmeans[0]).max(), np.fabs(Gmeans[1]).max())
 
