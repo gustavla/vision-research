@@ -422,7 +422,7 @@ def bkg_model_dists3(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bk
 
     return dists
 
-def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixture_params, size, padding=0):
+def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixture_params, size, padding=0, cutout=False):
     assert feats.shape[2] == mixture_params.shape[1]
     cdef:
         int size0 = <int>size[0]
@@ -447,7 +447,14 @@ def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixt
         np.int32_t count 
         int i, j, f, b
 
-        real area = ((size0 + 2*ip) * (size1 + 2*ip)) - (size0 * size1)
+        real area = 0.0
+        int icutout = <int>cutout
+    
+    if cutout:
+        area = ((size0 + 2*ip) * (size1 + 2*ip)) - (size0 * size1)
+    else:
+        area = ((size0 + 2*ip) * (size1 + 2*ip))
+        
 
     integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / area#((size0 + 2*ip) * (size1 + 2*ip))
 
@@ -481,16 +488,29 @@ def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixt
             #v = 0
             #for f in range(dim2): 
             # Get background value here
-            s[:] = integral_feats[i+size0+2*ip,j+size1+2*ip] - \
-                   integral_feats[i           ,j+size1+2*ip] - \
-                   integral_feats[i+size0+2*ip,j           ] + \
-                   integral_feats[i           ,j           ]
 
+            if icutout:
+                s[:] = integral_feats[i+size0+2*ip,j+size1+2*ip] - \
+                       integral_feats[i           ,j+size1+2*ip] - \
+                       integral_feats[i+size0+2*ip,j           ] + \
+                       integral_feats[i           ,j           ] - \
+                       (integral_feats[i+size0+ip,j+size1+ip] - \
+                        integral_feats[i+ip      ,j+size1+ip] - \
+                        integral_feats[i+size0+ip,j+ip      ] + \
+                        integral_feats[i+ip      ,j+ip      ])
+            else:
+                s[:] = integral_feats[i+size0+2*ip,j+size1+2*ip] - \
+                       integral_feats[i           ,j+size1+2*ip] - \
+                       integral_feats[i+size0+2*ip,j           ] + \
+                       integral_feats[i           ,j           ]
+
+            #if icutout == 1:
             # Remove inside
-            s[:] -= integral_feats[i+size0+ip,j+size1+ip] - \
-                    integral_feats[i+ip      ,j+size1+ip] - \
-                    integral_feats[i+size0+ip,j+ip      ] + \
-                    integral_feats[i+ip      ,j+ip      ]
+    
+            #s[:] -= integral_feats[i+size0+ip,j+size1+ip] - \
+            #        integral_feats[i+ip      ,j+size1+ip] - \
+            #        integral_feats[i+size0+ip,j+ip      ] + \
+            #        integral_feats[i+ip      ,j+ip      ]
 
             #s[:] = np.clip(s, 0.01, 1-0.01)
             s[:] = np.clip(s, 0.01, 1-0.01)
