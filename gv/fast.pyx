@@ -447,7 +447,9 @@ def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixt
         np.int32_t count 
         int i, j, f, b
 
-    integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / ((size0 + 2*ip) * (size1 + 2*ip))
+        real area = ((size0 + 2*ip) * (size1 + 2*ip)) - (size0 * size1)
+
+    integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / area#((size0 + 2*ip) * (size1 + 2*ip))
 
     from scipy.stats import beta
 
@@ -483,6 +485,12 @@ def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixt
                    integral_feats[i           ,j+size1+2*ip] - \
                    integral_feats[i+size0+2*ip,j           ] + \
                    integral_feats[i           ,j           ]
+
+            # Remove inside
+            s[:] -= integral_feats[i+size0+ip,j+size1+ip] - \
+                    integral_feats[i+ip      ,j+size1+ip] - \
+                    integral_feats[i+size0+ip,j+ip      ] + \
+                    integral_feats[i+ip      ,j+ip      ]
 
             #s[:] = np.clip(s, 0.01, 1-0.01)
             s[:] = np.clip(s, 0.01, 1-0.01)

@@ -766,7 +766,7 @@ class BernoulliDetector(Detector):
             padding = (sh[0]//2, sh[1]//2, 0)
             bigger = ag.util.zeropad(sub_feats, padding)
            
-            bkgmaps = -bdist(bigger, self.bkg_mixture_params, self.fixed_spread_bkg[mixcomp][0].shape[:2], padding=0)
+            bkgmaps = -bdist(bigger, self.bkg_mixture_params, self.fixed_spread_bkg[mixcomp][0].shape[:2], padding=4)
             #print 'L = ', np.prod(sh[:2])
             #bkgmaps = -bkg_model_dists2(bigger, np.clip(collapsed_spread_bkg, 0.01, 0.99), self.fixed_spread_bkg[k].shape[:2], np.prod(sh[:2]), padding=0)
 
