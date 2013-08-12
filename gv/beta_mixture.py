@@ -184,7 +184,7 @@ class BetaMixture(object):
         for d in xrange(D):
             # Check likelihood of the dists
             for p in xrange(len(params)):
-                scores[p] = beta.logpdf(Xsafe[:,d], params[p,0], params[p,1]).sum()
+                scores[p] = beta.logpdf(Xsafe[:,d], *params[p]).sum()
 
             ii = scores.argmax()
 

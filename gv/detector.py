@@ -732,7 +732,6 @@ class BernoulliDetector(Detector):
         if fileobj is not None:
             self.label_corrects(final_bbs, fileobj)
 
-
         return final_bbs
 
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
@@ -760,14 +759,14 @@ class BernoulliDetector(Detector):
                 #integral_feats = feats.cumsum(0).cumsum(1)
                 #scores = 
             
-            from .fast import bkg_model_dists as bdist
-            #from .fast import bkg_beta_dists as bdist 
+            #from .fast import bkg_model_dists as bdist
+            from .fast import bkg_beta_dists as bdist 
 
             sh = sub_kernels[mixcomp][0].shape
             padding = (sh[0]//2, sh[1]//2, 0)
             bigger = ag.util.zeropad(sub_feats, padding)
            
-            bkgmaps = -bdist(bigger, self.bkg_mixture_params, self.fixed_spread_bkg[mixcomp][0].shape[:2], padding=0)
+            bkgmaps = -bdist(bigger, self.bkg_mixture_params, self.fixed_spread_bkg[mixcomp][0].shape[:2], padding=4)
             #print 'L = ', np.prod(sh[:2])
             #bkgmaps = -bkg_model_dists2(bigger, np.clip(collapsed_spread_bkg, 0.01, 0.99), self.fixed_spread_bkg[k].shape[:2], np.prod(sh[:2]), padding=0)
 
