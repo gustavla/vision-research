@@ -257,12 +257,14 @@ def nonparametric_rescore(np.ndarray[real,ndim=2] res, start, step, np.ndarray[r
 
                 res_mv[i,j] = s
 
-def bkg_model_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bkgs, size, padding=0):
+def bkg_model_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bkgs, size, padding=0, inner_padding=-1000):
     assert feats.shape[2] == bkgs.shape[1]
+    assert padding > inner_padding
     cdef:
         int size0 = <int>size[0]
         int size1 = <int>size[1]
         int ip = <int>padding
+        int iip = <int>inner_padding
         int num_bkgs = bkgs.shape[0]
         int dim0 = feats.shape[0] - size0 + 1
         int dim1 = feats.shape[1] - size1 + 1
@@ -281,7 +283,10 @@ def bkg_model_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bkg
         np.int32_t count 
         int i, j, f, b
 
-    integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / ((size0 + 2*ip) * (size1 + 2*ip))
+        real inner_area = max(size0 + 2*iip, 0) * max(size1 + 2*iip, 0)
+        real outer_area = max(size0 + 2*ip, 0) * max(size1 + 2*ip, 0)
+
+    integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / (outer_area - inner_area)
 
     with nogil:
         # Fill in to the right
@@ -298,10 +303,20 @@ def bkg_model_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bkg
                 v = 0
                 for f in range(dim2): 
                     # Get background value here
-                    s = int_mv[i+size0+2*ip,j+size1+2*ip,f] - \
-                        int_mv[i           ,j+size1+2*ip,f] - \
-                        int_mv[i+size0+2*ip,j           ,f] + \
-                        int_mv[i           ,j           ,f]
+                    if inner_area > 0:
+                        s = int_mv[i+size0+2*ip,j+size1+2*ip,f] - \
+                            int_mv[i           ,j+size1+2*ip,f] - \
+                            int_mv[i+size0+2*ip,j           ,f] + \
+                            int_mv[i           ,j           ,f] - \
+                           (int_mv[ip+i+size0+iip,ip+j+size1+iip,f] - \
+                            int_mv[ip+i-iip      ,ip+j+size1+iip,f] - \
+                            int_mv[ip+i+size0+iip,ip+j-iip      ,f] + \
+                            int_mv[ip+i-iip      ,ip+j-iip      ,f])
+                    else:
+                        s = int_mv[i+size0+2*ip,j+size1+2*ip,f] - \
+                            int_mv[i           ,j+size1+2*ip,f] - \
+                            int_mv[i+size0+2*ip,j           ,f] + \
+                            int_mv[i           ,j           ,f]
 
                     for b in range(num_bkgs):
                         w = (bkgs[b,f] - s)
