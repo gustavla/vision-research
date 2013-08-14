@@ -759,14 +759,14 @@ class BernoulliDetector(Detector):
                 #integral_feats = feats.cumsum(0).cumsum(1)
                 #scores = 
             
-            #from .fast import bkg_model_dists as bdist
-            from .fast import bkg_beta_dists as bdist 
+            from .fast import bkg_model_dists as bdist
+            #from .fast import bkg_beta_dists as bdist 
 
             sh = sub_kernels[mixcomp][0].shape
             padding = (sh[0]//2, sh[1]//2, 0)
             bigger = ag.util.zeropad(sub_feats, padding)
            
-            bkgmaps = -bdist(bigger, self.bkg_mixture_params, self.fixed_spread_bkg[mixcomp][0].shape[:2], padding=4)
+            bkgmaps = -bdist(bigger, self.bkg_mixture_params, self.fixed_spread_bkg[mixcomp][0].shape[:2], padding=0, inner_padding=-2)#, padding=0, cutout=False)
             #print 'L = ', np.prod(sh[:2])
             #bkgmaps = -bkg_model_dists2(bigger, np.clip(collapsed_spread_bkg, 0.01, 0.99), self.fixed_spread_bkg[k].shape[:2], np.prod(sh[:2]), padding=0)
 
@@ -776,8 +776,16 @@ class BernoulliDetector(Detector):
             #bkgmaps = np.asarray([self.response_map(sub_feats, collapsed_spread_bkg, bbkg, mixcomp+i, level=-1, standardize=False) for i in xrange(K)])
             #resmaps = [self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp+i, level=-1) for i in xrange(K)]
             bkgcomp = np.argmax(bkgmaps, axis=0)
+
+            #bkgcomp[bkgmaps.max(axis=0) > 80] = -1
+
             resmap = self.response_map_NEW_MULTI(sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomp)
+
+            #resmap -= (bkgmaps.max(axis=0) < -75) * 10000
+
             #resmap = self.response_map(sub_feats, sub_kernels, spread_bkg, 4)
+
+            #resmap -= (bkgmaps.max(axis=0) > 80)
 
             if 0:
                 mean = np.mean([self.standardization_info[i]['bkg_mean'] for i in xrange(K)])
@@ -824,7 +832,6 @@ class BernoulliDetector(Detector):
 
                 for index, rm in enumerate(resmaps):
                     plt.clf()
-                    #import pdb; pdb.set_trace()
                     plt.imshow(rm, interpolation='nearest')
                     plt.colorbar()
 
@@ -859,16 +866,12 @@ class BernoulliDetector(Detector):
                 if score >= th:
                     #print type(resmap)
                     conf = score
-                    #import pdb; pdb.set_trace()
                     pos = resmap.pos((i, j))
                     #lower = resmap.pos((i + self.boundingboxes2[mixcomp][0]))
                     bb = ((pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][0] * agg_factors[0]),
                           (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][1] * agg_factors[1]),
                           (pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][2] * agg_factors[0]),
                           (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors[1]))
-
-                    #if score >= 3.89:
-                        #import pdb; pdb.set_trace()
 
                     index_pos = (i-padding[0], j-padding[1])
     
@@ -1023,8 +1026,6 @@ class BernoulliDetector(Detector):
         if testing_type == 'NEW':
             neg_llhs = self.standardization_info[mixcomp]['neg_llhs']
             pos_llhs = self.standardization_info[mixcomp]['pos_llhs']
-            #import pdb; pdb.set_trace()
-            #a(res < neg_llhs).
 
             def logpdf(x, loc=0.0, scale=1.0):
                 return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
