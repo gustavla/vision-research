@@ -381,10 +381,16 @@ def _create_kernel_for_mixcomp2_star(args):
     return _create_kernel_for_mixcomp2(*args)
 
 if KMEANS:
+
+    def _scores(feats, mixture_params):
+        K = len(mixture_params)
+        from gv.fast import bkg_model_dists 
+        return -bkg_model_dists(feats, mixture_params, feats.shape[:2], padding=0, inner_padding=-2)[0,0]
+    
     def _classify(neg_feats, pos_feats, mixture_params):
         K = len(mixture_params)
         from gv.fast import bkg_model_dists 
-        return np.argmax(-bkg_model_dists(pos_feats, mixture_params, pos_feats.shape[:2], padding=0, inner_padding=-2)[0,0])
+        return np.argmax(_scores(pos_feats, mixture_params))
 
     if 0:
         def _classify(neg_feats, pos_feats, mixture_params):
@@ -667,15 +673,32 @@ def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg,
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
 
             if K > 1:
-                bkg_id = _classify(neg_feats, feats, bkg_mixture_params)
+                scores_neg = _scores(neg_feats, bkg_mixture_params)
+                scores_pos = _scores(feats, bkg_mixture_params)
+
+                bkg_id_neg = np.argmax(scores_neg)
+                bkg_id_pos = np.argmax(scores_pos)
+    
+                for bkg_id in np.where(scores_neg > scores_neg.max() - 0.001)[0]:
+                    neg_llh = float((weights[bkg_id] * neg_feats).sum())
+                    all_neg_llhs[bkg_id].append(neg_llh)
+
+                for bkg_id in np.where(scores_pos > scores_pos.max() - 0.001)[0]:
+                    pos_llh = float((weights[bkg_id] * feats).sum())
+                    all_pos_llhs[bkg_id].append(pos_llh)
+                
+
+                #bkg_id_neg = _classify(None, neg_feats, bkg_mixture_params)
+                #bkg_id_pos = _classify(None, feats, bkg_mixture_params)
             else:
-                bkg_id = 0
+                bkg_id_neg = 0
+                bkg_id_pos = 0
 
-            neg_llh = float((weights[bkg_id] * neg_feats).sum())
-            all_neg_llhs[bkg_id].append(neg_llh)
+                neg_llh = float((weights[bkg_id_neg] * neg_feats).sum())
+                all_neg_llhs[bkg_id_neg].append(neg_llh)
 
-            pos_llh = float((weights[bkg_id] * feats).sum())
-            all_pos_llhs[bkg_id].append(pos_llh)
+                pos_llh = float((weights[bkg_id_pos] * feats).sum())
+                all_pos_llhs[bkg_id_pos].append(pos_llh)
 
     #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
 
@@ -685,13 +708,16 @@ def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg,
 
         neg_llhs = np.asarray(all_neg_llhs[k])
         if 0:
-            neg_llhs = neg_llhs.reshape((5, -1))
-            neg_llhs = neg_llhs.max(axis=0)
+            #neg_llhs = neg_llhs.reshape((40, -1))
+            #neg_llhs = neg_llhs.max(axis=0)
+            neg_llhs = np.asarray(map(np.max, np.array_split(neg_llhs, neg_llhs.size // 20)))
 
         pos_llhs = np.asarray(all_pos_llhs[k])
         if 0:
-            pos_llhs = pos_llhs.reshape((5, -1))
-            pos_llhs = pos_llhs.min(axis=0)
+            #pos_llhs = pos_llhs.reshape((5, -1))
+            #pos_llhs = pos_llhs.min(axis=0)
+            #pos_llhs = pos_llhs[
+            pass
 
         if len(neg_llhs) > 0 and len(pos_llhs) > 0:
             info = _standardization_info_for_linearized_non_parameteric(neg_llhs, pos_llhs)
