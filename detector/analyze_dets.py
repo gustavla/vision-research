@@ -39,6 +39,25 @@ except KeyError:
     contest = 'voc'
     obj_class = 'car'
 
+def _classify(neg_feats, pos_feats, mixture_params):
+    from scipy.stats import beta
+    M = len(mixture_params)
+    collapsed_feats = np.apply_over_axes(np.mean, neg_feats, [0, 1]).ravel()
+    collapsed_feats = np.clip(collapsed_feats, 0.01, 1-0.01)
+    D = collapsed_feats.shape[0]
+    
+    qlogs = np.zeros(M)
+    for m in xrange(M):
+        #v = qlogs[m] 
+        v = 0.0
+        for d in xrange(D):
+            v += beta.logpdf(collapsed_feats[d], mixture_params[m,d,0], mixture_params[m,d,1])
+        qlogs[m] = v
+
+    #bkg_id = qlogs.argmax()
+    #return bkg_id
+    return qlogs
+
 psize = detector.settings['subsample_size']
 radii = detector.settings['spread_radii']
 
@@ -50,6 +69,7 @@ eps = detector.settings['min_probability']
 analyze_mixcomp = -1 
 Y = np.zeros((2,) + kernels[analyze_mixcomp][0].shape, dtype=np.uint32)
 totals = np.zeros(2, dtype=np.uint32)
+all_dists = [[], []] 
 
 for i, det in enumerate(detections[:limit]):
     bb = (det['top'], det['left'], det['bottom'], det['right'])
@@ -85,6 +105,18 @@ for i, det in enumerate(detections[:limit]):
     X = feats[pad+i0:pad+i0+d0, pad+j0:pad+j0+d1]
     #print 'X', X.shape
 
+    # bkg levels
+    if 1:
+        #Xdist = np.apply_over_axes(np.mean, X, [0, 1]).ravel()
+
+        params = detector.bkg_mixture_params
+
+        from gv.fast import bkg_model_dists
+        
+        dists = -bkg_model_dists(X, detector.bkg_mixture_params, X.shape[:2])[0,0] / params.shape[-1]
+        #qlogs 
+        all_dists[det['correct']].append(dists.max())
+
     if analyze_mixcomp == k or analyze_mixcomp == -1:
         Y[det['correct']] += X
         totals[det['correct']] += 1
@@ -93,17 +125,24 @@ for i, det in enumerate(detections[:limit]):
     #Rst = (R - detector.fixed_train_mean[k]) / detector.fixed_train_std[k]
     
     from gv.fast import nonparametric_rescore
-    Rarray = R * np.ones((1, 1))
-    info = detector.standardization_info[k][det['bkgcomp']]
-    nonparametric_rescore(Rarray, info['start'], info['step'], info['points'])
-    #Rst = R
-    Rst = Rarray[0,0]
+    Rsts = np.zeros(detector.num_bkg_mixtures)
+    for m in xrange(detector.num_bkg_mixtures):
+        Rarray = R * np.ones((1, 1))
+        info = detector.standardization_info[k][m]
+        nonparametric_rescore(Rarray, info['start'], info['step'], info['points'])
+        #Rst = R
+        Rsts[m] = Rarray[0,0]
+
+    Rst = Rsts[det['bkgcomp']]
     
     # Replace bounding boxes with this single one
     fileobj.boxes[:] = [bbobj]
     
     fn = 'det-{0}.png {1}'.format(i, img_id)
-    print '{3} {0}: {1:.2f} {2:.2f} ({4}, {5})'.format(fn, Rst, det['confidence'], ['X', '.'][det['correct']], det['mixcomp'], det['bkgcomp'])
+    #print '{batsu} {fn}: {standardized:.2f} {raw:.2f} ({mixcomp}, {bkgcomp})'.format(fn=fn, standardized=Rst, raw=det['confidence'], batsu=['X', '.'][det['correct']], mixcomp=det['mixcomp'], bkgcomp=det['bkgcomp'])
+    print '{batsu} {fn}: {standardized:.2f} {raw:.2f} ({mixcomp}, {bkgcomp}) dist={dist} rsts={rsts}'.format(
+        fn=fn, standardized=Rst, raw=det['confidence'], batsu=['X', '.'][det['correct']], mixcomp=det['mixcomp'], bkgcomp=det['bkgcomp'], dist=dists, rsts=Rsts,
+    )
     #import IPython
     #IPython.embed()
     #print 'scale', np.log(det['scale'])/np.log(2)
