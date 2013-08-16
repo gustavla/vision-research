@@ -567,8 +567,6 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices,
             neg_llhs.append(neg_llh)
 
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
-            #feats = gv.sub.subsample(feats, psize)
-
             llh = float((weights * feats).sum())
             llhs.append(llh)
 
@@ -576,6 +574,15 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices,
 
     return np.asarray(llhs), np.asarray(neg_llhs)
     #return np.mean(llhs), np.std(llhs)
+=======
+                llh = (weights * feats).sum()
+                llhs.append(llh)
+
+    #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
+
+    #return np.mean(llhs), np.std(llhs), np.mean(neg_llhs), np.std(neg_llhs)
+    return np.mean(neg_llhs), np.std(neg_llhs)
+>>>>>>> a7e77def161000088c21f65f78b2e952f570f2d6
 
 def _calc_standardization_for_mixcomp_star(args):
     return _calc_standardization_for_mixcomp(*args)

@@ -479,11 +479,11 @@ class BernoulliDetector(Detector):
 
         #spread_feats = self.extract_spread_features(img_resized)
         spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize))
-        unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), subsample_size=psize, crop_border=cb))
+        #unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), subsample_size=psize, crop_border=cb))
 
         # TODO: Avoid the edge for the background model
         spread_bkg = self.bkg_model(spread_feats, spread=True)
-        unspread_bkg = self.bkg_model(unspread_feats, spread=False)
+        #unspread_bkg = self.bkg_model(unspread_feats, spread=False)
         #unspread_bkg = np.load('bkg.npy')
         #spread_bkg = 1 - (1 - unspread_bkg)**25
         #spread_bkg = np.load('spread_bkg.npy')

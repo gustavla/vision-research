@@ -43,6 +43,7 @@ cut = 4
 
 intensities = np.array([])
 
+num_e_count = None 
 e_count = 0
 e_tot = 0
 
@@ -64,9 +65,15 @@ for f in files:
     tot += x.shape[1]
     pi += x.sum(axis=1)
 
-    #import pdb; pdb.set_trace()
-    e_count += edges.reshape((-1, edges.shape[-1])).sum(axis=0)
+    flat = edges.reshape((-1, edges.shape[-1]))
+    e_count += flat.sum(axis=0)
     e_tot += np.prod(edges.shape[:-1])  
+
+    es = flat.sum(axis=1)
+    if num_e_count is None:
+        num_e_count = es
+    else:
+        num_e_count = np.r_[num_e_count, es]
 
 #if 1:
     #import pylab as plt
@@ -75,10 +82,13 @@ for f in files:
     
 bkg = pi / tot
 edges = e_count.astype(np.float64) / e_tot
-print 'edges', edges.mean(), edges 
-print 'bkg-avg', bkg.mean()
-print 'bkg-min', bkg.min()
-print 'bkg-max', bkg.max()
+avg_edges_per_pixel = num_e_count / e_tot
+np.set_printoptions(precision=2)
+print 'num_edges', np.bincount(num_e_count.astype(int), minlength=4) / float(num_e_count.size)
+print 'edges', '{0:.2f}'.format(edges.mean()), edges
+print 'bkg-avg', '{0:.3f}'.format(bkg.mean())
+print 'bkg-min', '{0:.2f}'.format(bkg.min())
+print 'bkg-max', '{0:.2f}'.format(bkg.max())
 print 'quintiles', mstats.mquantiles(bkg, np.linspace(0, 1, 5))
 
 if 0:
