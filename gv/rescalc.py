@@ -28,3 +28,16 @@ def calc_precision_recall(detections, tp_fn):
 
 def calc_ap(p, r):
     return np.trapz(p, r)
+
+# According to VOC
+if 0:
+    def calc_ap(p, r):
+        ap = 0
+        for t in np.arange(0, 1+1e-8, 11):
+            ii = np.where(r >= t)[0]
+            pre = 0
+            if ii.size > 0:
+                pre += p[ii].max()  
+            
+            ap += pre / 11
+        return ap

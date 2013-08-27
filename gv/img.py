@@ -162,4 +162,38 @@ def integrate(ii, r0, c0, r1, c1):
 def composite(fg_img, bg_img, alpha):
     return fg_img * alpha + bg_img * (1 - alpha) 
 
+def offset(img, off):
+    sh = img.shape
+    if sh == (0, 0):
+        return img
+    else:
+        x = np.zeros(sh)
+        x[max(off[0], 0):min(sh[0]+off[0], sh[0]), \
+          max(off[1], 0):min(sh[1]+off[1], sh[1])] = \
+            img[max(-off[0], 0):min(sh[0]-off[0], sh[0]), \
+                max(-off[1], 0):min(sh[1]-off[1], sh[1])]
+        return x
 
+def bounding_box(alpha):
+    """This returns a bounding box of the support for a given component"""
+    assert alpha.ndim == 2
+
+    # Take the bounding box of the support, with a certain threshold.
+    #print("Using alpha", self.use_alpha, "support", self.support)
+    supp_axs = [alpha.max(axis=1-i) for i in xrange(2)]
+
+    th = 0.5 
+    # Check first and last value of that threshold
+    bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
+
+    # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
+    #psize = self.settings['subsample_size']
+    #ret = (bb[0][0]/psize[0], bb[1][0]/psize[1], bb[0][1]/psize[0], bb[1][1]/psize[1])
+
+    return (bb[0][0], bb[1][0], bb[0][1], bb[1][1])
+
+def bounding_box_as_binary_map(alpha):
+    bb = bounding_box(alpha)
+    x = np.zeros(alpha.shape, dtype=np.uint8)
+    x[bb[0]:bb[2], bb[1]:bb[3]] = 1
+    return x 

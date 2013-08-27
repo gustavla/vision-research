@@ -22,6 +22,12 @@ def image_from_bounding_box(im, bb):
     #else:
     return im[bb[0]:bb[2], bb[1]:bb[3]]
 
+def gen_negative_files(excluding_class):
+    path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_train.txt'.format(excluding_class))
+    for line in open(path):
+        img_id, s = line.split() 
+        if int(s) == -1:
+            yield load_file(excluding_class, int(img_id), load_boxes=False)
 
 def load_file(class_name, img_id, load_boxes=True):
     img_path = os.path.join(os.environ['VOC_DIR'], 'JPEGImages', '{0:06}.jpg'.format(img_id))

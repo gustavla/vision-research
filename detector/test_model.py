@@ -27,6 +27,8 @@ import scipy.integrate
 import skimage.data
 
 detector = gv.Detector.load(model_file)
+# TODO: New
+detector.TEMP_second = True
 
 #dataset = ['val', 'train'][mini]
 #dataset = ['val', 'train'][mini]

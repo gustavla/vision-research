@@ -26,6 +26,9 @@ class PartsDescriptor(BinaryDescriptor):
         self.settings['samples_per_image'] = 500 
         self.settings['min_probability'] = 0.005
         self.settings['strides'] = 1
+    
+        # TODO
+        self.extra = {}
 
         # Or maybe just do defaults?
         # self.settings['bedges'] = {}
@@ -158,9 +161,19 @@ class PartsDescriptor(BinaryDescriptor):
         raw_patches, raw_unspread_patches, raw_unspread_patches_padded, raw_originals = self.random_patches_from_images(filenames)
         if len(raw_patches) == 0:
             raise Exception("No patches found, maybe your thresholds are too strict?")
-        mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0)
         # Also store these in "settings"
-        mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
+
+        mixtures = []
+        llhs = []
+        for i in xrange(30):
+            mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0+i)
+            mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
+            mixtures.append(mixture)
+            llhs.append(mixture.loglikelihood)
+            
+        best_i = np.argmax(llhs)
+        mixture = mixtures[best_i]
+
         ag.info("Done.")
 
         counts = np.bincount(mixture.mixture_components(), minlength=self.num_parts)
@@ -247,7 +260,7 @@ class PartsDescriptor(BinaryDescriptor):
 
         sett = self.settings
         sett.update(settings)
-        psize = sett['subsample_size']
+        psize = sett.get('subsample_size', (1, 1))
         feats = gv.sub.subsample(feats, psize)
 
         buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
@@ -276,13 +289,23 @@ class PartsDescriptor(BinaryDescriptor):
 
     def extract_parts(self, edges, edges_unspread, settings={}):
         #print 'strides', self.settings.get('strides', 1)
-        feats = ag.features.code_parts_as_features(edges, 
-                                                   edges_unspread,
-                                                   self._log_parts, self._log_invparts, 
-                                                   self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'], 
-                                                   strides=self.settings.get('strides', 1), 
-                                                   tau=self.settings.get('tau', 0.0),
-                                                   max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
+        if 'indices' in self.extra:
+            feats = ag.features.code_parts_as_features_INDICES(edges, 
+                                                       edges_unspread,
+                                                       self._log_parts, self._log_invparts, 
+                                                       self.extra['indices'],
+                                                       self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'], 
+                                                       strides=self.settings.get('strides', 1), 
+                                                       tau=self.settings.get('tau', 0.0),
+                                                       max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
+        else:
+            feats = ag.features.code_parts_as_features(edges, 
+                                                       edges_unspread,
+                                                       self._log_parts, self._log_invparts, 
+                                                       self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'], 
+                                                       strides=self.settings.get('strides', 1), 
+                                                       tau=self.settings.get('tau', 0.0),
+                                                       max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
 
         # Pad with background (TODO: maybe incorporate as an option to code_parts?)
         # This just makes things a lot easier, and we don't have to match for instance the
@@ -384,6 +407,7 @@ class PartsDescriptor(BinaryDescriptor):
         obj.settings = d['settings']
         obj.orientations = d.get('orientations')
         obj._preprocess_logs()
+        obj.extra = d.get('extra', {})
         return obj
 
     def save_to_dict(self):
@@ -396,5 +420,6 @@ class PartsDescriptor(BinaryDescriptor):
                     unspread_parts_padded=self.unspread_parts_padded, 
                     visparts=self.visparts, 
                     orientations=self.orientations,
-                    settings=self.settings)
+                    settings=self.settings,
+                    extra=self.extra)
 

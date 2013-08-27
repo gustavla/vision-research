@@ -22,7 +22,6 @@ from . import binary_hog_descriptor
 from .real_descriptor import *
 from . import hog_descriptor
 
-
 # TODO: Put somewhere better
 
 def load_descriptor(settings):

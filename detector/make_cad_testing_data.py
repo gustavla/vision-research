@@ -19,20 +19,43 @@ import itertools
 import numpy as np
 
 random.seed(0)
-neg_files = sorted(glob.glob(os.path.expandvars('$VOC_DIR/JPEGImages/*.jpg')))
+#neg_files = sorted(glob.glob(os.path.expandvars('$VOC_DIR/JPEGImages/*.jpg')))
+neg_files = sorted(glob.glob(os.path.expandvars('$DATA_DIR2/small_bkgs/*')))
 random.shuffle(neg_files)
 
-pos_files = sorted(glob.glob(os.path.expandvars('$DATA_DIR/profile-car-100-40/*.png')))
+#pos_dir = '$DATA_DIR/profile-car-100-40/*.png'
+random.seed(0)
+pos_dir = '$DATA_DIR/xi3zao3-car/*.png'
+pos_files = sorted(glob.glob(os.path.expandvars(pos_dir)))
+random.shuffle(pos_files)
 pos_gen = itertools.cycle(pos_files)
 
 def _load_cad_image(fn):
     im = gv.img.load_image(fn)
+    im = gv.img.resize(im, (100, 100))
     gray_im, alpha = gv.img.asgray(im), im[...,3] 
+
+    while alpha[0].sum() == 0:
+        gray_im = gray_im[1:]
+        alpha = alpha[1:] 
+
+    while alpha[-1].sum() == 0:
+        gray_im = gray_im[:-1]
+        alpha = alpha[:-1]
+
+    while alpha[:,0].sum() == 0:
+        gray_im = gray_im[:,1:]
+        alpha = alpha[:,1:]
+
+    while alpha[:,-1].sum() == 0:
+        gray_im = gray_im[:,:-1]
+        alpha = alpha[:,:-1]
+
     return gray_im, alpha
 
 def generate_nonoverlapping_positions(img_size, cad_size, num):
     bbs = []
-    for _ in xrange(100):
+    for _ in xrange(400):
         pos = tuple(random.randint(0, img_size[i]-cad_size[i]) for i in xrange(2))
         bb = (pos[0], pos[1], pos[0] + cad_size[0], pos[1] + cad_size[1])
         ok = True

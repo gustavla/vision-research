@@ -124,6 +124,22 @@ class BetaMixture(object):
         ag.info("Iteration DONE: loglikelihood {}".format(new_loglikelihood))
 
         if 1:
+            # Now fit constrained betas using this distribution
+            #params = np.asarray([(b+a, b+c-a) for b in np.linspace(1, 2, 5) for c in np.linspace(1, 50, 10) for a in np.linspace(0, c, P)])
+
+            #def fit_beta(cls, X):
+        
+            #import pdb; pdb.set_trace()
+    
+            for m in xrange(M):
+                Xm = Xsafe[self.labels_ == m]
+                self.theta_[m] = self.fit_beta_atleast_std(Xm, 0.225)
+
+            #for m in xrange(M):
+            #    for d in xrange(D):
+                    
+
+        if 0:
             for m in xrange(M):
                 for d in xrange(D):
                     if self.theta_[m,d].max() > 50:
@@ -163,6 +179,43 @@ class BetaMixture(object):
                 sv = np.var(Xm[:,d])
                 self.theta_[m,d,0] = sm * (sm * (1 - sm) / sv - 1)
                 self.theta_[m,d,1] = (1 - sm) * (sm * (1 - sm) / sv - 1)
+
+    @classmethod
+    def fit_beta_atleast_std(cls, X, std):
+        variance = std**2
+        N = X.shape[0]
+        D = X.shape[1]
+
+        Xsafe = np.clip(X, 0.01, 1-0.01)
+        
+        P = 20 
+        #params = np.asarray([(2+a, 52-a) for a in np.linspace(0, 50, P)])
+        #params = np.asarray([(b+a, b+c-a) for b in np.linspace(1, 2, 5) for c in np.linspace(1, 50, 10) for a in np.linspace(0, b, P)]) # The buggy one
+        params = np.asarray([(b+a, b+c-a) for b in np.linspace(1, 2, 5) for c in np.linspace(1, 50, 10) for a in np.linspace(0, c, P)])
+
+        a, b = params.T
+        variances = a * b / ((a + b)**2 * (a + b + 1))
+
+        II = np.where(variances >= variance)[0]
+
+        params = params[II]
+        #dists = np.asarray([beta.pdf(x, a, b) for a, b in params]) 
+
+        theta = np.zeros((D, 2))
+        
+        scores = np.zeros(len(params))
+        
+        for d in xrange(D):
+            # Check likelihood of the dists
+            for p in xrange(len(params)):
+                scores[p] = beta.logpdf(Xsafe[:,d], *params[p]).sum()
+
+            ii = scores.argmax()
+
+            theta[d] = params[ii]
+
+        return theta
+        
 
     @classmethod
     def fit_beta(cls, X):

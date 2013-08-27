@@ -37,8 +37,8 @@ mn, mx = np.inf, -np.inf
 for factor in factors:
     im = gv.img.resize_with_factor_new(orig_im, factor)
 
-    spread_feats = detector.descriptor.extract_features(im, dict(spread_radii=radii, preserve_size=False))
-    sub_feats = gv.sub.subsample(spread_feats, psize) 
+    sub_feats = detector.descriptor.extract_features(im, dict(spread_radii=radii, preserve_size=False))
+    #sub_feats = gv.sub.subsample(spread_feats, psize) 
     spread_bkg = detector.bkg_model(None, spread=True)
     resmap = detector.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
 
