@@ -79,14 +79,69 @@ def multifeature_correlate2d(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,nd
         real v
         int i, j, sx, sy, f
 
-    for i in range(steps_x):
-        for j in range(steps_y):
-            v = 0
-            for sx in range(kernel_d0):
-                for sy in range(kernel_d1):
-                    for f in range(num_feat):
-                        v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
-            response[i,j] = v
+    with nogil:
+        for i in range(steps_x):
+            for j in range(steps_y):
+                v = 0
+                for sx in range(kernel_d0):
+                    for sy in range(kernel_d1):
+                        for f in range(num_feat):
+                            v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
+                response[i,j] = v
+
+    return response_
+
+def multifeature_correlate2d_with_indices(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=3] kernel_, np.ndarray[np.int32_t, ndim=2] indices_):
+    assert data_.shape[0] >= kernel_.shape[0]
+    assert data_.shape[1] >= kernel_.shape[1]
+    assert indices_.shape[1] == 3
+    cdef:
+        int data_d0 = data_.shape[0]
+        int data_d1 = data_.shape[1]
+        int kernel_d0 = kernel_.shape[0]
+        int kernel_d1 = kernel_.shape[1]
+        int steps_x = (data_d0 - kernel_d0) + 1
+        int steps_y = (data_d1 - kernel_d1) + 1
+        int num_feat = data_.shape[2]
+        int num_indices = indices_.shape[0]
+
+        #int size_d0 = min(data_d0, kernel_d0)
+        #int size_d1 = min(data_d1, kernel_d1)
+        np.ndarray[real,ndim=2] response_ = np.zeros((steps_x, steps_y))
+
+        mybool[:,:,:] data = data_
+        real[:,:,:] kernel = kernel_
+        np.int32_t[:,:] indices = indices_
+        real[:,:] response = response_
+    
+        real v
+        int i, j, ii, sx, sy, f
+
+    #with nogil:
+    #    for i in range(steps_x):
+    #        for j in range(steps_y):
+    #            v = 0
+    #            for ii in range(num_indices):
+    #                sx = indices[ii,0]     
+    #                sy = indices[ii,1]
+    #                f = indices[ii,2]
+    #                v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
+    #                #for f in range(num_feat):
+    #                    #v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
+    #            response[i,j] = v
+
+    with nogil:
+        for ii in range(num_indices):
+            sx = indices[ii,0]     
+            sy = indices[ii,1]
+            f = indices[ii,2]
+            for i in range(steps_x):
+                for j in range(steps_y):
+                    v = 0
+                    v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
+                    #for f in range(num_feat):
+                        #v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
+                    response[i,j] += v
 
     return response_
 
@@ -115,15 +170,16 @@ def multifeature_correlate2d_multi(np.ndarray[mybool,ndim=3] data_, np.ndarray[r
         int i, j, sx, sy, f
         np.int32_t comp
 
-    for i in range(steps_x):
-        for j in range(steps_y):
-            v = 0
-            comp = bkgcomps[i,j]
-            for sx in range(kernel_d0):
-                for sy in range(kernel_d1):
-                    for f in range(num_feat):
-                        v += data[i+sx,j+sy,f] * kernels[comp,sx,sy,f]
-            response[i,j] = v
+    with nogil:
+        for i in range(steps_x):
+            for j in range(steps_y):
+                v = 0
+                comp = bkgcomps[i,j]
+                for sx in range(kernel_d0):
+                    for sy in range(kernel_d1):
+                        for f in range(num_feat):
+                            v += data[i+sx,j+sy,f] * kernels[comp,sx,sy,f]
+                response[i,j] = v
 
     return response_
 
@@ -437,12 +493,13 @@ def bkg_model_dists3(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=2] bk
 
     return dists
 
-def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixture_params, size, padding=0, cutout=False):
+def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixture_params, size, padding=0, inner_padding=-1000):
     assert feats.shape[2] == mixture_params.shape[1]
     cdef:
         int size0 = <int>size[0]
         int size1 = <int>size[1]
         int ip = <int>padding
+        int iip = <int>inner_padding
         int num_bkgs = mixture_params.shape[0]
         int dim0 = feats.shape[0] - size0 + 1
         int dim1 = feats.shape[1] - size1 + 1
@@ -463,15 +520,11 @@ def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixt
         int i, j, f, b
 
         real area = 0.0
-        int icutout = <int>cutout
-    
-    if cutout:
-        area = ((size0 + 2*ip) * (size1 + 2*ip)) - (size0 * size1)
-    else:
-        area = ((size0 + 2*ip) * (size1 + 2*ip))
-        
 
-    integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / area#((size0 + 2*ip) * (size1 + 2*ip))
+        real inner_area = max(size0 + 2*iip, 0) * max(size1 + 2*iip, 0)
+        real outer_area = max(size0 + 2*ip, 0) * max(size1 + 2*ip, 0)
+
+    integral_feats[ip+1:if_dim0-ip,ip+1:if_dim1-ip] = feats.astype(np.int32).cumsum(0).cumsum(1).astype(real_p) / (outer_area - inner_area)
 
     from scipy.stats import beta
 
@@ -503,32 +556,24 @@ def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixt
             #v = 0
             #for f in range(dim2): 
             # Get background value here
-
-            if icutout:
+            if inner_area > 0:
                 s[:] = integral_feats[i+size0+2*ip,j+size1+2*ip] - \
-                       integral_feats[i           ,j+size1+2*ip] - \
-                       integral_feats[i+size0+2*ip,j           ] + \
-                       integral_feats[i           ,j           ] - \
-                       (integral_feats[i+size0+ip,j+size1+ip] - \
-                        integral_feats[i+ip      ,j+size1+ip] - \
-                        integral_feats[i+size0+ip,j+ip      ] + \
-                        integral_feats[i+ip      ,j+ip      ])
+                    integral_feats[i           ,j+size1+2*ip] - \
+                    integral_feats[i+size0+2*ip,j           ] + \
+                    integral_feats[i           ,j           ] - \
+                   (integral_feats[ip+i+size0+iip,ip+j+size1+iip] - \
+                    integral_feats[ip+i-iip      ,ip+j+size1+iip] - \
+                    integral_feats[ip+i+size0+iip,ip+j-iip      ] + \
+                    integral_feats[ip+i-iip      ,ip+j-iip      ])
             else:
                 s[:] = integral_feats[i+size0+2*ip,j+size1+2*ip] - \
-                       integral_feats[i           ,j+size1+2*ip] - \
-                       integral_feats[i+size0+2*ip,j           ] + \
-                       integral_feats[i           ,j           ]
+                    integral_feats[i           ,j+size1+2*ip] - \
+                    integral_feats[i+size0+2*ip,j           ] + \
+                    integral_feats[i           ,j           ]
 
-            #if icutout == 1:
-            # Remove inside
-    
-            #s[:] -= integral_feats[i+size0+ip,j+size1+ip] - \
-            #        integral_feats[i+ip      ,j+size1+ip] - \
-            #        integral_feats[i+size0+ip,j+ip      ] + \
-            #        integral_feats[i+ip      ,j+ip      ]
 
             #s[:] = np.clip(s, 0.01, 1-0.01)
-            s[:] = np.clip(s, 0.01, 1-0.01)
+            np.clip(s, 0.01, 1-0.01, out=s)
 
             dists[i,j] = -np.sum(beta.logpdf(s, mixture_params[...,0], mixture_params[...,1]), axis=1) 
             #dists[i,j] = -np.sum(np.clip(beta.logpdf(s, mixture_params[...,0], mixture_params[...,1]), -10, 10), axis=1) 

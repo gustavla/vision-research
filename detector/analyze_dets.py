@@ -71,42 +71,30 @@ Y = np.zeros((2,) + kernels[analyze_mixcomp][0].shape, dtype=np.uint32)
 totals = np.zeros(2, dtype=np.uint32)
 all_dists = [[], []] 
 
+all_part_probs = [[], []]
+
 for i, det in enumerate(detections[:limit]):
     bb = (det['top'], det['left'], det['bottom'], det['right'])
     k = det['mixcomp']
-    bbobj = gv.bb.DetectionBB(bb, score=det['confidence'], confidence=det['confidence'], mixcomp=k, correct=det['correct'])
+    m = det['bkgcomp']
+    bbobj = gv.bb.DetectionBB(bb, score=det['confidence'], confidence=det['confidence'], mixcomp=k, correct=det['correct'], index_pos=(det['index_pos0'], det['index_pos1']), scale=det['scale'], img_id=det['img_id'])
 
-    img_id = det['img_id']
-    fileobj = gv.datasets.load_file(contest, img_id, obj_class=obj_class)
-
-    im = gv.img.load_image(fileobj.path) 
-    im = gv.img.asgray(im)
-    im = gv.img.resize_with_factor_new(im, 1/det['scale'])
-
-    kern = kernels[k][det['bkgcomp']]
-    bkg = all_bkg[k]
+    kern = kernels[k][m]
+    bkg = all_bkg[k][m]
     kern = np.clip(kern, eps, 1 - eps)
     bkg = np.clip(bkg, eps, 1 - eps)
 
-    d0, d1 = kern.shape[:2] 
-    
-    feats = detector.descriptor.extract_features(im, dict(spread_radii=radii, subsample_size=psize, preserve_size=False))
-
-    i0, j0 = det['index_pos0'], det['index_pos1'] 
-    pad = max(-min(0, i0), -min(0, j0), max(0, i0+d0 - feats.shape[0]), max(0, j0+d1 - feats.shape[1]))
-
-    feats = ag.util.zeropad(feats, (pad, pad, 0))
+    X = gv.datasets.extract_features_from_bbobj(bbobj, detector, contest, obj_class, kern.shape[:2])
 
     weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
 
-    #X = feats_pad[pad+i0-d0//2:pad+i0-d0//2+d0, pad+j0-d1//2:pad+j0-d1//2+d1]
-    #print pad, i0, d0, j0, d1, 'abc', j0+d1 - feats.shape[1]
-    #print 'feats', feats.shape
-    X = feats[pad+i0:pad+i0+d0, pad+j0:pad+j0+d1]
     #print 'X', X.shape
+    if k == 2:
+        part_probs = np.apply_over_axes(np.mean, X, [0, 1])[0,0]
+        all_part_probs[det['correct']].append(part_probs)
 
     # bkg levels
-    if 1:
+    if 0:
         #Xdist = np.apply_over_axes(np.mean, X, [0, 1]).ravel()
 
         params = detector.bkg_mixture_params
@@ -116,13 +104,21 @@ for i, det in enumerate(detections[:limit]):
         dists = -bkg_model_dists(X, detector.bkg_mixture_params, X.shape[:2])[0,0] / params.shape[-1]
         #qlogs 
         all_dists[det['correct']].append(dists.max())
+    else:
+        dists = None
 
-    if analyze_mixcomp == k or analyze_mixcomp == -1:
-        Y[det['correct']] += X
-        totals[det['correct']] += 1
+    #if analyze_mixcomp == k or analyze_mixcomp == -1:
+        #Y[det['correct']] += X
+        #totals[det['correct']] += 1
 
-    R = float((X * weights).sum())
+    from gv.fast import multifeature_correlate2d_with_indices, multifeature_correlate2d
+    #R = float((X * weights).sum())
     #Rst = (R - detector.fixed_train_mean[k]) / detector.fixed_train_std[k]
+
+    if detector.indices is not None:
+        R = multifeature_correlate2d_with_indices(X, weights.astype(np.float64), detector.indices[k][m])[0,0]
+    else:
+        R = multifeature_correlate2d(X, weights.astype(np.float64))[0,0]
     
     from gv.fast import nonparametric_rescore
     Rsts = np.zeros(detector.num_bkg_mixtures)
@@ -136,20 +132,23 @@ for i, det in enumerate(detections[:limit]):
     Rst = Rsts[det['bkgcomp']]
     
     # Replace bounding boxes with this single one
-    fileobj.boxes[:] = [bbobj]
+    #fileobj.boxes[:] = [bbobj]
     
-    fn = 'det-{0}.png {1}'.format(i, img_id)
+    fn = 'det-{0}.png {1}'.format(i, bbobj.img_id)
     #print '{batsu} {fn}: {standardized:.2f} {raw:.2f} ({mixcomp}, {bkgcomp})'.format(fn=fn, standardized=Rst, raw=det['confidence'], batsu=['X', '.'][det['correct']], mixcomp=det['mixcomp'], bkgcomp=det['bkgcomp'])
-    print '{batsu} {fn}: {standardized:.2f} {raw:.2f} ({mixcomp}, {bkgcomp}) dist={dist} rsts={rsts}'.format(
-        fn=fn, standardized=Rst, raw=det['confidence'], batsu=['X', '.'][det['correct']], mixcomp=det['mixcomp'], bkgcomp=det['bkgcomp'], dist=dists, rsts=Rsts,
+    print '{batsu} {fn}: {standardized:.2f} {raw:.2f} ({mixcomp}, {bkgcomp}) dist={dist}'.format(
+        fn=fn, standardized=Rst, raw=det['confidence'], batsu=['X', '.'][det['correct']], mixcomp=det['mixcomp'], bkgcomp=det['bkgcomp'], dist=dists,
     )
     #import IPython
     #IPython.embed()
     #print 'scale', np.log(det['scale'])/np.log(2)
     #print i0, j0
 
-Z = Y.astype(np.float64) / totals.reshape((-1,) + (1,)*(Y.ndim-1))
+#Z = Y.astype(np.float64) / totals.reshape((-1,) + (1,)*(Y.ndim-1))
 #G = (Z * weights)
+
+all_part_probs[0] = np.asarray(all_part_probs[0])
+all_part_probs[1] = np.asarray(all_part_probs[1])
 
 if 0: 
     Gmeans = [G[i].mean(axis=-1) for i in xrange(2)]
@@ -163,7 +162,7 @@ if 0:
     plt.title('TP')
     plt.show()
 
-if 1:
+if 0:
     Zmeans = [Z[i].mean(axis=-1) for i in xrange(2)]
     m = max(np.fabs(Zmeans[0]).max(), np.fabs(Zmeans[1]).max())
 

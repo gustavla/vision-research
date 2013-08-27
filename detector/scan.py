@@ -33,6 +33,7 @@ import sys
 from plotting import plot_results
 
 detector = gv.Detector.load(model_file)
+detector.TEMP_second = True
 
 fileobj = gv.datasets.load_file(contest, img_id, obj_class=obj_class, path=img_file)
 
@@ -76,13 +77,14 @@ if side is not None:
     plot_results(detector, img, x, feats, mixcomp, bbs, img_resized=img_resized)
     import pylab as plt
     plt.show()
-    plt.imshow(bkgcomp, interpolation='nearest'); plt.colorbar(); plt.show()
+    #plt.imshow(bkgcomp, interpolation='nearest'); plt.colorbar(); plt.show()
     print('max response', x.max())
 else:
     if mixcomp is None:
         import time
         start = time.time()
         bbs = detector.detect_coarse(grayscale_img, fileobj=fileobj)
+        print('score', bbs[0].score)
         print("Elapsed:", (time.time() - start))
         #sys.exit(0)
     else:

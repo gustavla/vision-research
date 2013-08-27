@@ -15,18 +15,6 @@ from scipy.misc import logsumexp
 # TODO: Build into train_basis_...
 #cad_kernels = np.load('cad_kernel.npy')
 
-def offset_img(img, off):
-    sh = img.shape
-    if sh == (0, 0):
-        return img
-    else:
-        x = np.zeros(sh)
-        x[max(off[0], 0):min(sh[0]+off[0], sh[0]), \
-          max(off[1], 0):min(sh[1]+off[1], sh[1])] = \
-            img[max(-off[0], 0):min(sh[0]-off[0], sh[0]), \
-                max(-off[1], 0):min(sh[1]-off[1], sh[1])]
-        return x
-
 @NamedRegistry.root
 #class Detector(Saveable, NamedRegistry):
 class Detector(SaveableRegistry):
@@ -66,6 +54,14 @@ class BernoulliDetector(Detector):
         self.fixed_spread_bkg = None
         self.bkg_mixture_params = None
         self.standardization_info = None
+        self.standardization_info2 = None # TODO: New
+        self.indices = None # TODO: Recently added, keeper?
+
+        self.indices2 = None
+        self.clfs = None
+        self.TEMP_second = False
+        self.fixed_spread_bkg2 = None
+        self.extra = {}
 
         self.use_alpha = None
 
@@ -108,8 +104,8 @@ class BernoulliDetector(Detector):
 
             # Offset the image
             if offsets is not None:
-                grayscale_img = offset_img(grayscale_img, offsets[i])
-                img = offset_img(img, offsets[i])
+                grayscale_img = gv.img.offset(grayscale_img, offsets[i])
+                img = gv.img.offset(img, offsets[i])
 
             # Now, binarize the support in a clever way (notice that we have to adjust for pre-multiplied alpha)
             if img.ndim == 2:
@@ -141,7 +137,7 @@ class BernoulliDetector(Detector):
         self.kernel_templates = kernel_templates
         self.kernel_sizes = kernel_sizes
         self.support = support
-            
+
         self._preprocess()
 
     def _train(self, images, offsets=None):
@@ -160,6 +156,8 @@ class BernoulliDetector(Detector):
         orig_output = None
         psize = self.settings['subsample_size']
 
+        extra_bits = None
+
         for i, grayscale_img, img, alpha in self.load_img(images, offsets):
             ag.info(i, "Processing image", i)
             if self.use_alpha is None:
@@ -176,6 +174,16 @@ class BernoulliDetector(Detector):
                 shape = edges_nonflat.shape
 
             edges = edges_nonflat.ravel()
+            #binmap = gv.img.bounding_box_as_binary_map(alpha)
+            #binmap = gv.sub.subsample(binmap, (3, 3))
+            #binmap = (alpha > 0.5).astype(np.uint8)
+            #flat_extra = binmap.ravel()
+            flat_extra = np.zeros(1, dtype=np.uint8)
+            #flat_extra = np.concatenate([flat_extra, flat_extra])
+            edges = np.concatenate([edges_nonflat.ravel(), flat_extra])
+
+            if extra_bits is None:  
+                extra_bits = flat_extra.size
 
             if self.orig_kernel_size is None:
                 self.orig_kernel_size = (img.shape[0], img.shape[1])
@@ -216,17 +224,29 @@ class BernoulliDetector(Detector):
         seed = self.settings.get('init_seed', 0)
 
         # Train mixture model OR SVM
-        mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32, init_seed=seed)
+    
+        mixtures = []
+        llhs = []
+        for i in xrange(10):
+            mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32, init_seed=seed+i)
+            minp = 0.01
+            mixture.run_EM(1e-10, minp)
+            mixtures.append(mixture)
+            llhs.append(mixture.loglikelihood)
 
-        minp = 0.05
-        mixture.run_EM(1e-10, minp)
+        best_i = np.argmax(llhs)
+        mixture = mixtures[best_i]
 
         #mixture.templates = np.empty(0)
 
         # Now create our unspread kernels
         # Remix it - this iterable will produce each object and then throw it away,
         # so that we can remix without having to ever keep all mixing data in memory at once
+        mixture.data_length -= extra_bits
+        mixture.templates = mixture.templates[:,:-extra_bits]
 
+        print mixture.templates.shape
+        print np.prod(shape)
         kernel_templates = np.clip(mixture.templates.reshape((self.num_mixtures,) + shape), 1e-5, 1-1e-5)
         kernel_sizes = [self.settings['image_size']] * self.num_mixtures
 
@@ -235,6 +255,41 @@ class BernoulliDetector(Detector):
             support = mixture.remix(alpha_maps).astype(np.float32) 
         else:
             support = None
+
+        # Determine optimal bounding box for each component
+        if 1:
+            comps = mixture.mixture_components()
+            self.extra['bbs'] = []
+            for k in xrange(self.num_mixtures):
+                ag.info("Determining bounding box for mixcomp", k)
+                alphas = alpha_maps[comps == k] 
+                bbs = map(gv.img.bounding_box, alphas) 
+
+                #def score(bb):
+                    #return sum()
+                def loss(bb):
+                    return -np.mean([gv.bb.fraction_metric(bb, bbi) for bbi in bbs])
+    
+                from scipy.optimize import minimize
+
+                # Initialize with the smallest from the set
+                bb0 = bbs[np.argmin([loss(bbi) for bbi in bbs])]
+
+                # Initialize with the first one
+                res = minimize(loss, np.array(bb0))
+                bb = tuple(res.x)
+
+                # What is the worst value in this mixture component? If below 0.5, there might be no point keeping it
+                print k, 'loss', loss(bb)
+                print k, 'minimum', min([gv.bb.fraction_metric(bb, bbi) for bbi in bbs])
+
+                psize = self.settings['subsample_size']
+                #bb = tuple([(bb[i] - alphas.shape[i%2] // 2) / psize[i%2] for i in xrange(4)])
+
+                self.extra['bbs'].append(bb)
+                   
+                #import pdb; pdb.set_trace()
+
 
         self.support = support
         if 0:
@@ -404,8 +459,6 @@ class BernoulliDetector(Detector):
 
             if self.use_basis:
                 #global cad_kernels
-                import time
-                start = time.time()
                 a = 1 - unspread_bkg.sum()
                 bkg_categorical = np.concatenate(([a], unspread_bkg))
 
@@ -413,8 +466,6 @@ class BernoulliDetector(Detector):
                 kernels = C.sum(axis=-2) / self.kernel_basis_samples.reshape((-1,) + (1,)*(C.ndim-2))
 
                 kernels = np.clip(kernels, 1e-5, 1-1e-5)
-                end = time.time()
-                print (end - start) * 1000, 'ms'
 
             #unspread_bkg = 1 - (1 - bkg)**(1/neighborhood_area)
             #unspread_bkg = 1 - (1 - bkg)**50
@@ -487,6 +538,8 @@ class BernoulliDetector(Detector):
         #unspread_bkg = np.load('bkg.npy')
         #spread_bkg = 1 - (1 - unspread_bkg)**25
         #spread_bkg = np.load('spread_bkg.npy')
+
+        unspread_bkg = None
 
         #feats = gv.sub.subsample(spread_feats, psize) 
         sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
@@ -572,6 +625,9 @@ class BernoulliDetector(Detector):
 
     def detect(self, img, fileobj=None, mixcomps=None):
         bbs = self.detect_coarse(img, fileobj=fileobj, mixcomps=mixcomps) 
+
+        # This is just to cut down on memory load because of the detections
+        bbs = bbs[:20]
 
         # Now, run it again and refine these probabilities
         if 0:
@@ -759,8 +815,8 @@ class BernoulliDetector(Detector):
                 #integral_feats = feats.cumsum(0).cumsum(1)
                 #scores = 
             
-            from .fast import bkg_model_dists as bdist
-            #from .fast import bkg_beta_dists as bdist 
+            #from .fast import bkg_model_dists as bdist
+            from .fast import bkg_beta_dists as bdist 
 
             sh = sub_kernels[mixcomp][0].shape
             padding = (sh[0]//2, sh[1]//2, 0)
@@ -779,7 +835,24 @@ class BernoulliDetector(Detector):
 
             #bkgcomp[bkgmaps.max(axis=0) > 80] = -1
 
-            resmap = self.response_map_NEW_MULTI(sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomp)
+            #log_z = bkgmaps.sum(axis=0)
+
+    
+            if 1:
+                from scipy.misc import logsumexp
+                probs = np.exp(bkgmaps - logsumexp(bkgmaps, axis=0))
+
+            else:
+                sigma = 0.4
+                if 1:
+                    log_values = bkgmaps / (2 * sigma**2)
+        
+                    from scipy.misc import logsumexp 
+                    log_z = logsumexp(log_values, axis=0)
+
+                    probs = np.exp(log_values - log_z)
+
+            resmap = self.response_map_NEW_MULTI(sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomp, probs=probs)
 
             #resmap -= (bkgmaps.max(axis=0) < -75) * 10000
 
@@ -838,13 +911,14 @@ class BernoulliDetector(Detector):
                     fn = 'day-output/rm{0}-factor{1}-mixcomp{2}.png'.format(index, factor, mixcomp)
                     plt.savefig(fn)
         else:
-            resmap = self.response_map(sub_feats, sub_kernels[0], spread_bkg[0], mixcomp, level=-1)
+            resmap, bigger, weights = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
             bkgcomp = np.zeros_like(resmap)
 
         kern = sub_kernels[mixcomp]
 
         # TODO: Decide this in a way common to response_map
         sh = kern[0].shape
+        sh0 = kern[0].shape
         padding = (sh[0]//2, sh[1]//2, 0)
 
         # Get size of original kernel (but downsampled)
@@ -853,59 +927,204 @@ class BernoulliDetector(Detector):
         sh2 = sh
         sh = (full_sh[0]//psize[0], full_sh[1]//psize[1])
 
-        th = -np.inf
-        top_th = 200.0
+        from scipy.stats import scoreatpercentile
+        # TODO: Might be set too high
+        #th = scoreatpercentile(resmap.ravel(), 90)
+        th = -0.1
+    
+        #th = resmap.mean() 
         bbs = []
 
         agg_factors = tuple([psize[i] * factor for i in xrange(2)])
         agg_factors2 = tuple([factor for i in xrange(2)])
         bb_bigger = (0.0, 0.0, sub_feats.shape[0] * agg_factors[0], sub_feats.shape[1] * agg_factors[1])
-        for i in xrange(resmap.shape[0]):
-            for j in xrange(resmap.shape[1]):
-                score = resmap[i,j]
-                if score >= th:
-                    #print type(resmap)
-                    conf = score
-                    pos = resmap.pos((i, j))
-                    #lower = resmap.pos((i + self.boundingboxes2[mixcomp][0]))
-                    bb = ((pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][0] * agg_factors[0]),
-                          (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][1] * agg_factors[1]),
-                          (pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][2] * agg_factors[0]),
-                          (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors[1]))
 
-                    index_pos = (i-padding[0], j-padding[1])
+        # TODO: New
+        if self.TEMP_second:
+            eps = self.settings['min_probability']
+            kern0 = np.clip(kern[0], eps, 1 - eps)
+            #bkg2 = np.clip(self.fixed_spread_bkg2[mixcomp][0], eps, 1 - eps)
+            #weights2 = np.log(kern0 / (1 - kern0) * ((1 - bkg2) / bkg2))
+
+        def phi(X, mixcomp, use_indices):
+            #if use_indices: 
+            if self.indices2 is not None:
+                indices = self.indices2[mixcomp]
+                return X.ravel()[np.ravel_multi_index(indices.T, X.shape)]
+            else:
+                #return gv.sub.subsample(X, (2, 2)).ravel()
+                return X.ravel()
+            #return X.ravel()
+
+        if 1:
+            #import scipy.signal 
+            #local_maxes = scipy.signal.convolve2d(resmap, np.ones((5, 5))
+            
+            # TODO: This could be too big for a lot of subsampling
+            s = 5 
+
+            import itertools
+            for i0 in xrange(0, resmap.shape[0], s):
+                for j0 in xrange(0, resmap.shape[1], s): 
+                     
+                    win = resmap[i0:i0+s, j0:j0+s]
+                    #local_max = resmap[max(0, i-3):i+4, max(0, j-3):j+4].argmax()
+                    di, dj = np.unravel_index(win.argmax(), win.shape) 
+                    i = i0 + di
+                    j = j0 + dj
     
-                    #dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
-                    dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=bkgcomp[i,j])
+                    score = resmap[i,j]
+                    if score >= th:# and score == local_max:
 
-                    if gv.bb.area(bb) > 0:
-                        bbs.append(dbb)
+                        # ...
+                        #if self.TEMP_second and self.clfs is not None:
+                            #th = self.clfs[mixcomp]['th']
+                        if self.TEMP_second and self.clfs is not None and 0 <= score:# and score >= self.clfs[mixcomp]['th']: # SECOND CASCADE
 
-                    if 0:
-                        i_corner = i-sh[0]//2
-                        j_corner = j-sh[1]//2
+                            # Try a local neighborhood !!!!!
+                            #rr = 0
+                            #score = -np.inf
+                            #for ii, jj in itertools.product(xrange(max(0, i - rr), min(bigger.shape[0]-1-sh0[0], i + rr) + 1), \
+                            #                                xrange(max(0, j - rr), min(bigger.shape[1]-1-sh0[1], j + rr) + 1)):
+                            #    try:
+                                    #for i_, j_ in itertools.product(xrange(...), xrange(...)):
+                                    #X = bigger[i:i+sh0[0], j:j+sh0[1]]
+                            #X = bigger[ii:ii+sh0[0], jj:jj+sh0[1]]
+                            X = bigger[i:i+sh0[0], j:j+sh0[1]]
+                            #    except IndexError:
+                            #        continue 
+
+                            X0 = phi(X, mixcomp, self.clfs[mixcomp].get('uses_indices', False))
+
+                            #y = self.clfs[mixcomp].predict(X)
+                            f = self.clfs[mixcomp]['svm'].decision_function([X0])
+                            #if f <= 0:
+                                #score = -100
+                            #score = f
+                            
+
+                            score = 0.0 + 1 / (1 + np.exp(-f)).flat[0]
+                            #score = max(score, local_score)
+                            #score = f
+
+                            #if y == 0:
+                                #score = -100.0
+
+                            if 0:
+                                #kern = 
+                                
+                                if self.indices is not None:
+                                    indices = self.indices[mixcomp][0].astype(np.int32)
+                                    from .fast import multifeature_correlate2d_with_indices
+                                    res = multifeature_correlate2d_with_indices(X, weights2.astype(np.float64), indices)[0,0]
+                                else:
+                                    res = multifeature_correlate2d(X, weights2.astype(np.float64))[0,0]
+
+                                #info = self.standardization_info[mixcomp][k]
+                                
+                                from .fast import nonparametric_rescore
+                                info = self.standardization_info2[mixcomp][0]
+                                resres = np.zeros((1, 1))
+                                resres[0,0] = res
+                                nonparametric_rescore(resres, info['start'], info['step'], info['points'])
+                            
+                                # Update the score! 
+                                score = resres[0,0]
+
+                        #import pdb; pdb.set_trace()
+
+    
+                        #print type(resmap)
+                        conf = score
+                        pos = resmap.pos((i, j))
+                        #lower = resmap.pos((i + self.boundingboxes2[mixcomp][0]))
+                        bb = ((pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][0] * agg_factors[0]),
+                              (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][1] * agg_factors[1]),
+                              (pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][2] * agg_factors[0]),
+                              (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors[1]))
 
                         index_pos = (i-padding[0], j-padding[1])
-
-                        obj_bb = self.boundingboxes[mixcomp]
-                        bb = [(i_corner + obj_bb[0]) * agg_factors[0],
-                              (j_corner + obj_bb[1]) * agg_factors[1],
-                              (i_corner + obj_bb[2]) * agg_factors[0],
-                              (j_corner + obj_bb[3]) * agg_factors[1],
-                        ]
-
-                        # Clip to bb_bigger 
-                        bb = gv.bb.intersection(bb, bb_bigger)
         
-                        #score0 = score1 = 0
-                        score0 = i
-                        score1 = j
-
-                        conf = score
-                        dbb = gv.bb.DetectionBB(score=score, score0=score0, score1=score1, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
+                        #dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
+                        X = bigger[i:i+sh0[0], j:j+sh0[1]].copy()
+                        dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=bkgcomp[i,j], X=X)
 
                         if gv.bb.area(bb) > 0:
                             bbs.append(dbb)
+
+                        if 0:
+                            i_corner = i-sh[0]//2
+                            j_corner = j-sh[1]//2
+
+                            index_pos = (i-padding[0], j-padding[1])
+
+                            obj_bb = self.boundingboxes[mixcomp]
+                            bb = [(i_corner + obj_bb[0]) * agg_factors[0],
+                                  (j_corner + obj_bb[1]) * agg_factors[1],
+                                  (i_corner + obj_bb[2]) * agg_factors[0],
+                                  (j_corner + obj_bb[3]) * agg_factors[1],
+                            ]
+
+                            # Clip to bb_bigger 
+                            bb = gv.bb.intersection(bb, bb_bigger)
+            
+                            #score0 = score1 = 0
+                            score0 = i
+                            score1 = j
+
+                            conf = score
+                            dbb = gv.bb.DetectionBB(score=score, score0=score0, score1=score1, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
+
+                            if gv.bb.area(bb) > 0:
+                                bbs.append(dbb)
+            
+        else:
+            for i in xrange(resmap.shape[0]):
+                for j in xrange(resmap.shape[1]):
+                    score = resmap[i,j]
+                    if score >= th:
+                        #print type(resmap)
+                        conf = score
+                        pos = resmap.pos((i, j))
+                        #lower = resmap.pos((i + self.boundingboxes2[mixcomp][0]))
+                        bb = ((pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][0] * agg_factors[0]),
+                              (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][1] * agg_factors[1]),
+                              (pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][2] * agg_factors[0]),
+                              (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors[1]))
+
+                        index_pos = (i-padding[0], j-padding[1])
+        
+                        #dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
+                        dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=bkgcomp[i,j])
+
+                        if gv.bb.area(bb) > 0:
+                            bbs.append(dbb)
+
+                        if 0:
+                            i_corner = i-sh[0]//2
+                            j_corner = j-sh[1]//2
+
+                            index_pos = (i-padding[0], j-padding[1])
+
+                            obj_bb = self.boundingboxes[mixcomp]
+                            bb = [(i_corner + obj_bb[0]) * agg_factors[0],
+                                  (j_corner + obj_bb[1]) * agg_factors[1],
+                                  (i_corner + obj_bb[2]) * agg_factors[0],
+                                  (j_corner + obj_bb[3]) * agg_factors[1],
+                            ]
+
+                            # Clip to bb_bigger 
+                            bb = gv.bb.intersection(bb, bb_bigger)
+            
+                            #score0 = score1 = 0
+                            score0 = i
+                            score1 = j
+
+                            conf = score
+                            dbb = gv.bb.DetectionBB(score=score, score0=score0, score1=score1, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
+
+                            if gv.bb.area(bb) > 0:
+                                bbs.append(dbb)
 
         # Let's limit to five per level
         bbs_sorted = self.nonmaximal_suppression(bbs)
@@ -913,7 +1132,7 @@ class BernoulliDetector(Detector):
 
         return bbs_sorted, resmap, bkgcomp
 
-    def response_map_NEW_MULTI(self, sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomps, level=0, standardize=True):
+    def response_map_NEW_MULTI(self, sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomps, level=0, standardize=True, probs=None):
         if np.min(sub_feats.shape) <= 1:
             return None
 
@@ -948,47 +1167,82 @@ class BernoulliDetector(Detector):
         #all_weights = np.asarray([np.log(clipped_kernels[k]/(1-clipped_kernels[k]) * ((1-clipped_bkg[k])/clipped_bkg[k])) for k in xrange(K)])
         all_weights = np.log(clipped_kernels / (1 - clipped_kernels) * ((1 - clipped_bkg) / clipped_bkg))
     
-        from .fast import multifeature_correlate2d_multi
-        res = multifeature_correlate2d_multi(bigger, all_weights.astype(np.float64), bkgcomps.astype(np.int32))
-        #from .fast import multifeature_correlate2d
-        #res = multifeature_correlate2d(bigger, all_weights[4].astype(np.float64))
-        lower, upper = gv.ndfeature.inner_frame(bigger, (all_weights.shape[1]/2, all_weights.shape[2]/2))
-        res = gv.ndfeature(res, lower=lower, upper=upper)
+        from .fast import multifeature_correlate2d_multi, multifeature_correlate2d
+        if 0:
+            res = multifeature_correlate2d_multi(bigger, all_weights.astype(np.float64), bkgcomps.astype(np.int32))
+            #from .fast import multifeature_correlate2d
+            #res = multifeature_correlate2d(bigger, all_weights[4].astype(np.float64))
+            lower, upper = gv.ndfeature.inner_frame(bigger, (all_weights.shape[1]/2, all_weights.shape[2]/2))
+            res = gv.ndfeature(res, lower=lower, upper=upper)
 
-        # Standardization
-        if standardize:
-            testing_type = self.settings.get('testing_type', 'object-model')
-        else:
-            testing_type = 'none'
 
-        for k in xrange(K):
-            from .fast import nonparametric_rescore
-            info = self.standardization_info[mixcomp][k]
-            if testing_type == 'non-parametric':
-                res0 = res.copy() 
-                nonparametric_rescore(res0, info['start'], info['step'], info['points']) 
-            elif testing_type == 'fixed':
-                res0 = res.copy() 
-                res0 -= self.standardization_info[mixcomp][k]['mean']
-                res0 /= self.standardization_info[mixcomp][k]['std']
+
+            # Standardization
+            if standardize:
+                testing_type = self.settings.get('testing_type', 'object-model')
             else:
-                assert 0, "Nothing else has been adapted to this new function"
-                
+                testing_type = 'none'
 
-            res[bkgcomps == k] = res0[bkgcomps == k]
-            #res[bkgcomps == k] = (res0[bkgcomps == k] - info['comp_mean']) / info['comp_std']
+            for k in xrange(K):
+                from .fast import nonparametric_rescore
+                info = self.standardization_info[mixcomp][k]
+                if testing_type == 'non-parametric':
+                    res0 = res.copy() 
+                    nonparametric_rescore(res0, info['start'], info['step'], info['points']) 
+                elif testing_type == 'fixed':
+                    res0 = res.copy() 
+                    res0 -= self.standardization_info[mixcomp][k]['mean']
+                    res0 /= self.standardization_info[mixcomp][k]['std']
+                else:
+                    assert 0, "Nothing else has been adapted to this new function"
+                    
+
+                res[bkgcomps == k] = res0[bkgcomps == k]
+                #res[bkgcomps == k] = (res0[bkgcomps == k] - info['comp_mean']) / info['comp_std']
+            
+        else:
+            #from .fast import multifeature_correlate2d_with_indices
+            #res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices)
+
+            all_res = []
+            for m in xrange(self.num_bkg_mixtures):
+                if self.indices is not None:
+                    indices = self.indices[mixcomp][m].astype(np.int32)
+                    res = multifeature_correlate2d_with_indices(bigger, all_weights[m].astype(np.float64), indices)
+                else: 
+                    res = multifeature_correlate2d(bigger, all_weights[m].astype(np.float64))
+                all_res.append(res)
+            #all_res = [multifeature_correlate2d(bigger, all_weights[k].astype(np.float64)) for k in xrange(self.num_bkg_mixtures)]
+
+            from .fast import nonparametric_rescore
+
+            for k in xrange(self.num_bkg_mixtures):
+                info = self.standardization_info[mixcomp][k]
+                nonparametric_rescore(all_res[k], info['start'], info['step'], info['points']) 
+
+            lower, upper = gv.ndfeature.inner_frame(bigger, (all_weights.shape[1]/2, all_weights.shape[2]/2))
+
+            res = np.zeros_like(all_res[0]) 
+            #bkgcomp = np.argmax(bkgweight, axis=0)
+            for m in xrange(self.num_bkg_mixtures):
+                res += probs[m] * all_res[m]
+
+                
+            res = gv.ndfeature(res, lower=lower, upper=upper)
+            
             
 
         return res
-
 
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True):
         if np.min(sub_feats.shape) <= 1:
             return None
     
-        kern = sub_kernels[mixcomp]
-        if self.settings.get('per_mixcomp_bkg'):
-            spread_bkg =  spread_bkg[mixcomp]
+        # TODO: Temporary
+        kern = sub_kernels[mixcomp][0]
+        if self.settings.get('per_mixcomp_bkg') or True:
+            spread_bkg =  spread_bkg[mixcomp][0]
+
 
         sh = kern.shape
         padding = (sh[0]//2, sh[1]//2, 0)
@@ -1012,7 +1266,23 @@ class BernoulliDetector(Detector):
     
         from .fast import multifeature_correlate2d
 
-        res = multifeature_correlate2d(bigger, weights.astype(np.float64))
+
+        if 0:
+            res = multifeature_correlate2d(bigger, weights.astype(np.float64))
+        else:
+            # Randomize some positions
+            #randstate = np.random.RandomState(0)
+            #NN = 20 
+            #indices = np.hstack([randstate.randint(weights.shape[0], size=(NN, 1)), randstate.randint(weights.shape[0], size=(NN, 1))]).astype(np.int32)
+
+
+            if self.indices is not None:
+                indices = self.indices[mixcomp][0].astype(np.int32)
+                from .fast import multifeature_correlate2d_with_indices
+                res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices)
+            else:
+                res = multifeature_correlate2d(bigger, weights.astype(np.float64))
+    
         lower, upper = gv.ndfeature.inner_frame(bigger, (weights.shape[0]/2, weights.shape[1]/2))
         res = gv.ndfeature(res, lower=lower, upper=upper)
 
@@ -1024,8 +1294,8 @@ class BernoulliDetector(Detector):
 
         # TODO: Temporary slow version
         if testing_type == 'NEW':
-            neg_llhs = self.standardization_info[mixcomp]['neg_llhs']
-            pos_llhs = self.standardization_info[mixcomp]['pos_llhs']
+            neg_llhs = self.standardization_info[mixcomp][0]['neg_llhs']
+            pos_llhs = self.standardization_info[mixcomp][0]['pos_llhs']
 
             def logpdf(x, loc=0.0, scale=1.0):
                 return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
@@ -1069,13 +1339,12 @@ class BernoulliDetector(Detector):
                 res[x,y] = score2(res[x,y], neg_hist, pos_hist, neg_logs, pos_logs)
 
         if testing_type == 'fixed':
-            res -= self.standardization_info[mixcomp]['mean']
-            res /= self.standardization_info[mixcomp]['std']
+            res -= self.standardization_info[mixcomp][0]['mean']
+            res /= self.standardization_info[mixcomp][0]['std']
         elif testing_type == 'non-parametric':
-            if 0:
-                from .fast import nonparametric_rescore
-                info = self.standardization_info[mixcomp]
-                nonparametric_rescore(res, info['start'], info['step'], info['points'])
+            from .fast import nonparametric_rescore
+            info = self.standardization_info[mixcomp][0]
+            nonparametric_rescore(res, info['start'], info['step'], info['points'])
         elif testing_type == 'object-model':
             a = weights
             res -= (kern * a).sum()
@@ -1090,7 +1359,7 @@ class BernoulliDetector(Detector):
             # We need to add the constant term that isn't included in weights
             res += np.log((1 - kern) / (1 - spread_bkg)).sum() 
 
-        return res
+        return res, bigger, weights
 
     def nonmaximal_suppression(self, bbs):
         # This one will respect scales a bit more
@@ -1110,10 +1379,11 @@ class BernoulliDetector(Detector):
             for j in xrange(i):
                 # VERY TEMPORARY: This avoids suppression between classes
                 #if bbs_sorted[i].mixcomp != bbs_sorted[j].mixcomp:
-                #    continue
+                #   continue
         
                 overlap = gv.bb.area(gv.bb.intersection(bbs_sorted[i].box, bbs_sorted[j].box))/area_i
                 scale_diff = (bbs_sorted[i].scale / bbs_sorted[j].scale)
+
                 if overlap > overlap_threshold and lo <= scale_diff <= hi: 
                     del bbs_sorted[i]
                     i -= 1
@@ -1138,27 +1408,44 @@ class BernoulliDetector(Detector):
             # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
             psize = self.settings['subsample_size']
             ret = (bb[0][0]/psize[0], bb[1][0]/psize[1], bb[0][1]/psize[0], bb[1][1]/psize[1])
+
             return ret
         else:
             psize = self.settings['subsample_size']
             return (0, 0, self.orig_kernel_size[0]/psize[0], self.orig_kernel_size[1]/psize[1])
+
+    #@classmethod
+    #def bounding_box_from_mean_alphas(cls, support, threshold
 
     def bounding_box_for_mix_comp2(self, k):
         """This returns a bounding box of the support for a given component"""
 
         # Take the bounding box of the support, with a certain threshold.
         #print("Using alpha", self.use_alpha, "support", self.support)
-        if self.support is not None:
+        if 'bbs' in self.extra:
+            supp = self.support[k] 
+            bb = self.extra['bbs'][k]
+             
+            image_size = self.settings['image_size']
+            psize = self.settings['subsample_size']
+            ret = ((bb[0] - image_size[0]//2)/psize[0], (bb[1] - image_size[1]//2)/psize[1], (bb[2] - image_size[0]//2)/psize[0], (bb[3] - image_size[1]//2)/psize[1])
+            return ret 
+
+        elif self.support is not None:
             supp = self.support[k] 
             supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
-
             th = self.settings['bounding_box_opacity_threshold']
+
             # Check first and last value of that threshold
             bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
 
             # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
             psize = self.settings['subsample_size']
             ret = ((bb[0][0] - supp.shape[0]//2)/psize[0], (bb[1][0] - supp.shape[1]//2)/psize[1], (bb[0][1] - supp.shape[0]//2)/psize[0], (bb[1][1] - supp.shape[1]//2)/psize[1])
+
+            # TODO: SO TEMP!
+            #inflate = 1
+            #ret = (ret[0] - inflate, ret[1] - inflate, ret[2] + inflate, ret[3] + inflate)
             return ret
         else:
             psize = self.settings['subsample_size']
@@ -1227,8 +1514,16 @@ class BernoulliDetector(Detector):
 
             obj.fixed_bkg = d.get('fixed_bkg')
             obj.fixed_spread_bkg = d.get('fixed_spread_bkg')
+            obj.fixed_spread_bkg2 = d.get('fixed_spread_bkg2') # TODO: New
 
             obj.standardization_info = d.get('standardization_info')
+            obj.standardization_info2 = d.get('standardization_info2')
+            obj.clfs = d.get('clfs')
+    
+            obj.indices = d.get('indices')
+            obj.indices2 = d.get('indices2')
+
+            obj.extra = d.get('extra')
 
             obj._preprocess()
             return obj
@@ -1258,8 +1553,25 @@ class BernoulliDetector(Detector):
 
         if self.fixed_spread_bkg is not None:
             d['fixed_spread_bkg'] = self.fixed_spread_bkg 
+
+        if self.fixed_spread_bkg2 is not None:
+            d['fixed_spread_bkg2'] = self.fixed_spread_bkg2
     
         if self.standardization_info is not None:
             d['standardization_info'] = self.standardization_info
+
+        if self.standardization_info2 is not None:
+            d['standardization_info2'] = self.standardization_info2
+
+        if self.clfs is not None:
+            d['clfs'] = self.clfs
+
+        if self.indices is not None:
+            d['indices'] = self.indices
+
+        if self.indices2 is not None:
+            d['indices2'] = self.indices2
+
+        d['extra'] = self.extra
 
         return d

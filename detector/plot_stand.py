@@ -37,14 +37,17 @@ pos_mx = np.max([np.max(dct['pos_llhs']) for dct in sinfo])
 if adjusted:
     mn = -50
     mx = 50
-    dt = 2.5 
-    #mn = -10
-    #mx = 10
-    #dt = 0.5 
+    dt = 2.5
+
+    mn = -1
+    mx = 1
+    dt = 0.05
 else:
     mn = min(neg_mn, pos_mn) 
     mx = max(neg_mx, pos_mx)
     dt = 100
+    
+    #dt = 2.5 
 
 bins = np.arange(mn, mx, dt)
 
