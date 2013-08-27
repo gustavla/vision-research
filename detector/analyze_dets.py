@@ -84,7 +84,7 @@ for i, det in enumerate(detections[:limit]):
     im = gv.img.resize_with_factor_new(im, 1/det['scale'])
 
     kern = kernels[k][det['bkgcomp']]
-    bkg = all_bkg[k]
+    bkg = all_bkg[k][det['bkgcomp']]
     kern = np.clip(kern, eps, 1 - eps)
     bkg = np.clip(bkg, eps, 1 - eps)
 
@@ -113,7 +113,7 @@ for i, det in enumerate(detections[:limit]):
 
         from gv.fast import bkg_model_dists
         
-        dists = -bkg_model_dists(X, detector.bkg_mixture_params, X.shape[:2])[0,0] / params.shape[-1]
+        dists = -bkg_model_dists(X, detector.bkg_mixture_params, X.shape[:2], padding=0, inner_padding=-2)[0,0]
         #qlogs 
         all_dists[det['correct']].append(dists.max())
 
@@ -163,7 +163,7 @@ if 0:
     plt.title('TP')
     plt.show()
 
-if 1:
+if 0:
     Zmeans = [Z[i].mean(axis=-1) for i in xrange(2)]
     m = max(np.fabs(Zmeans[0]).max(), np.fabs(Zmeans[1]).max())
 
@@ -176,5 +176,5 @@ if 1:
     plt.show()
 
 # Open a shell where we can play around with the data
-import IPython
-IPython.embed()
+#import IPython
+#IPython.embed()
