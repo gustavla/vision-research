@@ -914,6 +914,7 @@ class BernoulliDetector(Detector):
         #th = scoreatpercentile(resmap.ravel(), 90)
         th = -0.1
         #th = -np.inf
+        eps = self.settings['min_probability']
     
         #th = resmap.mean() 
         bbs = []
@@ -924,7 +925,6 @@ class BernoulliDetector(Detector):
 
         # TODO: New
         if self.TEMP_second:
-            eps = self.settings['min_probability']
             kern0 = np.clip(kern[0], eps, 1 - eps)
             #bkg2 = np.clip(self.fixed_spread_bkg2[mixcomp][0], eps, 1 - eps)
             #weights2 = np.log(kern0 / (1 - kern0) * ((1 - bkg2) / bkg2))
@@ -964,6 +964,20 @@ class BernoulliDetector(Detector):
                         # ...
                         #if self.TEMP_second and self.clfs is not None:
                             #th = self.clfs[mixcomp]['th']
+
+                        # Cascade log ratio
+                        if self.indices2 is not None and score >= self.extra['bottom_th'][0] and True: 
+                            X = bigger[i:i+sh0[0], j:j+sh0[1]]
+                            
+                            bkg = np.clip(self.fixed_spread_bkg2[mixcomp][0], eps, 1 - eps)
+                            kern = np.clip(self.kernel_templates[mixcomp][0], eps, 1 - eps)
+                            weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+
+                            from gv.fast import multifeature_correlate2d_with_indices 
+                            f = multifeature_correlate2d_with_indices(X, weights, self.indices2[mixcomp])[0,0]
+
+                            score = 0.0 + 1 / (1 + np.exp(-f/1000))
+
                         if self.TEMP_second and self.clfs is not None and 0 <= score:# and score >= self.clfs[mixcomp]['th']: # SECOND CASCADE
                             # Try a local neighborhood !!!!!
                             #rr = 0
@@ -975,7 +989,7 @@ class BernoulliDetector(Detector):
                                     #X = bigger[i:i+sh0[0], j:j+sh0[1]]
                             #X = bigger[ii:ii+sh0[0], jj:jj+sh0[1]]
                             X = bigger[i:i+sh0[0], j:j+sh0[1]]
-                            #    except IndexError:
+                            
                             #        continue 
 
                             X0 = phi(X, mixcomp, self.clfs[mixcomp].get('uses_indices', False))

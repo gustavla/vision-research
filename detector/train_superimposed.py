@@ -1382,7 +1382,7 @@ def superimposed_model(settings, threading=True):
     gen = gv.voc.gen_negative_files(obj_class)
     import heapq
     top_bbs = [[] for k in xrange(detector.num_mixtures)]
-    TOP_N = 5000
+    TOP_N = 40 
 
     if 0: #Farmed for a new log ratio
         for fileobj in itertools.islice(gen, 0, 5):
@@ -1403,30 +1403,10 @@ def superimposed_model(settings, threading=True):
 
         bkgs2 = []
         all_neg_feats = [[] for _ in xrange(detector.num_mixtures)]
-        #all_neg_X0 = [[] for _ in xrange(detector.num_mixtures)]
-        for k in xrange(detector.num_mixtures):
-            # Get the features
-            sh = detector.kernel_templates[k][0].shape
-            counts = np.zeros(sh)
-            if 0:
-                for bbobj in top_bbs[k]:
-                    feat = gv.datasets.extract_features_from_bbobj(bbobj, detector, contest, obj_class, sh[:2])
-                    all_neg_X0[k].append(phi(feat, k)) 
-                    counts += feat
-                bkg = counts.astype(np.float64) / len(top_bbs[k]) 
-                bkgs2.append([bkg])
-            else:
-                for bbobj in top_bbs[k]:
-                    feat = bbobj.X
-                    #all_neg_X0[k].append(phi(feat, k)) 
-                    #all_neg_feats.append(feat)
-                    counts += feat
-                bkg = counts.astype(np.float64) / len(top_bbs[k])
-                bkgs2.append([bkg])
 
         detector.fixed_spread_bkg2 = bkgs2
 
-    if 0: #SVM
+    if 1: #SVM
         #sh = 
 
         if 0:
@@ -1468,7 +1448,7 @@ def superimposed_model(settings, threading=True):
             ag.info("Done")
             import sys; sys.exit(0)
         
-        for i, fileobj in enumerate(itertools.islice(gen, 0, 200)):
+        for i, fileobj in enumerate(itertools.islice(gen, 0, 100)):
             ag.info('{0} Farming {1}'.format(i, fileobj.img_id))
             img = gv.img.load_image(fileobj.path)
             grayscale_img = gv.img.asgray(img)
@@ -1485,6 +1465,12 @@ def superimposed_model(settings, threading=True):
                         heapq.heappush(top_bbs[k], bbobj)
                     else:
                         heapq.heappushpop(top_bbs[k], bbobj)
+
+        detector.extra['top_th'] = []
+        detector.extra['bottom_th'] = []
+        for k in xrange(detector.num_mixtures):
+            detector.extra['top_th'].append(heapq.nlargest(1, top_bbs[k])[0].score)
+            detector.extra['bottom_th'].append(heapq.nsmallest(1, top_bbs[k])[0].score)
 
         # Print number of negatives found
         print 'Number of negatives found'
@@ -1517,118 +1503,127 @@ def superimposed_model(settings, threading=True):
 
         detector.fixed_spread_bkg2 = bkgs2
 
-        smallest_th = [heapq.nsmallest(1, top_bbs[k])[0].score for k in xrange(detector.num_mixtures)]
-
-        eps = detector.settings['min_probability']
-
-        # Get new key points for SVM
-        if 0:
-            detector.indices2 = []
-            for k in xrange(detector.num_mixtures):
-                bkg2 = np.clip(detector.fixed_spread_bkg2[k][0], eps, 1 - eps)
-                kern0 = np.clip(detector.kernel_templates[k][0], eps, 1 - eps)
-                weights2 = np.log(kern0 / (1 - kern0) * ((1 - bkg2) / bkg2))
-                
-                indices2 = get_key_points(weights2, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
-                detector.indices2.append([indices2])
-
-        def phi(X, mixcomp):
-            if SVM_INDICES and 0:
-                indices = detector.indices2[mixcomp][0]
-                return X.ravel()[np.ravel_multi_index(indices.T, X.shape)]
-            else:
-                #return gv.sub.subsample(X, (2, 2)).ravel()
-                return X.ravel()
-
-        all_neg_X0 = []
+        detector.indices2 = []
         for k in xrange(detector.num_mixtures):
-            all_neg_X0.append(np.asarray(map(lambda bbobj: phi(bbobj.X, k), top_bbs[k])))
+            bkg = np.clip(bkgs2[k][0], eps, 1 - eps)
+            kern = np.clip(detector.kernel_templates[k][0], eps, 1 - eps)
+            weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
 
-        del top_bbs
+            detector.indices2.append(get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4)))
 
-        # Retrieve positives
-        ag.info('Fetching positives again...')
-        argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in range(detector.num_mixtures)]        
-        all_pos_feats = list(imapf(_get_positives_star, argses))
-        all_pos_X0 = []
-        for mixcomp, pos_feats in enumerate(all_pos_feats):
-            all_pos_X0.append(np.asarray(map(lambda X: phi(X, mixcomp), pos_feats))) 
-        ag.info('Done.')
+        if 0: # Inner SVM
+            smallest_th = [heapq.nsmallest(1, top_bbs[k])[0].score for k in xrange(detector.num_mixtures)]
 
+            eps = detector.settings['min_probability']
 
-        ag.info('Training SVMs...')
-        # Train SVMs
-        #from sklearn.svm import LinearSVC
-        from sklearn.svm import LinearSVC, SVC
-        clfs = []
-        detector.indices2 = None # not [] for now 
-        #detector.extra['data_x'] = []
-        #detector.extra['data_y'] = []
-        for k in xrange(detector.num_mixtures):
-            X = np.concatenate([all_pos_X0[k], all_neg_X0[k]])  
-    
-            # Flatten
-            print k, ':', X.shape
-            #X = phi(X, k)
-            print k, '>', X.shape
-            y = np.concatenate([np.ones(len(all_pos_feats[k])), np.zeros(len(all_neg_X0[k]))])
-
-            #detector.extra['data_x'].append(X)
-            #detector.extra['data_y'].append(y)
-
-
-            from sklearn import cross_validation as cv
-
+            # Get new key points for SVM
             if 0:
-                Cs = np.arange(0.00001, 0.0001+1e-8, 0.000005)
-                mscores = np.zeros(len(Cs))
-                for i, C in enumerate(Cs):
-                    # Hold out a set, to find a good C
-                    #NN = int(len(X) * 0.8)
-                    #X_tr = X[:NN]
-                    #y_tr = y[:NN]
-                    #X_ev = X[NN:]
-                    #y_ev = X[NN:]
-            
-                    ag.info('Training SVM {}'.format(k))
-                    clf = LinearSVC(C=C)
-                    #clf.fit(X, y)
-
-                    scores = cv.cross_val_score(clf, X, y, cv=5)
-                    mscores[i] = scores.mean()   
-                    print 'C={C}: score={score}'.format(C=C, score=scores.mean())
+                detector.indices2 = []
+                for k in xrange(detector.num_mixtures):
+                    bkg2 = np.clip(detector.fixed_spread_bkg2[k][0], eps, 1 - eps)
+                    kern0 = np.clip(detector.kernel_templates[k][0], eps, 1 - eps)
+                    weights2 = np.log(kern0 / (1 - kern0) * ((1 - bkg2) / bkg2))
                     
-                C = Cs[np.argmax(mscores)]
-                print 'Best C', C
+                    indices2 = get_key_points(weights2, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
+                    detector.indices2.append([indices2])
 
-            C = 5e-8 
+            def phi(X, mixcomp):
+                if SVM_INDICES and 0:
+                    indices = detector.indices2[mixcomp][0]
+                    return X.ravel()[np.ravel_multi_index(indices.T, X.shape)]
+                else:
+                    #return gv.sub.subsample(X, (2, 2)).ravel()
+                    return X.ravel()
 
-            #clf = LinearSVC(C=C)
-            clf = SVC(C=C)
-            clf.fit(X, y)
+            all_neg_X0 = []
+            for k in xrange(detector.num_mixtures):
+                all_neg_X0.append(np.asarray(map(lambda bbobj: phi(bbobj.X, k), top_bbs[k])))
 
-            sh = all_pos_feats[k][0].shape
+            del top_bbs
 
-            # Get most significant coefficients
-            if 0:
-                coef3d = clf.coef_[0].reshape(sh)
-                ii = get_key_points(coef3d, suppress_radius=2)
-                detector.indices2.append(ii)
+            # Retrieve positives
+            ag.info('Fetching positives again...')
+            argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in range(detector.num_mixtures)]        
+            all_pos_feats = list(imapf(_get_positives_star, argses))
+            all_pos_X0 = []
+            for mixcomp, pos_feats in enumerate(all_pos_feats):
+                all_pos_X0.append(np.asarray(map(lambda X: phi(X, mixcomp), pos_feats))) 
+            ag.info('Done.')
 
-                # Re-run the SVM?
+
+            ag.info('Training SVMs...')
+            # Train SVMs
+            #from sklearn.svm import LinearSVC
+            from sklearn.svm import LinearSVC, SVC
+            clfs = []
+            detector.indices2 = None # not [] for now 
+            #detector.extra['data_x'] = []
+            #detector.extra['data_y'] = []
+            for k in xrange(detector.num_mixtures):
+                X = np.concatenate([all_pos_X0[k], all_neg_X0[k]])  
+        
+                # Flatten
+                print k, ':', X.shape
+                #X = phi(X, k)
+                print k, '>', X.shape
+                y = np.concatenate([np.ones(len(all_pos_feats[k])), np.zeros(len(all_neg_X0[k]))])
+
+                #detector.extra['data_x'].append(X)
+                #detector.extra['data_y'].append(y)
+
+
+                from sklearn import cross_validation as cv
+
+                if 0:
+                    Cs = np.arange(0.00001, 0.0001+1e-8, 0.000005)
+                    mscores = np.zeros(len(Cs))
+                    for i, C in enumerate(Cs):
+                        # Hold out a set, to find a good C
+                        #NN = int(len(X) * 0.8)
+                        #X_tr = X[:NN]
+                        #y_tr = y[:NN]
+                        #X_ev = X[NN:]
+                        #y_ev = X[NN:]
                 
-                X2 = np.zeros((X.shape[0], ii.shape[0]))
-                for i, Xi in enumerate(X):
-                    X2[i] = Xi.ravel()[np.ravel_multi_index(ii.T, sh)]
+                        ag.info('Training SVM {}'.format(k))
+                        clf = LinearSVC(C=C)
+                        #clf.fit(X, y)
 
-                clf2 = SVC(kernel='linear')
-                clf2.fit(X2, y)
+                        scores = cv.cross_val_score(clf, X, y, cv=5)
+                        mscores[i] = scores.mean()   
+                        print 'C={C}: score={score}'.format(C=C, score=scores.mean())
+                        
+                    C = Cs[np.argmax(mscores)]
+                    print 'Best C', C
 
-            th = smallest_th[k] 
-            clfs.append(dict(svm=clf, th=th, uses_indices=SVM_INDICES))
-    
-        detector.clfs = clfs
-        ag.info('Done.')
+                C = 5e-8 
+
+                #clf = LinearSVC(C=C)
+                clf = SVC(C=C)
+                clf.fit(X, y)
+
+                sh = all_pos_feats[k][0].shape
+
+                # Get most significant coefficients
+                if 0:
+                    coef3d = clf.coef_[0].reshape(sh)
+                    ii = get_key_points(coef3d, suppress_radius=2)
+                    detector.indices2.append(ii)
+
+                    # Re-run the SVM?
+                    
+                    X2 = np.zeros((X.shape[0], ii.shape[0]))
+                    for i, Xi in enumerate(X):
+                        X2[i] = Xi.ravel()[np.ravel_multi_index(ii.T, sh)]
+
+                    clf2 = SVC(kernel='linear')
+                    clf2.fit(X2, y)
+
+                th = smallest_th[k] 
+                clfs.append(dict(svm=clf, th=th, uses_indices=SVM_INDICES))
+        
+            detector.clfs = clfs
+            ag.info('Done.')
 
     if 0:
         # Standardizing the new stuff
@@ -1653,6 +1648,8 @@ def superimposed_model(settings, threading=True):
                     neg_lists.append(neg_R.ravel())
                         
 
+    print 'extra'
+    print detector.extra
 
     return detector 
 
