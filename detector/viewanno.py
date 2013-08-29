@@ -11,7 +11,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='View image and its annotation')
     parser.add_argument('imgname', metavar='<image name>', nargs='?', type=int, help='Name of image in VOC repository')
     parser.add_argument('--class', dest='obj_class', default='bicycle', type=str, help='Object class for showing positives')
-    parser.add_argument('--contest', type=str, choices=gv.datasets.datasets(), default='voc-val', help='Contest to try on')
+    parser.add_argument('--contest', type=str, choices=gv.datasets.contests(), default='voc-val', help='Contest to try on')
     #parser.add_argument('-c', '--continue', action='store_true', help='List all')
 
     args = parser.parse_args()
