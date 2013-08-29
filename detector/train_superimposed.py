@@ -1,7 +1,7 @@
 from __future__ import division
-#import matplotlib
-#matplotlib.use('Agg')
-#import matplotlib.pylab as plt
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pylab as plt
 import glob
 import numpy as np
 import amitgroup as ag
@@ -876,6 +876,10 @@ def _get_positives(mixcomp, settings, bb, indices, files, neg_files, duplicates_
             neg_im = gen.next()
             # Check which component this one is
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
+            if index % 25 == 0:
+                plt.clf() 
+                plt.imshow(superimposed_im)
+                plt.savefig('debug/pos-{}.png'.format(index))
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
             all_feats.append(feats)
 
@@ -1124,7 +1128,7 @@ def superimposed_model(settings, threading=True):
     def make_bb(bb, max_bb):
         # First, make it integral
         bb = (iround(bb[0]), iround(bb[1]), iround(bb[2]), iround(bb[3]))
-        bb = gv.bb.inflate(bb, 4)
+        bb = gv.bb.inflate(bb, detector.settings.get('bounding_box_inflate', 4))
         bb = gv.bb.intersection(bb, max_bb)
         return bb
 
@@ -1464,8 +1468,8 @@ def superimposed_model(settings, threading=True):
             ag.info("Done")
             import sys; sys.exit(0)
         
-        for fileobj in itertools.islice(gen, 0, 200):
-            ag.info('Farming {0}'.format(fileobj.img_id))
+        for i, fileobj in enumerate(itertools.islice(gen, 0, 200)):
+            ag.info('{0} Farming {1}'.format(i, fileobj.img_id))
             img = gv.img.load_image(fileobj.path)
             grayscale_img = gv.img.asgray(img)
 
@@ -1555,7 +1559,7 @@ def superimposed_model(settings, threading=True):
         ag.info('Training SVMs...')
         # Train SVMs
         #from sklearn.svm import LinearSVC
-        from sklearn.svm import LinearSVC
+        from sklearn.svm import LinearSVC, SVC
         clfs = []
         detector.indices2 = None # not [] for now 
         #detector.extra['data_x'] = []
@@ -1597,9 +1601,10 @@ def superimposed_model(settings, threading=True):
                 C = Cs[np.argmax(mscores)]
                 print 'Best C', C
 
-            C = 0.00005
+            C = 5e-8 
 
-            clf = LinearSVC(C=C)
+            #clf = LinearSVC(C=C)
+            clf = SVC(C=C)
             clf.fit(X, y)
 
             sh = all_pos_feats[k][0].shape

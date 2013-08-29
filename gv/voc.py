@@ -81,6 +81,21 @@ _VOC_PROFILES2 = _VOC_PROFILES + _NEGS
 _VOC_PROFILES3 = _VOC_PROFILES + [334, 2436, 4231, 5020, 7279, 8044, 7819, 8483, 8891, 8929, 9078, 9409, 9959] + _NEGS + _NEGS2 + _NEGS3
 _VOC_PROFILES4 = _VOC_OTHER_PROFILES + _NEGS + _NEGS2 + _NEGS3
 _VOC_EASY_NONPROFILES = [26, 1237, 1334, 1488, 1494, 1576, 2153, 2178, 2247, 2534]
+_VOC_FRONTBACKS = [74, 152, 240, 252, 271, 313, 341, 361, 390, 471, 505, 580, 586, 593, 602, 607, 646, 649, 1003, 1111, 1252]
+_VOC_FRONTBACKS_NEGS = _VOC_FRONTBACKS + [
+    1, 2, 3, 6, 8, 10, 11, 13, 15, 18, 
+    22, 25, 27, 28, 29, 31, 37, 38, 40, 
+    43, 45, 49, 53, 54, 55, 56, 57, 58, 
+    59, 62, 67, 67, 68, 69, 70, 75, 76, 
+    79, 80, 84, 85, 86, 87, 88, 90, 92, 
+    94, 96, 97, 98, 100, 105, 106, 108, 
+    111, 114, 115, 116, 119, 124, 126, 127,
+    128, 136, 139, 144, 145, 148, 149, 151, 
+    155, 157, 160, 166, 167, 168, 175, 176,
+    178, 179, 181, 182, 183, 185, 186, 191, 
+    195, 196, 199, 201, 202, 204, 205, 206,
+    212, 213, 216,
+]
 
 def load_files(class_name, dataset='train'):
     if dataset == 'profile':
@@ -93,6 +108,10 @@ def load_files(class_name, dataset='train'):
         return load_specific_files(class_name, _VOC_PROFILES4)
     elif dataset == 'easy':
         return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPROFILES)
+    elif dataset == 'fronts':
+        return load_specific_files(class_name, _VOC_FRONTBACKS)
+    elif dataset == 'fronts-negs':
+        return load_specific_files(class_name, _VOC_FRONTBACKS_NEGS)
 
 
     path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))

@@ -33,7 +33,7 @@ import sys
 from plotting import plot_results
 
 detector = gv.Detector.load(model_file)
-detector.TEMP_second = True
+#detector.TEMP_second = True
 
 fileobj = gv.datasets.load_file(contest, img_id, obj_class=obj_class, path=img_file)
 
