@@ -79,6 +79,10 @@ for i, det in enumerate(detections[:limit]):
     m = det['bkgcomp']
     bbobj = gv.bb.DetectionBB(bb, score=det['confidence'], confidence=det['confidence'], mixcomp=k, correct=det['correct'], index_pos=(det['index_pos0'], det['index_pos1']), scale=det['scale'], img_id=det['img_id'])
 
+    #im = gv.img.load_image(fileobj.path) 
+    #im = gv.img.asgray(im)
+    #im = gv.img.resize_with_factor_new(im, 1/det['scale'])
+
     kern = kernels[k][m]
     bkg = all_bkg[k][m]
     kern = np.clip(kern, eps, 1 - eps)
@@ -101,7 +105,7 @@ for i, det in enumerate(detections[:limit]):
 
         from gv.fast import bkg_model_dists
         
-        dists = -bkg_model_dists(X, detector.bkg_mixture_params, X.shape[:2])[0,0] / params.shape[-1]
+        dists = -bkg_model_dists(X, detector.bkg_mixture_params, X.shape[:2], padding=0, inner_padding=-2)[0,0]
         #qlogs 
         all_dists[det['correct']].append(dists.max())
     else:
@@ -175,5 +179,5 @@ if 0:
     plt.show()
 
 # Open a shell where we can play around with the data
-import IPython
-IPython.embed()
+#import IPython
+#IPython.embed()

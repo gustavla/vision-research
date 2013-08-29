@@ -120,7 +120,7 @@ def load_image_binarized_alpha(path, threshold=0.2):
         
         return imrgb * alpha.reshape(alpha.shape+(1,)), alpha
 
-def save_image(im, path):
+def save_image(path, im):
     from PIL import Image
     pil_im = Image.fromarray((im*255).astype(np.uint8))
     pil_im.save(path)
