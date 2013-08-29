@@ -5,7 +5,7 @@ import amitgroup as ag
 ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
 
 def contests():
-    return ('voc-val', 'voc-test', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-easy', 
+    return ('voc-val', 'voc-test', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-profile5', 'voc-easy', 'voc-fronts', 'voc-fronts-negs',
             'uiuc', 'uiuc-multiscale', 
             'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled')
 
@@ -26,8 +26,14 @@ def load_files(contest, obj_class):
         files, tot = gv.voc.load_files(obj_class, dataset='profile3')
     elif contest == 'voc-profile4':
         files, tot = gv.voc.load_files(obj_class, dataset='profile4')
+    elif contest == 'voc-profile5':
+        files, tot = gv.voc.load_files(obj_class, dataset='profile5')
     elif contest == 'voc-easy':
         files, tot = gv.voc.load_files(obj_class, dataset='easy')
+    elif contest == 'voc-fronts':
+        files, tot = gv.voc.load_files(obj_class, dataset='fronts')
+    elif contest == 'voc-fronts-negs':
+        files, tot = gv.voc.load_files(obj_class, dataset='fronts-negs')
     elif contest == 'uiuc':
         files, tot = gv.uiuc.load_testing_files()
     elif contest == 'uiuc-multiscale':

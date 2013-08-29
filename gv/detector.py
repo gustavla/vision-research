@@ -227,7 +227,7 @@ class BernoulliDetector(Detector):
     
         mixtures = []
         llhs = []
-        for i in xrange(10):
+        for i in xrange(1):
             mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32, init_seed=seed+i)
             minp = 0.01
             mixture.run_EM(1e-10, minp)
@@ -276,12 +276,15 @@ class BernoulliDetector(Detector):
                 bb0 = bbs[np.argmin([loss(bbi) for bbi in bbs])]
 
                 # Initialize with the first one
-                res = minimize(loss, np.array(bb0))
-                bb = tuple(res.x)
+                if 0:
+                    res = minimize(loss, np.array(bb0))
+                    bb = tuple(res.x)
 
-                # What is the worst value in this mixture component? If below 0.5, there might be no point keeping it
-                print k, 'loss', loss(bb)
-                print k, 'minimum', min([gv.bb.fraction_metric(bb, bbi) for bbi in bbs])
+                    # What is the worst value in this mixture component? If below 0.5, there might be no point keeping it
+                    print k, 'loss', loss(bb)
+                    print k, 'minimum', min([gv.bb.fraction_metric(bb, bbi) for bbi in bbs])
+                else:
+                    bb = bb0
 
                 psize = self.settings['subsample_size']
                 #bb = tuple([(bb[i] - alphas.shape[i%2] // 2) / psize[i%2] for i in xrange(4)])
@@ -529,7 +532,7 @@ class BernoulliDetector(Detector):
         cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
-        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize))
+        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize, adapt=True))
         #unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), subsample_size=psize, crop_border=cb))
 
         # TODO: Avoid the edge for the background model
@@ -544,27 +547,6 @@ class BernoulliDetector(Detector):
         #feats = gv.sub.subsample(spread_feats, psize) 
         sub_kernels = self.prepare_kernels(unspread_bkg, settings=dict(spread_radii=radii, subsample_size=psize))
         bbs, resmap, bkgcomp = self._detect_coarse_at_factor(spread_feats, sub_kernels, spread_bkg, factor, mixcomp)
-
-        # Some plotting code that we might want to place somewhere
-        if 0:
-            if resmap is not None:
-                import pylab as plt 
-                plt.clf()
-                plt.subplot(211)
-                plt.imshow(img, interpolation='nearest', cmap=plt.cm.gray) 
-                plt.subplot(212)
-                plt.imshow(resmap, interpolation='nearest')
-                plt.colorbar()
-
-                if 0:
-                    plt.subplot(224)
-                    plt.imshow(bkgcomp, interpolation='nearest', vmin=0, vmax=K-1)
-                    plt.colorbar()
-
-                fn = 'day-output/out-id{0}-factor{1}-mixcomp{2}.png'.format(img_id, factor, mixcomp)
-                plt.savefig(fn)
-
-
 
         final_bbs = bbs
 
@@ -931,6 +913,8 @@ class BernoulliDetector(Detector):
         # TODO: Might be set too high
         #th = scoreatpercentile(resmap.ravel(), 90)
         th = -0.1
+        #th = -np.inf
+        eps = self.settings['min_probability']
     
         #th = resmap.mean() 
         bbs = []
@@ -941,7 +925,6 @@ class BernoulliDetector(Detector):
 
         # TODO: New
         if self.TEMP_second:
-            eps = self.settings['min_probability']
             kern0 = np.clip(kern[0], eps, 1 - eps)
             #bkg2 = np.clip(self.fixed_spread_bkg2[mixcomp][0], eps, 1 - eps)
             #weights2 = np.log(kern0 / (1 - kern0) * ((1 - bkg2) / bkg2))
@@ -955,6 +938,8 @@ class BernoulliDetector(Detector):
                 #return gv.sub.subsample(X, (2, 2)).ravel()
                 return X.ravel()
             #return X.ravel()
+
+        
 
         if 1:
             #import scipy.signal 
@@ -979,8 +964,21 @@ class BernoulliDetector(Detector):
                         # ...
                         #if self.TEMP_second and self.clfs is not None:
                             #th = self.clfs[mixcomp]['th']
-                        if self.TEMP_second and self.clfs is not None and 0 <= score:# and score >= self.clfs[mixcomp]['th']: # SECOND CASCADE
 
+                        # Cascade log ratio
+                        if self.indices2 is not None and score >= self.extra['bottom_th'][0] and True: 
+                            X = bigger[i:i+sh0[0], j:j+sh0[1]]
+                            
+                            bkg = np.clip(self.fixed_spread_bkg2[mixcomp][0], eps, 1 - eps)
+                            kern = np.clip(self.kernel_templates[mixcomp][0], eps, 1 - eps)
+                            weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+
+                            from gv.fast import multifeature_correlate2d_with_indices 
+                            f = multifeature_correlate2d_with_indices(X, weights, self.indices2[mixcomp])[0,0]
+
+                            score = 0.0 + 1 / (1 + np.exp(-f/1000))
+
+                        if self.TEMP_second and self.clfs is not None and 0 <= score:# and score >= self.clfs[mixcomp]['th']: # SECOND CASCADE
                             # Try a local neighborhood !!!!!
                             #rr = 0
                             #score = -np.inf
@@ -991,7 +989,7 @@ class BernoulliDetector(Detector):
                                     #X = bigger[i:i+sh0[0], j:j+sh0[1]]
                             #X = bigger[ii:ii+sh0[0], jj:jj+sh0[1]]
                             X = bigger[i:i+sh0[0], j:j+sh0[1]]
-                            #    except IndexError:
+                            
                             #        continue 
 
                             X0 = phi(X, mixcomp, self.clfs[mixcomp].get('uses_indices', False))
@@ -1003,9 +1001,13 @@ class BernoulliDetector(Detector):
                             #score = f
                             
 
+                            #print "Refining using SVM", score
+
                             score = 0.0 + 1 / (1 + np.exp(-f)).flat[0]
                             #score = max(score, local_score)
                             #score = f
+                            #print "New score", score
+
 
                             #if y == 0:
                                 #score = -100.0
