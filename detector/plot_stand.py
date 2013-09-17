@@ -42,6 +42,10 @@ if adjusted:
     mn = -1
     mx = 1
     dt = 0.05
+
+    mn = -20
+    mx = 20 
+    dt = 0.5 
 else:
     mn = min(neg_mn, pos_mn) 
     mx = max(neg_mx, pos_mx)

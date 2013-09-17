@@ -165,7 +165,7 @@ class PartsDescriptor(BinaryDescriptor):
 
         mixtures = []
         llhs = []
-        for i in xrange(30):
+        for i in xrange(3):
             mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0+i)
             mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
             mixtures.append(mixture)

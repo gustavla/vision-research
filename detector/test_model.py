@@ -23,7 +23,6 @@ contest = args.contest
 
 import amitgroup as ag
 import numpy as np
-import scipy.integrate
 import skimage.data
 
 detector = gv.Detector.load(model_file)

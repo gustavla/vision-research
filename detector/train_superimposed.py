@@ -1,6 +1,6 @@
 from __future__ import division
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pylab as plt
 import glob
 import numpy as np
@@ -17,7 +17,9 @@ from superimpose_experiment import generate_random_patches
 SVM_INDICES = False#True
 INDICES = True 
 KMEANS = True
-LOGRATIO = True 
+#LOGRATIO = True 
+LOGRATIO = False
+LLH_NEG = True
 
 #Patch = namedtuple('Patch', ['filename', 'selection'])
 
@@ -302,6 +304,7 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
 
     support = alpha_cum.astype(np.float64) / len(indices)
 
+
     #kernels.append(kern)
     return kern, bkg, orig_size, support 
 
@@ -474,14 +477,18 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
     setts = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
     counts = np.zeros(K)
 
+    all_b = []
+    all_X = []
+    all_s = []
+
     for index in indices: 
         ag.info("Processing image of index {0} and mixture component {1}".format(index, mixcomp))
         gray_im, alpha = _load_cad_image(files[index], im_size, bb)
 
-        bin_alpha = alpha > 0.05
+        bin_alpha = (alpha > 0.05).astype(np.uint32)
 
         if alpha_cum is None:
-            alpha_cum = bin_alpha.astype(np.uint32)
+            alpha_cum = bin_alpha
         else:
             alpha_cum += bin_alpha 
 
@@ -516,7 +523,12 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
             else:
                 all_kern[bkg_id] += feats
 
+            all_b.append(neg_feats)
+            all_X.append(feats)
+            all_s.append(bin_alpha)
+
             totals[bkg_id] += 1
+
 
     print 'COUNTS', counts
 
@@ -529,6 +541,48 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
     #bkg = bkg.astype(np.float64) / total
 
     support = alpha_cum.astype(np.float64) / len(indices)
+
+    if 0:
+        for loop in xrange(1):
+            kern = all_kern[0]
+            bkg = all_bkg[0]
+
+            kern = np.clip(kern, eps, 1 - eps)
+            bkg = np.clip(bkg, eps, 1 - eps)
+
+            #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+            w_plus = np.log(kern / bkg)
+            w_minus = np.log((1 - kern) / (1 - bkg))
+
+            new_kern = None
+
+            # Reduce variance in the model
+            #{{{
+            llhs = []
+            for X in all_X:
+                llh = np.sum(X * w_plus + (1 - X) * w_minus)
+                llhs.append(llh)
+
+            llhs = np.asarray(llhs)
+
+            #II = (llhs > np.median(llhs))
+
+            import scipy.stats
+            II = (llhs > scipy.stats.scoreatpercentile(llhs, 35))
+
+            #import pdb; pdb.set_trace()
+            all_b = np.asarray(all_b)
+            all_X = np.asarray(all_X)
+            all_s = np.asarray(all_s)
+
+            all_X = all_X[II]
+            all_b = all_b[II]
+            all_s = all_s[II]
+
+            all_kern[0] = all_X.mean(axis=0)
+            all_bkg[0] = all_b.mean(axis=0) 
+            support = all_s.mean(axis=0)
+
 
     #kernels.append(kern)
     return all_kern, all_bkg, orig_size, support 
@@ -678,6 +732,8 @@ def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg,
     weights = [np.log(all_clipped_kern[k] / (1 - all_clipped_kern[k]) * ((1 - all_clipped_bkg[k]) / all_clipped_bkg[k])) for k in xrange(K)]
     print indices
 
+    rs = np.random.RandomState(0)
+
     for index in indices: 
         ag.info("Standardizing image of index {0} and mixture component {1}".format(index, mixcomp))
         gray_im, alpha = _load_cad_image(files[index], im_size, bb)
@@ -687,6 +743,22 @@ def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg,
             neg_feats = descriptor.extract_features(neg_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
             feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
+
+
+            # Randomly perturb the data
+            def perturb(feats, rs):
+        
+                flip = (rs.uniform(size=feats.shape) < 0.25).astype(np.uint8)
+                #flip = np.ones(feats.shape, dtype=np.uint8)
+                random = (rs.uniform(size=feats.shape) < 0.05).astype(np.uint8)
+                #feats = flip 
+                feats = random * flip + feats * (1 - flip)
+
+                return feats
+
+            if 0:
+                neg_feats = perturb(neg_feats, rs)
+                feats = perturb(feats, rs)
 
             if K > 1:
                 scores_neg = _scores(neg_feats, bkg_mixture_params)
@@ -951,6 +1023,34 @@ if LOGRATIO:
         info['points'] = y
         return info
 
+elif LLH_NEG:
+    def _standardization_info_for_linearized_non_parametric(neg_llhs, pos_llhs):
+        info = {}
+
+        def st(x):
+            #ps = np.asarray([np.mean(neg_llhs), np.mean(pos_llhs)])
+            #ps = np.asarray([np.median(neg_llhs), np.median(pos_llhs)])
+            #k = 6.0 / (ps[1] - ps[0])
+            #m = 3.0 - k * ps[1]
+            #return k * x + m
+            return (x - neg_llhs.mean()) / neg_llhs.std()
+
+        mn = min(np.min(neg_llhs), np.min(pos_llhs))
+        mx = max(np.max(neg_llhs), np.max(pos_llhs))
+        span = (mn, mx)
+
+        x = np.linspace(span[0], span[1], 100)
+        delta = x[1] - x[0]
+
+        y = np.asarray([st(xi) for xi in x])
+        #def finitemax(x):
+            #return x[np.isfinite(x)].max()
+        #y = np.r_[y[0], np.asarray([(y[j] if (y[j] >= finitemax(y[:j]) and np.isfinite(y[j])) else finitemax(y[:j]))+0.0001*j for j in xrange(1, len(y))])]
+        
+        info['start'] = mn
+        info['step'] = delta
+        info['points'] = y
+        return info
 else:
     def _standardization_info_for_linearized_non_parametric(neg_llhs, pos_llhs):
         info = {}
@@ -1406,7 +1506,7 @@ def superimposed_model(settings, threading=True):
 
         detector.fixed_spread_bkg2 = bkgs2
 
-    if 1: #SVM
+    if 0: #SVM
         #sh = 
 
         if 0:

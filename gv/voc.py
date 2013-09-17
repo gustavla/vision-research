@@ -41,7 +41,7 @@ def load_file(class_name, img_id, load_boxes=True):
         for obj in objs:
             # Check what kind of object
             name = _get_text(obj.getElementsByTagName('name')[0].childNodes)
-            if name == class_name:
+            if name == class_name or class_name is None:
                 truncated = bool(int(_get_text(obj.getElementsByTagName('truncated')[0].childNodes)))
                 difficult = bool(int(_get_text(obj.getElementsByTagName('difficult')[0].childNodes)))
                 bndbox_obj = obj.getElementsByTagName('bndbox')[0] 
@@ -100,6 +100,14 @@ _VOC_EASY_NONPROFILES = [26, 1237, 1334, 1488, 1494, 1576, 2153, 2178, 2247, 253
 _VOC_FRONTBACKS = [74, 152, 240, 252, 271, 313, 341, 361, 390, 471, 505, 580, 586, 593, 602, 607, 646, 649, 1003, 1111, 1252]
 _VOC_FRONTBACKS_NEGS = _VOC_FRONTBACKS + _TEST_NEGS
 
+_VOC_SIDES = [
+    4, 71, 82, 103, 135, 137, 152, 172, 293, 301, 358, 415, 585, 679, 693, 715, 721, 
+    724, 736, 801, 881, 1005, 1034, 1280, 1283, 1356, 1369, 1379, 1382, 1394, 1422, 1491,
+    1511, 1525, 1535, 1550, 1552, 1560, 1572, 1700, 1770, 1838, 1923, 1924, 1935, 1951, 1991,
+    2154, 2232, 2242, 2271, 2331, 2346, 2416, 2484, 2531, 2703, 2733, 2840, 2900, 2927, 3006,
+    3033, 3046, 3055, 3070, 3109, 3143, 3276, 3306, 3348, 3357, 3364, 3375
+]
+
 def load_files(class_name, dataset='train'):
     if dataset == 'profile':
         return load_specific_files(class_name, _VOC_PROFILES)
@@ -117,6 +125,9 @@ def load_files(class_name, dataset='train'):
         return load_specific_files(class_name, _VOC_FRONTBACKS)
     elif dataset == 'fronts-negs':
         return load_specific_files(class_name, _VOC_FRONTBACKS_NEGS)
+    elif dataset == 'sides':
+        return load_specific_files(class_name, _VOC_SIDES)
+    
 
 
     path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))

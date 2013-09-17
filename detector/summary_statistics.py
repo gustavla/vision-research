@@ -6,13 +6,13 @@ parser.add_argument('settings', metavar='<settings file>', type=argparse.FileTyp
 #parser.add_argument('--spread', action='store_true')
 parser.add_argument('--limit', type=int, default=10)
 parser.add_argument('--factor', type=float, default=1.0)
-parser.add_argument('--sort', action='store_true')
+parser.add_argument('--shuffle', action='store_true')
 
 args = parser.parse_args()
 settings_file = args.settings
 limit = args.limit
 factor = args.factor
-do_sorting = args.sort
+do_shuffle = args.shuffle
 
 import gv
 import os
@@ -30,7 +30,7 @@ descriptor = gv.load_descriptor(settings)
 path = os.path.expandvars(settings['detector']['neg_dir'])
 files = sorted(glob.glob(path))
 
-if do_sorting:
+if do_shuffle:
     import random
     random.shuffle(files)
 

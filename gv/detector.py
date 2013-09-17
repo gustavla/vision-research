@@ -291,8 +291,6 @@ class BernoulliDetector(Detector):
 
                 self.extra['bbs'].append(bb)
                    
-                #import pdb; pdb.set_trace()
-
 
         self.support = support
         if 0:
@@ -609,6 +607,16 @@ class BernoulliDetector(Detector):
         bbs = self.detect_coarse(img, fileobj=fileobj, mixcomps=mixcomps) 
 
         # This is just to cut down on memory load because of the detections
+        #import pdb; pdb.set_trace()
+
+        if 0:
+            scales = np.asarray(map(lambda x: x.scale, bbs)) 
+            a = np.asarray([(scales == s).sum() for s in np.sort(np.unique(scales))])
+            try:
+                self.aa += a
+            except:
+                self.aa = a
+            print self.aa.astype(np.float64) / self.aa.sum()
         bbs = bbs[:20]
 
         # Now, run it again and refine these probabilities
@@ -624,7 +632,7 @@ class BernoulliDetector(Detector):
     
         return bbs
 
-    def detect_coarse(self, img, fileobj=None, mixcomps=None):
+    def detect_coarse_OLD(self, img, fileobj=None, mixcomps=None):
         if mixcomps is None:
             mixcomps = range(self.num_mixtures)
 
@@ -772,6 +780,61 @@ class BernoulliDetector(Detector):
 
         return final_bbs
 
+    def detect_coarse(self, img, fileobj=None, mixcomps=None, return_resmaps=False):
+        if mixcomps is None:
+            mixcomps = range(self.num_mixtures)
+
+        # TODO: Temporary stuff
+        # TODO: This does not use a Guassian pyramid, so it
+        # resizes everything from scratch, which is MUCH SLOWER
+
+        min_size = self.settings['min_size'] 
+        min_factor = min_size / max(self.orig_kernel_size)
+        max_size = self.settings['max_size'] 
+        max_factor = max_size / max(self.orig_kernel_size)
+
+        resmaps = {}
+
+        num_levels = 2
+        factors = []
+        skips = 0
+        eps = 1e-8
+        for i in xrange(1000):
+            factor = self.settings['scale_factor']**(i-1)
+            if factor > max_factor+eps:
+                break
+            if factor >= min_factor-eps:
+                factors.append(factor) 
+            else:
+                skips += 1
+        num_levels = len(factors) + skips
+
+        bbs = []
+        for i, factor in enumerate(factors):
+            resmaps_factor = []
+            for mixcomp in mixcomps:
+                img_id = fileobj.img_id if fileobj is not None else -1
+                bbs0, resmap, bkgcomp, feats, img_resized = self.detect_coarse_single_factor(img, factor, mixcomp, img_id=img_id)
+                bbs += bbs0
+                if return_resmaps:
+                    resmaps_factor.append(resmap)
+
+            if return_resmaps:
+                resmaps[factor] = resmaps_factor
+
+    
+        # Do NMS here
+        final_bbs = self.nonmaximal_suppression(bbs)
+
+        # Mark corrects here
+        if fileobj is not None:
+            self.label_corrects(final_bbs, fileobj)
+
+        if return_resmaps:
+            return final_bbs, resmaps
+        else:
+            return final_bbs
+
     def _detect_coarse_at_factor(self, sub_feats, sub_kernels, spread_bkg, factor, mixcomp):
         # TODO: VERY TEMPORARY
         if self.num_bkg_mixtures > 1:
@@ -894,6 +957,148 @@ class BernoulliDetector(Detector):
                     plt.savefig(fn)
         else:
             resmap, bigger, weights = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1)
+
+            # XYLO
+
+            if 1:
+                resmap += 0.75 * factor
+
+            elif 1:
+
+                #resmap -= #
+                if 0: # Attempt 1
+                    data = np.load('tt.npz')
+                    xs, tt = data['xs'], data['tt']
+                    pos_mu = 7.0
+                    i = np.argmin(np.fabs((2**xs - 100*factor*0.6)**2))
+                    resmap -= np.log(tt[i]) / pos_mu
+
+                elif 1: # Attempt 2
+                    import scipy.stats as st
+                    #data = np.load('tt.npz')
+                    #xs, tt = data['xs'], data['tt']
+                    # Attempt 4
+                    #tt *= 1 # 15.06
+                    #tt /= 3 # 15.24
+                    #mus = st.norm.ppf(1 - 1/tt)
+                    #sigs = st.norm.ppf(1 - 1/tt/np.exp(1)) - mus
+                    # TODO: Figure out factor index better, or don't use factor index at all and match it better
+                    i = int(np.round(np.log2(factor) / np.log2(self.settings['scale_factor'])))
+                    f = np.log2(100*factor*0.8)
+
+                    #pos_mu = self.standardization_info[mixcomp][0]['pos_llhs'].mean()
+                    #i = np.argmin(np.fabs((xs - f)**2))
+                    #resmap -= np.log(tt[i]) / pos_mu
+                    #alpha = 1/(1 + tt[i])
+
+                    # 17.09%
+                    factor_info = self.standardization_info[mixcomp][0]['factor_info'][i]
+                    data = factor_info['neg_llhs']
+                    nonzero = data != 0.0
+                    alpha = nonzero.mean()**3
+                    data = data[nonzero]
+
+                    resmap -= data.mean() 
+                    resmap /= data.std() 
+                    #resmap -= factor_info['neg_mean'] 
+                    #resmap /= factor_info['neg_std'] 
+                    resmap += 2 * f * np.log(2) - np.log(alpha)
+                    
+
+                    if 0: # 11.94 (limit500)
+                        pos_mu = 0.5
+                        if 0:
+                            pos_mu = 3.0 # 11.57
+                            pos_mu = 1.0 # 14.03
+                            pos_mu = 0.5 # 15.64
+                            pos_mu = 0.25 # 14.68
+                            pos_mu = 0.75 # 14.56
+
+                            pos_mu = 0.5
+                        #resmap *= pos_mu
+                        #resmap -= pos_mu**2 / 2
+                        #resmap += np.log(alpha / (1 - alpha))
+                        #means = np.load('means{}.npy'.format(mixcomp))
+                        #resmap += -np.log(tt[i]) / pos_mu - means[np.round(np.log2(factor)*3)] / self.standardization_info[mixcomp][0]['neg_llhs'].std()
+                        #resmap += (2 * f * np.log(2) - means[np.round(np.log2(factor)*3)] / self.standardization_info[mixcomp][0]['neg_llhs'].std()) / 1
+
+
+                    #resmap -= mus[i]
+                    if 0: # Attempt 3
+                        resmap /= sigs[i]
+
+            #ss = np.log2(0.5 * factor * 100)
+            #resmap += 2 * ss
+            #aa = 0.25
+            #from scipy import stats as st
+            #resmap += (np.log(2**(2*ss)) + st.norm.logpdf(ss, loc=7.5, scale=1.6)) * aa 
+            
+            # TODO: Temporary experiment
+            #resmap -= 9 * np.exp(1 - factor) 
+            #resmap -= 12 - 3 * factor
+            #resmap += 0.75 * factor * (1 - aa)
+
+            #ff = factor * 0.5
+            #ff = np.clip(ff, 0, 4)
+            #resmap += 1.75 * np.log(ff) / np.log(2)
+            #resmap += 2.3 * np.log(ff)
+
+            #data = np.load('ss.npz')
+            #x0, y0 = data['x0'], data['y0']
+            if 0:
+                data = np.load('ss.npz')
+
+                x0, y0 = data['x0'], data['y0']
+                x0 = x0[120:]
+                y0 = y0[120:]
+
+            if 0:
+                pixels0 = 1000000 / (2**x0)**2 
+                amount = pixels0 * 10
+
+                mus = np.asarray([st.norm.ppf(1 - 1/Ns[i]) for i in xrange(len(amount))])
+                sigs = np.asarray([st.norm.ppf(1 - 1/Ns[i]/np.exp(1)) - mus[i] for i in xrange(len(amount))])
+
+                def rescale(x, i):
+                    #mu = st.norm.ppf(1 - 1/amount[i])
+                    #sig = st.norm.ppf(1 - 1/amount[i]/np.exp(1)) - mu
+                    mu = mus[i]
+                    sig = sigs[i]
+
+                    mu0 = mu + sig * EM
+                    sig0 = sig * np.pi / np.sqrt(6)
+
+                    #Ireturn x + means[i]
+                    #return (x - mu) / sig
+                    #return (x - mu0) / sig0 
+                    xc = max(x, mu-0.5)
+                    v = st.genextreme.logcdf(xc, 0, loc=mu, scale=sig)
+                    if np.isinf(v):
+                        raise 'Hell'
+                    return v
+
+            #f = np.log(100 * factor * 0.8) / np.log(2)
+            #ii = np.fabs(f - x0).argmin()
+
+            #resmap += 0.9 * f
+            #for i, j in itertools.product( -- do non-parameteric!
+
+            if 0:
+                from gv.fast import nonparametric_rescore
+                data = np.load('st2.npz')
+                start, step, points = data['start'], data['step'], data['points']
+                nonparametric_rescore(resmap, start, step, points[ii])
+
+            #z0 = np.log(y0 * x0**2)
+
+            #resmap += z0[np.fabs(x0 - f).argmin()]
+            
+            #if factor < 3:
+            #    resmap += np.log(0.1 * factor)
+            #else:
+            #    resmap += np.log(0.3)
+            ##resmap += np.log(
+
             bkgcomp = np.zeros_like(resmap)
 
         kern = sub_kernels[mixcomp]
@@ -912,8 +1117,8 @@ class BernoulliDetector(Detector):
         from scipy.stats import scoreatpercentile
         # TODO: Might be set too high
         #th = scoreatpercentile(resmap.ravel(), 90)
-        th = -0.1
-        #th = -np.inf
+        #th = -0.1
+        th = -np.inf
         eps = self.settings['min_probability']
     
         #th = resmap.mean() 
@@ -966,7 +1171,7 @@ class BernoulliDetector(Detector):
                             #th = self.clfs[mixcomp]['th']
 
                         # Cascade log ratio
-                        if self.indices2 is not None and score >= self.extra['bottom_th'][0] and True: 
+                        if self.indices2 is not None and score >= self.extra['bottom_th'][0] and False: 
                             X = bigger[i:i+sh0[0], j:j+sh0[1]]
                             
                             bkg = np.clip(self.fixed_spread_bkg2[mixcomp][0], eps, 1 - eps)
@@ -976,9 +1181,9 @@ class BernoulliDetector(Detector):
                             from gv.fast import multifeature_correlate2d_with_indices 
                             f = multifeature_correlate2d_with_indices(X, weights, self.indices2[mixcomp])[0,0]
 
-                            score = 0.0 + 1 / (1 + np.exp(-f/1000))
+                            score = 0.0 + 1 / (1 + np.exp(-f/100))
 
-                        if self.TEMP_second and self.clfs is not None and 0 <= score:# and score >= self.clfs[mixcomp]['th']: # SECOND CASCADE
+                        if self.TEMP_second and self.clfs is not None and 0 <= score and False:# and score >= self.clfs[mixcomp]['th']: # SECOND CASCADE
                             # Try a local neighborhood !!!!!
                             #rr = 0
                             #score = -np.inf
@@ -1134,6 +1339,12 @@ class BernoulliDetector(Detector):
 
         return bbs_sorted, resmap, bkgcomp
 
+    def weights(self, mixcomp):
+        eps = self.settings['min_probability']
+        bkg = np.clip(self.fixed_spread_bkg[mixcomp][0], eps, 1 - eps)
+        kern = np.clip(self.kernel_templates[mixcomp][0], eps, 1 - eps)
+        return np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+
     def response_map_NEW_MULTI(self, sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomps, level=0, standardize=True, probs=None):
         if np.min(sub_feats.shape) <= 1:
             return None
@@ -1238,7 +1449,7 @@ class BernoulliDetector(Detector):
 
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True):
         if np.min(sub_feats.shape) <= 1:
-            return None
+            return np.zeros((0, 0, 0)), None, None
     
         # TODO: Temporary
         kern = sub_kernels[mixcomp][0]
@@ -1343,6 +1554,10 @@ class BernoulliDetector(Detector):
         if testing_type == 'fixed':
             res -= self.standardization_info[mixcomp][0]['mean']
             res /= self.standardization_info[mixcomp][0]['std']
+            #res -= self.standardization_info[mixcomp][0]['mean']
+            #res /= self.standardization_info[mixcomp][0]['std']
+            #res -= self.standardization_info[mixcomp][0]['neg_llhs'].mean()
+            #res /= self.standardization_info[mixcomp][0]['neg_llhs'].std()
         elif testing_type == 'non-parametric':
             from .fast import nonparametric_rescore
             info = self.standardization_info[mixcomp][0]
@@ -1381,7 +1596,7 @@ class BernoulliDetector(Detector):
             for j in xrange(i):
                 # VERY TEMPORARY: This avoids suppression between classes
                 #if bbs_sorted[i].mixcomp != bbs_sorted[j].mixcomp:
-                #   continue
+                   #continue
         
                 overlap = gv.bb.area(gv.bb.intersection(bbs_sorted[i].box, bbs_sorted[j].box))/area_i
                 scale_diff = (bbs_sorted[i].scale / bbs_sorted[j].scale)
