@@ -25,7 +25,7 @@ random.shuffle(neg_files)
 
 #pos_dir = '$DATA_DIR/profile-car-100-40/*.png'
 random.seed(0)
-pos_dir = '$DATA_DIR/xi3zao3-car/*.png'
+pos_dir = '$DATA_DIR/xi3zao3-car6-frontbacks/*.png'
 pos_files = sorted(glob.glob(os.path.expandvars(pos_dir)))
 random.shuffle(pos_files)
 pos_gen = itertools.cycle(pos_files)
@@ -90,7 +90,7 @@ for img_id, fn in enumerate(neg_files[:limit]):
         bbs.append(bb)
 
     # Save image
-    gv.img.save_image(neg_im, os.path.join(img_path, 'test-{img_id}.png'.format(img_id=img_id)))
+    gv.img.save_image(os.path.join(img_path, 'test-{img_id}.png'.format(img_id=img_id)), neg_im)
 
     boxes_str = " ".join(map(str, bbs))
     print("{img_id}: {boxes}".format(img_id=img_id, boxes=boxes_str), file=fout)

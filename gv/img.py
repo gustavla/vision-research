@@ -2,8 +2,8 @@ from __future__ import division
 import numpy as np
 import scipy.misc
 import amitgroup as ag
-from skimage.transform.pyramids import pyramid_reduce, pyramid_expand
 import sys
+from skimage.transform.pyramids import pyramid_reduce, pyramid_expand
 
 def resize_to_size(im, new_size):
     return scipy.misc.imresize((im*255).astype(np.uint8), new_size).astype(np.float64)/255
@@ -93,10 +93,10 @@ def crop_to_bounding_box(im, bb):
     return im2
 
 #from PIL import Image
-import skimage.io
 import os.path
 
 def load_image(path):
+    import skimage.io
     #im = np.array(Image.open(path))
     im = skimage.io.imread(path)
     return im.astype(np.float64)/255.0

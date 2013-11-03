@@ -5,7 +5,7 @@ import amitgroup as ag
 import numpy as np
 import gv
 import math
-from itertools import product
+import itertools as itr
 from .binary_descriptor import BinaryDescriptor
 
 @BinaryDescriptor.register('parts')
@@ -79,7 +79,7 @@ class PartsDescriptor(BinaryDescriptor):
         w, h = [edges.shape[i]-self.patch_size[i]+1 for i in xrange(2)]
 
         # TODO: Maybe shuffle an iterator of the indices?
-        indices = list(product(xrange(w-1), xrange(h-1)))
+        indices = list(itr.product(xrange(w-1), xrange(h-1)))
         random.shuffle(indices)
         i_iter = iter(indices)
 
@@ -165,11 +165,12 @@ class PartsDescriptor(BinaryDescriptor):
 
         mixtures = []
         llhs = []
-        for i in xrange(3):
+        for i in xrange(1):
             mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0+i)
             mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
             mixtures.append(mixture)
             llhs.append(mixture.loglikelihood)
+
             
         best_i = np.argmax(llhs)
         mixture = mixtures[best_i]
@@ -188,7 +189,9 @@ class PartsDescriptor(BinaryDescriptor):
             pec = p.mean(axis=0)
         
             N = np.sum(p * np.log(p/pec) + (1-p)*np.log((1-p)/(1-pec)))
-            D = np.sqrt(np.sum(np.log(p/(1-p))**2 * p * (1-p)))
+            D = np.sqrt(np.sum(np.log(p/pec * (1-pec)/(1-p))**2 * p * (1-p)))
+            # Old:
+            #D = np.sqrt(np.sum(np.log(p/(1-p))**2 * p * (1-p)))
 
             scores[i] = N/D 
 
@@ -197,16 +200,51 @@ class PartsDescriptor(BinaryDescriptor):
                 #scores[i] = 0
 
         # Only keep with a certain score
-        visparts = mixture.remix(raw_originals)
+        if not self.settings['bedges']['contrast_insensitive']:
+
+            visparts = mixture.remix(raw_originals)
+        else:
+            visparts = np.empty((self.num_parts,) + raw_originals.shape[1:])
+
+            self.extra['originals'] = []
+        
+            # Improved visparts
+            comps = mixture.mixture_components()
+            for i in xrange(self.num_parts):
+                ims = raw_originals[comps == i].copy()
+
+                self.extra['originals'].append(ims)
+
+                # Stretch them all out
+                #for j in xrange(len(ims)):
+                    #ims[j] = (ims[j] - ims[j].min()) / (ims[j].max() - ims[j].min())
+
+                # Now, run a GMM with NM components on this and take the most common
+                NM = 2
+
+                from sklearn.mixture import GMM
+                gmix = GMM(n_components=NM)
+                gmix.fit(ims.reshape((ims.shape[0], -1)))
+
+                visparts[i] = gmix.means_[gmix.weights_.argmax()].reshape(ims.shape[1:])
 
         # Unspread parts
         unspread_parts_all = mixture.remix(raw_unspread_patches) 
         unspread_parts_padded_all = mixture.remix(raw_unspread_patches_padded) 
+
+        # The parts to keep
+        ok = (scores > 1) & (counts >= 10)
+
+        if 'originals' in self.extra:
+            self.extra['originals'] = list(itr.compress(self.extra['originals'], ok))
+
+        scores = scores[ok]
+        counts = counts[ok]
         
-        self.parts = mixture.templates[scores > 1]
-        self.unspread_parts = unspread_parts_all[scores > 1]
-        self.unspread_parts_padded = unspread_parts_padded_all[scores > 1]
-        self.visparts = visparts[scores > 1]
+        self.parts = mixture.templates[ok]
+        self.unspread_parts = unspread_parts_all[ok]
+        self.unspread_parts_padded = unspread_parts_padded_all[ok]
+        self.visparts = visparts[ok]
         self.num_parts = self.parts.shape[0]
         
         # Update num_parts
@@ -216,18 +254,28 @@ class PartsDescriptor(BinaryDescriptor):
         #self.visparts = mixture.remix(raw_originals)
 
         # Sort the parts according to orientation, for better diagonistics
-        E = self.parts.shape[-1]
-        E = self.parts.shape[-1]
-        ang = np.array([[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, 1]])
-        nang = ang / np.expand_dims(np.sqrt(ang[:,0]**2 + ang[:,1]**2), 1)
-        orrs = np.apply_over_axes(np.mean, self.parts, [1, 2]).reshape((self.num_parts, -1))
-        if E == 8:
-            orrs = orrs[...,:4] + orrs[...,4:]    
-        nang = nang[:4]
-        norrs = orrs / np.expand_dims(orrs.sum(axis=1), 1)
-        dirs = (np.expand_dims(norrs, -1) * nang).sum(axis=1)
-        self.orientations = np.asarray([math.atan2(x[1], x[0]) for x in dirs])
-        II = np.argsort(self.orientations)
+        if 1:
+            E = self.parts.shape[-1]
+            E = self.parts.shape[-1]
+            ang = np.array([[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, 1]])
+            nang = ang / np.expand_dims(np.sqrt(ang[:,0]**2 + ang[:,1]**2), 1)
+            orrs = np.apply_over_axes(np.mean, self.parts, [1, 2]).reshape((self.num_parts, -1))
+            if E == 8:
+                orrs = orrs[...,:4] + orrs[...,4:]    
+            nang = nang[:4]
+            norrs = orrs / np.expand_dims(orrs.sum(axis=1), 1)
+            dirs = (np.expand_dims(norrs, -1) * nang).sum(axis=1)
+            self.orientations = np.asarray([math.atan2(x[1], x[0]) for x in dirs])
+            II = np.argsort(self.orientations)
+
+        II = np.argsort(scores)
+
+        scores = scores[II]
+        counts = counts[II]
+
+        self.extra['scores'] = scores
+        self.extra['counts'] = counts
+        self.extra['originals'] = [self.extra['originals'][ii] for ii in II]
         
         # Now resort the parts according to this sorting
         self.orientations = self.orientations[II]

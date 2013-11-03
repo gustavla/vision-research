@@ -585,3 +585,37 @@ def bkg_beta_dists(np.ndarray[mybool,ndim=3] feats, np.ndarray[real,ndim=3] mixt
                     #dists_mv[i,j,b] -= beta.logpdf(s, params_mv[b,f,0], params_mv[b,f,1])
 
     return dists
+
+def correlate_abunch(np.ndarray[np.uint8_t,ndim=1] X, np.ndarray[np.uint8_t,ndim=4] Y):
+    cdef:
+        np.ndarray[real,ndim=3] ret = np.empty((Y.shape[1], Y.shape[2], Y.shape[3]))
+
+        real X_std = np.std(X, ddof=1)
+        np.ndarray[real,ndim=3] Y_stds = Y.std(axis=0, ddof=1)
+
+        real[:,:,:] ret_mv = ret
+        real[:,:,:] Y_stds_mv = Y_stds
+        real X_mean = X.mean()
+        np.uint8_t[:] X_mv = X
+        np.uint8_t[:,:,:,:] Y_mv = Y
+        int i, j, k, n
+        int N = Y.shape[0]
+        int dim0 = Y.shape[1]
+        int dim1 = Y.shape[2]
+        int dim2 = Y.shape[3]
+        real corr = 0.0
+
+    if 1:
+        for i in range(dim0):
+            for j in range(dim1):
+                for k in range(dim2):
+                    corr = 0.0
+                    if X_std == 0.0 or Y_stds_mv[i,j,k] == 0.0:
+                        ret_mv[i,j,k] = 0.0
+                    else:
+                        for n in range(N):
+                            corr += (X_mv[n] - X_mean) * Y_mv[n,i,j,k]
+
+                        ret_mv[i,j,k] = corr / (<real>(N - 1) * X_std * Y_stds_mv[i,j,k])
+
+    return ret

@@ -26,6 +26,7 @@ c = ['g' for i in xrange(N)]
 for i, d in enumerate(detections):
     x[i] = d['img_id'] 
     x[i] += 20000 * d['mixcomp']
+    x[i] += 2000 * d['bkgcomp']
     y[i] = d['confidence']
     c[i] = ['r', 'g'][d['correct']]
 

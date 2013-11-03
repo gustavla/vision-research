@@ -1,19 +1,20 @@
-import gv
+#import gv.collection
 from collections import namedtuple
-import amitgroup as ag
+import amitgroup.util
 
 ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
 
 def contests():
     return ('voc-val', 'voc-train', 'voc-trainval', 'voc-test', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-profile5', 'voc-easy', 'voc-fronts', 'voc-fronts-negs', 'voc-sides',
             'uiuc', 'uiuc-multiscale', 
-            'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled')
+            'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks')
 
 def datasets():
     return ('none', 'voc', 'uiuc', 'uiuc-multiscale', 
-            'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled')
+            'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks')
 
 def load_files(contest, obj_class):
+    import gv.voc
     if contest == 'voc-train':
         files, tot = gv.voc.load_files(obj_class, dataset='train')
     elif contest == 'voc-val':
@@ -52,6 +53,8 @@ def load_files(contest, obj_class):
     return files, tot
 
 def load_file(contest, img_id, obj_class=None, path=None):
+    import gv.voc
+    import gv.custom
     if contest.startswith('uiuc'):
         return gv.uiuc.load_testing_file(img_id, single_scale=(contest=='uiuc'))
     elif contest.startswith('voc'):
@@ -62,6 +65,37 @@ def load_file(contest, img_id, obj_class=None, path=None):
     elif contests == 'none':
         assert path is not None 
         return ImgFile(path=path, boxes=[], img_id=-1)
+
+# This function could leave an edge if the image is not big enough
+def extract_image_from_bbobj(bbobj, detector, contest, obj_class, kernel_shape):
+    img_id = bbobj.img_id
+    #img_id = det['img_id']
+    fileobj = load_file(contest, img_id, obj_class=obj_class)
+
+    im = gv.img.load_image(fileobj.path) 
+    im = gv.img.asgray(im)
+    im = gv.img.resize_with_factor_new(im, 1/bbobj.scale)
+
+    #kern = kernels[k][m]
+    #bkg = all_bkg[k][m]
+    #kern = np.clip(kern, eps, 1 - eps)
+    #bkg = np.clip(bkg, eps, 1 - eps)
+
+    d0, d1 = kernel_shape #kern.shape[:2] 
+
+    psize = detector.settings['subsample_size']
+    radii = detector.settings['spread_radii']
+    
+    feats = detector.descriptor.extract_features(im, dict(spread_radii=radii, subsample_size=psize, preserve_size=False))
+
+    i0, j0 = bbobj.index_pos
+    pad = max(-min(0, i0), -min(0, j0), max(0, i0+d0 - feats.shape[0]), max(0, j0+d1 - feats.shape[1]))
+
+    feats = amitgroup.util.zeropad(feats, (pad, pad, 0))
+    X = feats[pad+i0:pad+i0+d0, pad+j0:pad+j0+d1]
+    return X 
+     
+
 
 def extract_features_from_bbobj(bbobj, detector, contest, obj_class, kernel_shape):
     """
@@ -95,6 +129,6 @@ def extract_features_from_bbobj(bbobj, detector, contest, obj_class, kernel_shap
     i0, j0 = bbobj.index_pos
     pad = max(-min(0, i0), -min(0, j0), max(0, i0+d0 - feats.shape[0]), max(0, j0+d1 - feats.shape[1]))
 
-    feats = ag.util.zeropad(feats, (pad, pad, 0))
+    feats = amitgroup.util.zeropad(feats, (pad, pad, 0))
     X = feats[pad+i0:pad+i0+d0, pad+j0:pad+j0+d1]
     return X 

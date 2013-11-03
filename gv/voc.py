@@ -22,8 +22,8 @@ def image_from_bounding_box(im, bb):
     #else:
     return im[bb[0]:bb[2], bb[1]:bb[3]]
 
-def gen_negative_files(excluding_class):
-    path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_train.txt'.format(excluding_class))
+def gen_negative_files(excluding_class, contest='train'):
+    path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(excluding_class, contest))
     for line in open(path):
         img_id, s = line.split() 
         if int(s) == -1:
@@ -127,8 +127,6 @@ def load_files(class_name, dataset='train'):
         return load_specific_files(class_name, _VOC_FRONTBACKS_NEGS)
     elif dataset == 'sides':
         return load_specific_files(class_name, _VOC_SIDES)
-    
-
 
     path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))
 

@@ -2,7 +2,8 @@
 
 from settings import argparse_settings 
 sett = argparse_settings("Train parts") 
-psettings = sett['parts']
+
+psettings = sett[sett['detector']['descriptor']]
 
 import parser
 import gv
@@ -20,7 +21,7 @@ random.seed(0)
 random.shuffle(files)
 
 settings = dict(samples_per_image=psettings['samples_per_image'])
-cls = gv.BinaryDescriptor.getclass('parts')
+cls = gv.BinaryDescriptor.getclass(sett['detector']['descriptor'])
 codebook = cls(psettings['part_size'], psettings['num_parts'], settings=psettings) 
 codebook.train_from_images(files[:psettings['num_images']])
 codebook.save(psettings['file'])

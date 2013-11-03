@@ -12,11 +12,14 @@ from . import uiuc
 from . import custom
 from .beta_mixture import BetaMixture, binary_search # Temporarily exposed
 
+from .core import *
+
 from .ndfeature import ndfeature
 
 from .binary_descriptor import *
 from . import edge_descriptor
 from . import parts_descriptor
+from . import polarity_parts_descriptor
 from . import binary_hog_descriptor
 
 from .real_descriptor import *

@@ -6,7 +6,7 @@ def _repr(tup):
     return "("+(", ".join(["{"+str(i)+":0.1f}" for i in xrange(4)])).format(*tup)+")"
 
 class DetectionBB(object):
-    def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, index_pos=(0, 0), truncated=False, scale=0, mixcomp=None, plusscore=0.0, score0=0.0, score1=0.0, bkgcomp=None, img_id=None, X=None):
+    def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, index_pos=(0, 0), truncated=False, scale=0, mixcomp=None, plusscore=0.0, score0=0.0, score1=0.0, bkgcomp=None, img_id=None, image=None, X=None, overlap=None):
         self.score = score
         self.score0 = score0
         self.score1 = score1
@@ -21,7 +21,9 @@ class DetectionBB(object):
         self.plusscore = plusscore
         self.index_pos = index_pos
         self.img_id = img_id
+        self.image = image
         self.X = X
+        self.overlap = overlap
 
     def __repr__(self):
         return "DetectionBB(score={score:.2f}, box={box}, correct={correct}, confidence={confidence:.2f}, mixcomp={mixcomp}, bkgcomp={bkgcomp}, scale={scale})".format(
