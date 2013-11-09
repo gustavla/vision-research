@@ -3,7 +3,6 @@ from .real_descriptor import RealDescriptor
 from .detector import Detector, BernoulliDetector
 import numpy as np
 import gv
-from sklearn import svm
 
 @Detector.register('real')
 class RealDetector(BernoulliDetector):

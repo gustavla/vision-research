@@ -305,20 +305,40 @@ if __name__ == '__main__':
 
 
 
-    MPI = False 
+    MPI = True
     if MPI:
         from mpi4py import MPI
 
         comm = MPI.COMM_WORLD
         rank, size = comm.Get_rank(), comm.Get_size()
 
+        chunks = None
         if rank == 0:
-            split_indices = np.array_split(np.arange(len(files)), size)
+            all_indices = np.array_split(np.arange(len(files)), size)
 
-            # You are here, creating an MPI version of test_model.py!!!!!
-            #split_files = [files[i] for i in indices for 
+            chunks = []
+            for indices in all_indices:
+                chunk = []
+                for i in indices:
+                    chunk.append((detector, files[i]))
+                chunks.append(chunk)
+            
+        chunk = comm.scatter(chunks, root=0)
 
-    elif 1:
+        #print(rank, len(chunk), chunk[0])
+        #import sys
+        #sys.exit(0)
+        import itertools as itr
+        chunk_res = map(detect_raw, chunk)
+
+        gathered_res = comm.gather(chunk_res, root=0)
+
+        if rank != 0:
+            # This node is no longer needed
+            sys.exit(0)
+        
+        res = itr.chain(*gathered_res)
+    elif 1: 
         if threading:
             from multiprocessing import Pool
             p = Pool(3)
@@ -518,13 +538,14 @@ if __name__ == '__main__':
                             
 
                  
-        # Get a snapshot of the current precision recall
-        detarr = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
-        detarr.sort(order='confidence')
-        p, r = gv.rescalc.calc_precision_recall(detarr, tot_tp_fn)
-        ap = gv.rescalc.calc_ap(p, r) 
+        if not MPI:
+            # Get a snapshot of the current precision recall
+            detarr = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
+            detarr.sort(order='confidence')
+            p, r = gv.rescalc.calc_precision_recall(detarr, tot_tp_fn)
+            ap = gv.rescalc.calc_ap(p, r) 
 
-        print("{ap:6.02f}% {loop} Testing file {img_id} (tp:{tp} tp+fp:{tp_fp} tp+fn:{tp_fn})".format(loop=loop, ap=100*ap, img_id=img_id, tp=tp, tp_fp=tp_fp, tp_fn=tp_fn))
+            print("{ap:6.02f}% {loop} Testing file {img_id} (tp:{tp} tp+fp:{tp_fp} tp+fn:{tp_fn})".format(loop=loop, ap=100*ap, img_id=img_id, tp=tp, tp_fp=tp_fp, tp_fn=tp_fn))
 
         # If logging
 

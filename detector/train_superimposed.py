@@ -1297,7 +1297,7 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf):
     absw_neg = -np.minimum(0, weights)
 
     import scipy.stats
-    almost_zero = scipy.stats.scoreatpercentile(np.fabs(weights), 20)
+    almost_zero = scipy.stats.scoreatpercentile(np.fabs(weights.ravel()), 20)
 
     #supp = detector.settings.get('indices_suppress_radius', 4)
     for absw in [absw_pos, absw_neg]:
