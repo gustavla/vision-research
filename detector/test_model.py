@@ -49,6 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('obj_class', metavar='<object class>', type=str, help='Object class')
     parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output file')
     parser.add_argument('--limit', type=int, default=None)
+    parser.add_argument('--offset', type=int, default=0)
     parser.add_argument('--mini', action='store_true', default=False)
     parser.add_argument('--contest', type=str, choices=gv.datasets.contests(), default='voc-val', help='Contest to try on')
     parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
@@ -59,6 +60,7 @@ if __name__ == '__main__':
     obj_class = args.obj_class
     output_file = args.output
     limit = args.limit
+    offset = args.offset
     mini = args.mini
     threading = not args.no_threading
     contest = args.contest
@@ -110,7 +112,7 @@ if __name__ == '__main__':
 
     if mini:
         files = filter(lambda x: len(x.boxes) > 0, files)
-    files = files[:limit]
+    files = files[offset:offset+limit]
 
     all_kp_only_weights = None
 
@@ -305,7 +307,7 @@ if __name__ == '__main__':
 
 
 
-    MPI = True
+    MPI = threading 
     if MPI:
         from mpi4py import MPI
 
