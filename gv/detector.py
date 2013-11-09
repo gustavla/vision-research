@@ -914,8 +914,8 @@ class BernoulliDetector(Detector):
         orig_resmap = resmap.copy()
 
         if use_scale_prior:
-            #resmap += 0.75 * factor
-            pass
+            resmap += self.settings.get('scale_prior', 0.0) * factor
+            #pass
 
         #{{{ Old experiments
         elif 0:
@@ -1121,8 +1121,6 @@ class BernoulliDetector(Detector):
 
             r = 3
 
-            #print 'max', resmap.max()
-
             for i0 in xrange(0, resmap.shape[0], s):
                 for j0 in xrange(0, resmap.shape[1], s): 
                      
@@ -1144,8 +1142,16 @@ class BernoulliDetector(Detector):
                         bk = -1 
                         X = bigger[i:i+sh0[0], j:j+sh0[1]].copy()
 
-                        # TODO: TURNED OFF!
-                        if cascade and 'svms' in self.extra and score >= cascade_score:
+                        #if np.fabs(X.mean() - 0.2) > 0.05:
+                            #score -= 3 
+
+
+                        #if X.mean() < 0.1:
+                            #score -= 10
+                        #if score >= 15:
+                            #print X.mean()
+
+                        if False and cascade and 'svms' in self.extra and score >= cascade_score:
                             # Take the maximum of a neighborhood
                             scores = []
                             Xes = []
@@ -1348,7 +1354,16 @@ class BernoulliDetector(Detector):
                             orig_im = padded_image[P0[0]:P1[0], P0[1]:P1[1]]
 
 
-                        dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, score0=orig_score, scale=factor, mixcomp=mixcomp, bkgcomp=bk, img_id=img_id, image=orig_im, X=X)
+                        dbb = gv.bb.DetectionBB(score=score, 
+                                                box=bb, 
+                                                index_pos=index_pos, 
+                                                confidence=conf, 
+                                                score0=orig_score, 
+                                                scale=factor, 
+                                                mixcomp=mixcomp, 
+                                                bkgcomp=bk, 
+                                                img_id=img_id, 
+                                                image=orig_im, X=X)
 
                         if gv.bb.area(bb) > 0:
                             bbs.append(dbb)
@@ -1447,7 +1462,10 @@ class BernoulliDetector(Detector):
         eps = self.settings['min_probability']
         bkg = np.clip(self.fixed_spread_bkg[mixcomp][0], eps, 1 - eps)
         kern = np.clip(self.kernel_templates[mixcomp][0], eps, 1 - eps)
-        return np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+        w = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+        #pd = self.kernel_templates[mixcomp][0].mean(axis=-1)
+        #return w / np.minimum(pd, 0.5)
+        return w
 
     def cascade_weights(self, mixcomp, bkgcomp):
         if bkgcomp == -1:

@@ -162,7 +162,7 @@ if __name__ == '__main__':
                     plt.title(EDGE_TITLES[i])
                     #if i == 3:
 
-                if originals:
+                if False and originals:
                     for i in xrange(min(20, len(originals))):
                         plt.subplot2grid((7,10), (5+i//10, i%10)).set_axis_off()
                         plt.imshow(originals[pi][i], interpolation='nearest', vmin=0, vmax=1, cmap=plt.cm.gray)
@@ -248,6 +248,13 @@ if __name__ == '__main__':
                 plt.savefig(os.path.join(mixture_dir, 'kp-density.png'))
                 plt.close()
 
+                # Average part density 
+                plt.figure()
+                part_density = detector.kernel_templates[m][0].mean(axis=-1)
+                plt.imshow(part_density, interpolation='nearest', vmin=0, vmax=1, cmap=plt.cm.cool)
+                plt.savefig(os.path.join(mixture_dir, 'part-density.png'))
+                plt.close()
+
                 # Base weight density
                 plt.figure()
                 mean_weights = base_weights.mean(axis=-1)
@@ -298,7 +305,20 @@ if __name__ == '__main__':
 
 
 
-    if 1:
+    MPI = False 
+    if MPI:
+        from mpi4py import MPI
+
+        comm = MPI.COMM_WORLD
+        rank, size = comm.Get_rank(), comm.Get_size()
+
+        if rank == 0:
+            split_indices = np.array_split(np.arange(len(files)), size)
+
+            # You are here, creating an MPI version of test_model.py!!!!!
+            #split_files = [files[i] for i in indices for 
+
+    elif 1:
         if threading:
             from multiprocessing import Pool
             p = Pool(3)
@@ -330,10 +350,11 @@ if __name__ == '__main__':
 
     parts_help = np.zeros((2, detector.num_features))
 
-    averages = [np.zeros((2,) + detector.kernel_templates[m][0].shape) for m in xrange(detector.num_mixtures)] 
+    if 0:
+        averages = [np.zeros((2,) + detector.kernel_templates[m][0].shape) for m in xrange(detector.num_mixtures)] 
 
-    averages_counts = np.zeros((detector.num_mixtures, 2), dtype=int)
-    colors = np.array(['b', 'r'])
+        averages_counts = np.zeros((detector.num_mixtures, 2), dtype=int)
+        colors = np.array(['b', 'r'])
 
     if logging:
         detections_dir = os.path.join(logdir, 'detections')
@@ -426,7 +447,7 @@ if __name__ == '__main__':
                         kp_only_weights = all_kp_only_weights[bbobj.mixcomp]
                         active_weights = kp_only_weights * bbobj.X
                         kp_mean = active_weights.mean(axis=-1)
-                        ax_kp_spatial.imshow(kp_mean, interpolation='nearest', vmin=-.1, vmax=.1, cmap=plt.cm.RdBu_r)
+                        ax_kp_spatial.imshow(kp_mean, interpolation='nearest', vmin=-.3, vmax=.3, cmap=plt.cm.RdBu_r)
                         ax_kp_spatial.set_title('Keypoints spatial weights')
 
                         # Parts keypoint weights

@@ -25,20 +25,22 @@ class PolarityBernoulliMM(object):
         pi = np.ones((K, P)) / (K * P)
         theta = self.random_state.uniform(eps, 1 - eps, size=(K, P, F))
 
+        self.q = np.empty((N, K, P))
+        logq = np.empty((N, K, P))
         for i in xrange(self.n_iter):
             ag.info("Iteration ", i+1)
-            logq = np.zeros((N, K, P))
             #logq[:] = np.log(pi)[np.newaxis,:,np.newaxis]
 
-            for k, p in itr.product(xrange(K), xrange(P)):
-                logq[:,k,p] = np.log(pi[k,p])
+            #for k, p in itr.product(xrange(K), xrange(P)):
+            #    logq[:,k,p] = np.log(pi[k,p])
+            logq[:] = np.log(pi[np.newaxis])
 
             for p in xrange(P):
                 p0, p1 = p, (p+1)%2
-                logq[:,:,p] = np.dot(X[:,p0], np.log(theta[:,0] / (1 - theta[:,0])).T) + np.log(1 - theta[:,0]).sum(axis=1)[np.newaxis] +\
-                              np.dot(X[:,p1], np.log(theta[:,1] / (1 - theta[:,1])).T) + np.log(1 - theta[:,1]).sum(axis=1)[np.newaxis]
+                logq[:,:,p] += np.dot(X[:,p0], np.log(theta[:,0] / (1 - theta[:,0])).T) + np.log(1 - theta[:,0]).sum(axis=1)[np.newaxis] +\
+                               np.dot(X[:,p1], np.log(theta[:,1] / (1 - theta[:,1])).T) + np.log(1 - theta[:,1]).sum(axis=1)[np.newaxis]
 
-            self.q = np.exp(logq)
+            self.q[:] = np.exp(logq)
             self.q /= np.apply_over_axes(np.sum, self.q, [1, 2])
 
             dens = np.apply_over_axes(np.sum, self.q, [0, 2])
@@ -50,8 +52,9 @@ class PolarityBernoulliMM(object):
             #new parts
             #pi[:] = np.apply_over_axes(np.sum, self.q, [0, 2])[0,:,0] / N
             pi[:] = np.apply_over_axes(np.sum, self.q, [0])[0,:,:] / N
+            pi[:] = np.clip(pi, 0.0001, 1 - 0.0001)
 
-            theta = np.clip(theta, eps, 1 - eps)
+            theta[:] = np.clip(theta, eps, 1 - eps)
             #pi = np.clip(pi, eps, 1 - eps)
 
             # Calculate the log likelihood

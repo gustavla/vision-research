@@ -4,5 +4,5 @@ from Cython.Distutils import extension
 
 setup(
     name = "gv",
-    ext_modules = cythonize('gv/fast.pyx'), # accepts a glob pattern
+    ext_modules = cythonize('gv/*.pyx'), # accepts a glob pattern
 )

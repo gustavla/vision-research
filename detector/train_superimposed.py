@@ -523,8 +523,10 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
             else:
                 all_kern[bkg_id] += feats
 
-            # TODO: This throws out low-activity negatives
-            if neg_feats.mean() > 0.04:
+            # NEW TODO: This throws out low-activity negatives
+            #if abs(neg_feats.mean() - 0.2) < 0.05:
+            #if neg_feats.mean() < 0.05:
+            if True:
                 all_b.append(neg_feats)
                 all_X.append(feats)
                 all_s.append(bin_alpha)
@@ -814,7 +816,7 @@ def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg,
     eps = settings['detector']['min_probability']
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
-    duplicates = settings['detector'].get('duplicates', 1) * duplicates_mult
+    duplicates = settings['detector'].get('standardization_duplicates', 1) * duplicates_mult
     cb = settings['detector'].get('crop_border')
 
     new_bkg = np.asarray([np.apply_over_axes(np.mean, bkg, [0, 1]) for bkg in all_bkg])
@@ -1571,6 +1573,8 @@ def superimposed_model(settings, threading=True):
 
     detector.settings['bkg_type'] = 'from-file'
 
+    detector._preprocess()
+
     # Determine the standardization values
     ag.info("Determining standardization values")
 
@@ -1832,7 +1836,7 @@ def superimposed_model(settings, threading=True):
             #detector.extra['bottom_th'].append(heapq.nsmallest(1, top_bbs[k])[0].score)
 
 
-    detector.extra['cascade_threshold'] = 4.0
+    detector.extra['cascade_threshold'] = 8.0
     if 0: # New SVM attempt 
         COUNT = 500 # YES
 

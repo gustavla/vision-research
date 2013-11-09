@@ -178,6 +178,10 @@ class PartsDescriptor(BinaryDescriptor):
         ag.info("Done.")
 
         counts = np.bincount(mixture.mixture_components(), minlength=self.num_parts)
+        print counts
+        print 'Total', np.sum(counts)
+        from scipy.stats.mstats import mquantiles
+        print mquantiles(counts)
 
         # Reject weak parts
         scores = np.empty(self.num_parts) 

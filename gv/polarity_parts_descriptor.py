@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 import random
 import copy
 import amitgroup as ag
@@ -6,7 +6,33 @@ import numpy as np
 import gv
 import math
 import itertools as itr
+import scipy
+import scipy.stats
 from .binary_descriptor import BinaryDescriptor
+
+def convert_partprobs_to_feature_vector(partprobs, tau=0.0):
+    X_dim_0 = partprobs.shape[0]
+    X_dim_1 = partprobs.shape[1]
+    num_parts = partprobs.shape[2] - 1
+    d = 0.0
+    mx = 0.0
+    feats = np.zeros((X_dim_0, X_dim_1, num_parts), dtype=np.uint8)
+
+    for i in xrange(X_dim_0):
+        for j in xrange(X_dim_1):
+            m = partprobs[i,j].argmax()
+            mx = partprobs[i,j,m]
+            if m != 0:
+                if mx > -150:
+                    d = partprobs[i,j,m] - 20
+                    for f in xrange(1,num_parts+1):
+                        if partprobs[i,j,f] >= d:
+                            feats[i,j,f-1] = 1 
+                else:
+                    feats[i,j,m-1] = 1
+
+    
+    return feats
 
 @BinaryDescriptor.register('polarity-parts')
 class PolarityPartsDescriptor(BinaryDescriptor):
@@ -185,6 +211,89 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         ag.info("Done.")
 
+        comps = mixture.mixture_components()
+        counts = np.bincount(comps[:,0], minlength=self.num_features)
+        self.extra['counts'] = counts
+
+        print counts
+        print 'Total', np.sum(counts)
+        from scipy.stats.mstats import mquantiles
+        print mquantiles(counts)
+
+
+        llhs = np.zeros(len(raw_patches))
+        # Now, sort out low-likelihood patches
+        for i, patch in enumerate(raw_patches):
+            patch0 = patch[0]
+            model = mixture.means_[tuple(comps[i])].reshape(patch0.shape)
+            llh = (patch0 * np.log(model)).sum() + ((1 - patch0) * np.log(1 - model)).sum()
+            llhs[i] = llh
+
+        means = []
+        sigmas = []
+        for f in xrange(self.num_features):
+            model = mixture.means_[f,0] 
+            mu = np.sum((model * np.log(model)) + (1 - model) * np.log(1 - model))
+            a = np.log(model / (1 - model))
+            sigma = np.sqrt((a**2 * model * (1 - model)).sum())
+
+            means.append(mu)
+            sigmas.append(sigma)
+        means = np.asarray(means)
+        sigmas = np.asarray(sigmas)
+
+        #self.extra['means'] = np.asarray(means)
+        #self.extra['stds'] = np.asarray(sigmas)
+
+        self.extra['means'] = scipy.ndimage.zoom(means, 2, order=0)
+        self.extra['stds'] = scipy.ndimage.zoom(sigmas, 2, order=0)
+
+
+        means2 = []
+        sigmas2 = []
+        
+        II = comps[:,0]
+
+        for f in xrange(self.num_features):
+            X = llhs[II == f]
+            mu = X.mean()
+            sigma = X.std()
+
+            means2.append(mu)
+            sigmas2.append(sigma)
+
+        #self.extra['means_emp'] = np.asarray(means2)
+        #self.extra['stds_emp'] = np.asarray(sigmas2)
+
+        self.extra['means_emp'] = scipy.ndimage.zoom(means2, 2, order=0)
+        self.extra['stds_emp'] = scipy.ndimage.zoom(sigmas2, 2, order=0)
+
+        II = comps[:,0]
+
+        #self.extra['comps'] = comps
+
+        #self.extra['llhs'] = llhs
+
+        if 0:
+            keepers = np.zeros(llhs.shape, dtype=np.bool)
+
+            for f in xrange(self.num_features):
+                llhs_f = llhs[II == f] 
+                th_f = scipy.stats.scoreatpercentile(llhs_f, 80)
+
+                keepers[(II == f) & (llhs >= th_f)] = True
+        else:
+            keepers = np.ones(llhs.shape, dtype=np.bool)
+
+        #th = scipy.stats.scoreatpercentile(llhs, 75)
+        #keepers = llhs >= th
+
+        raw_patches = raw_patches[keepers]
+        raw_originals = raw_originals[keepers]
+        #raw_originals = list(itr.compress(raw_originals, keepers))
+        comps = comps[keepers]
+
+        ag.info("Pruned")
 
         self.parts = mixture.means_.reshape((mixture.n_components, self.P) + raw_patches.shape[2:])
         self.orientations = None 
@@ -200,7 +309,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         self.visparts = np.zeros((mixture.n_components,) + raw_originals.shape[2:])
         counts = np.zeros(mixture.n_components)
         for n in xrange(raw_originals.shape[0]):
-            f, polarity = np.unravel_index(np.argmax(mixture.q[n]), mixture.q.shape[1:])
+            f, polarity = comps[n]# np.unravel_index(np.argmax(mixture.q[n]), mixture.q.shape[1:])
             self.visparts[f] += raw_originals[n,polarity]
             counts[f] += 1
         self.visparts /= counts[:,np.newaxis,np.newaxis]
@@ -211,33 +320,63 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         #self.extra['originals'] = [self.extra['originals'][ii] for ii in II]
 
-        comps = mixture.mixture_components()
-                
         #self.weights = mixture.weights_
 
         #self.extra['originals'] = originals
         weights = mixture.weights_
 
-        II = np.argsort(weights.max(axis=1))
+        #II = np.argsort(weights.max(axis=1))
+        #II = np.arange(self.parts.shape[0])
 
-        # Require at least 20 originals
-        II = filter(lambda ii: counts[ii] >= 20, II)
-
-        # Resort everything
-
-        self.parts = self.parts[II]
-        self.visparts = self.visparts[II]
-        #scores = scores[II]
-        counts = counts[II]
-
-        #self.extra['scores'] = scores
-        self.extra['counts'] = counts
-        self.extra['weights'] = weights[II]
         #self.extra['originals'] = [originals[ii] for ii in II]
         #self.extra['originals'] = [self.extra['originals'][ii] for ii in II]
 
+        self.num_parts = self.parts.shape[0]
+
+        self.parts = self.parts.reshape((self.parts.shape[0] * self.P,) + self.parts.shape[2:])
+
+        order_single = np.argsort(means / sigmas)
+        new_order_single = []
+        for f in order_single: 
+            part = self.parts[2*f] 
+            sh = part.shape
+            p = part.reshape((sh[0]*sh[1], sh[2]))
+            
+            pec = p.mean(axis=0)
+
+            N = np.sum(p * np.log(p/pec) + (1-p)*np.log((1-p)/(1-pec)))
+            D = np.sqrt(np.sum(np.log(p/pec * (1-pec)/(1-p))**2 * p * (1-p)))
+
+            ok = (N/D > 1) and counts[f] > 50
+              
+            if ok: 
+                new_order_single.append(f)
+
+        order_single = np.asarray(new_order_single)
+
+        self.num_parts = len(order_single)
+
+        order = np.zeros(self.num_features * 2, dtype=int) 
+        for f in xrange(self.num_features):
+            order[2*f] = order_single[f]*2
+            order[2*f+1] = order_single[f]*2+1
+        II = order
+
+        # Require at least 20 originals
+        #II = filter(lambda ii: counts[ii] >= 20, II)
+
+        # Resort everything
+        self.extra['means'] = self.extra['means'][II]
+        self.extra['stds'] = self.extra['stds'][II]
+        self.extra['means_emp'] = self.extra['means_emp'][II]
+        self.extra['stds_emp'] = self.extra['stds_emp'][II]
+        #self.extra['means_double']
+
+        self.parts = self.parts[II]
+        self.visparts = self.visparts[order_single]
+
         originals = []
-        for i in II:
+        for i in order_single:
             j = weights[i].argmax()
 
             # You were here: This line is not correct
@@ -249,11 +388,14 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             ims = np.asarray([raw_originals[tuple(ij)] for ij in itr.izip(II0, II1)])
             #ims = raw_originals[comps[:,0] == i,comps[:,1]].copy()
             originals.append(ims[:50])
-
         self.extra['originals'] = originals
-        self.num_parts = self.parts.shape[0]
 
-        self.parts = self.parts.reshape((self.parts.shape[0] * self.P,) + self.parts.shape[2:])
+        #scores = scores[II]
+        #counts = counts[II]
+
+        #self.extra['scores'] = scores
+        #self.extra['counts'] = counts
+        #self.extra['weights'] = weights[II]
 
         #for f in xrange(self.num_parts):
             #part = mixture.means_[f]
@@ -467,19 +609,19 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
             # Sort out low-probability ones
 
-            if 1:
+            if 0:
                 L = -np.ones(partprobs.shape[-1]) * np.inf
                 L[0] = 0
                 
-                import scipy.stats
                 max2 = scipy.stats.scoreatpercentile(partprobs, 98, axis=-1)
 
-                partprobs[max2 < -185] = L
+                partprobs[max2 < -195] = L
 
-                #feats = ag.features.convert_partprobs_to_feature_vector(partprobs.astype(np.float32), 2.0)
+               #feats = ag.features.convert_partprobs_to_feature_vector(partprobs.astype(np.float32), 2.0)
                 feats = ag.features.convert_part_to_feature_vector(partprobs.argmax(axis=-1).astype(np.uint32), self.num_parts*2)
             else:
                 feats = ag.features.convert_part_to_feature_vector(partprobs.argmax(axis=-1).astype(np.uint32), self.num_parts*2)
+                #feats = convert_partprobs_to_feature_vector(partprobs.astype(np.float32), 2.0)
 
 
         # Pad with background (TODO: maybe incorporate as an option to code_parts?)
