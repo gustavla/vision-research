@@ -93,7 +93,6 @@ class BernoulliDetector(Detector):
         resize_to = self.settings.get('image_size')
         for i, img_obj in enumerate(images):
             if isinstance(img_obj, str):
-                #print("Image file name", img_obj)
                 img = gv.img.load_image(img_obj)
             grayscale_img = gv.img.asgray(img)
 
@@ -245,8 +244,6 @@ class BernoulliDetector(Detector):
         mixture.data_length -= extra_bits
         mixture.templates = mixture.templates[:,:-extra_bits]
 
-        print mixture.templates.shape
-        print np.prod(shape)
         kernel_templates = np.clip(mixture.templates.reshape((self.num_mixtures,) + shape), 1e-5, 1-1e-5)
         kernel_sizes = [self.settings['image_size']] * self.num_mixtures
 
@@ -324,7 +321,7 @@ class BernoulliDetector(Detector):
             comps = mixture.mixture_components()
             for i, Xi in enumerate(X):
                 mixcomp = comps[i]
-                a = np.log(kernels[mixcomp]/(1-kernels[mixcomp]) * ((1-spread_bkg)/spread_bkg))
+                a = self.build_weights(kernels[mixcomp], spread_bkg)
                 llh = np.sum(Xi * a)
                 llhs[mixcomp].append(llh)
 
@@ -624,7 +621,7 @@ class BernoulliDetector(Detector):
             eps = self.settings['min_probability']
             spread_back = np.clip(spread_back, eps, 1 - eps)
 
-            weights = np.log(sub_kernels[0]/(1-sub_kernels[0]) * ((1-spread_back)/spread_back))
+            weights = self.build_weights(sub_kernels[0], spread_back)
             weights_plus = np.clip(np.log(sub_kernels[0]/(1-sub_kernels[0]) * ((1-spread_back)/spread_back)), 0, np.inf)
 
 
@@ -632,8 +629,6 @@ class BernoulliDetector(Detector):
         #}}}
 
         #means = feats0.reshape((-1, self.num_features)).mean(axis=0)
-        #print lhsss  
-        #print llhs, feats0.mean()
         if feats0.mean() < 0.02:
             return 0 
         else:
@@ -661,12 +656,9 @@ class BernoulliDetector(Detector):
         if 0:
             for bbobj in bbs:
                 new_score = self.calc_score(img, bbobj, score=bbobj.confidence)
-                #print 'Score: ', bbobj.confidence, ' -> ', new_score    
                 bbobj.confidence = new_score
 
-        #print '-----------'
         #for bbobj in bbs:
-        #    print bbobj.correct, bbobj.score
     
         return bbs
 
@@ -1078,9 +1070,9 @@ class BernoulliDetector(Detector):
 
         from scipy.stats import scoreatpercentile
         # TODO: Might be set too high
-        #th = scoreatpercentile(resmap.ravel(), 90)
+        th = scoreatpercentile(resmap.ravel(), 80)
         #th = -0.1
-        th = -np.inf
+        #th = -np.inf
         eps = self.settings['min_probability']
     
         #th = resmap.mean() 
@@ -1362,8 +1354,8 @@ class BernoulliDetector(Detector):
                                                 scale=factor, 
                                                 mixcomp=mixcomp, 
                                                 bkgcomp=bk, 
-                                                img_id=img_id, 
-                                                image=orig_im, X=X)
+                                                img_id=img_id)#,  KILLS MEMORY CONSUMPTION
+                                                #image=orig_im, X=X)
 
                         if gv.bb.area(bb) > 0:
                             bbs.append(dbb)
@@ -1402,7 +1394,6 @@ class BernoulliDetector(Detector):
                 for j in xrange(resmap.shape[1]):
                     score = resmap[i,j]
                     if score >= th:
-                        #print type(resmap)
                         conf = score
                         pos = resmap.pos((i, j))
                         #lower = resmap.pos((i + self.boundingboxes2[mixcomp][0]))
@@ -1454,15 +1445,21 @@ class BernoulliDetector(Detector):
         else:
             bbs_sorted = bbs_sorted[:15]
 
-        #print np.histogram(fs, 10)
-
         return bbs_sorted, resmap, bkgcomp
+
+    @classmethod
+    def build_weights(cls, obj, bkg):
+        w = np.log(obj / (1 - obj) * ((1 - bkg) / bkg))
+        #w[:,:,0] *= 8 
+        #w[:,:,1] *= 4
+        return w
 
     def weights(self, mixcomp):
         eps = self.settings['min_probability']
         bkg = np.clip(self.fixed_spread_bkg[mixcomp][0], eps, 1 - eps)
         kern = np.clip(self.kernel_templates[mixcomp][0], eps, 1 - eps)
-        w = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+        #w = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+        w = self.build_weights(kern, bkg)
         #pd = self.kernel_templates[mixcomp][0].mean(axis=-1)
         #return w / np.minimum(pd, 0.5)
         return w
@@ -1473,7 +1470,7 @@ class BernoulliDetector(Detector):
         eps = self.settings['min_probability']
         bkg = np.clip(self.extra['bkg_mixtures'][mixcomp][bkgcomp]['bkg'], eps, 1 - eps)
         kern = np.clip(self.extra['bkg_mixtures'][mixcomp][bkgcomp]['kern'], eps, 1 - eps)
-        return np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+        return self.build_weights(kern, bkg) 
 
     def keypoint_weights(self, mixcomp):
         w = self.weights(mixcomp)
@@ -1528,7 +1525,7 @@ class BernoulliDetector(Detector):
         clipped_kernels = np.clip(sub_kernels[mixcomp], eps, 1 - eps)
 
         #all_weights = np.asarray([np.log(clipped_kernels[k]/(1-clipped_kernels[k]) * ((1-clipped_bkg[k])/clipped_bkg[k])) for k in xrange(K)])
-        all_weights = np.log(clipped_kernels / (1 - clipped_kernels) * ((1 - clipped_bkg) / clipped_bkg))
+        all_weights = self.build_weights(clipped_kernels, clipped_bkg)
     
         from .fast import multifeature_correlate2d_multi, multifeature_correlate2d
         if 0:
@@ -1628,7 +1625,7 @@ class BernoulliDetector(Detector):
         spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
         kern = np.clip(kern, eps, 1 - eps) 
 
-        weights = np.log(kern/(1-kern) * ((1-spread_bkg)/spread_bkg))
+        weights = self.build_weights(kern, spread_bkg)
     
         from .fast import multifeature_correlate2d
 
@@ -1739,7 +1736,6 @@ class BernoulliDetector(Detector):
         bbs_sorted = sorted(bbs, reverse=True)
 
         overlap_threshold = self.settings.get('overlap_threshold', 0.5)
-        #print "TEMP TEMP TEMP TEMP!!!"
 
         # Suppress within a radius of H neighboring scale factors
         sf = self.settings['scale_factor']
@@ -1769,7 +1765,6 @@ class BernoulliDetector(Detector):
         """This returns a bounding box of the support for a given component"""
 
         # Take the bounding box of the support, with a certain threshold.
-        #print("Using alpha", self.use_alpha, "support", self.support)
         if self.support is not None:
             supp = self.support[k] 
             supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
@@ -1794,7 +1789,6 @@ class BernoulliDetector(Detector):
         """This returns a bounding box of the support for a given component"""
 
         # Take the bounding box of the support, with a certain threshold.
-        #print("Using alpha", self.use_alpha, "support", self.support)
         if 'bbs' in self.extra:
             supp = self.support[k] 
             bb = self.extra['bbs'][k]
@@ -1837,9 +1831,6 @@ class BernoulliDetector(Detector):
             for bb1obj in fileobj.boxes: 
                 bb1 = bb1obj.box
                 if bb1 not in used_bb:
-                    #print('union_area', gv.bb.union_area(bb1, bb2))
-                    #print('intersection_area', gv.bb.area(gv.bb.intersection(bb1, bb2)))
-                    #print('here', gv.bb.fraction_metric(bb1, bb2))
                     score = gv.bb.fraction_metric(bb1, bb2)
                     if score >= 0.5:
                         if best_score is None or score > best_score:

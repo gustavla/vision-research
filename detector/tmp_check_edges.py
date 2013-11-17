@@ -72,15 +72,36 @@ for count, f in enumerate(files[:10]):
     max_partprobs = np.zeros(partprobs.shape[:2])
 
     if 1:
+        sh = descriptor.parts.shape[1:3]
         for i, j in itr.product(xrange(partprobs.shape[0]), xrange(partprobs.shape[1])):
             #max_partprobs[i,j] = partprobs[i,j,argmax_partprobs[i,j]]
             ii = argmax_partprobs[i,j]
-            #if ii == 0:
-                #v = np.nan
-            #else:
-                #v = mus[ii]
-            #max_partprobs[i,j] = hash(ii**20)%200#partprobs[i,j,ii]# mus[ii] / sigmas[ii]# partprobs[i,j,ii]  #mus[ii]# / sigmas[ii]
-            max_partprobs[i,j] = hash(ii**20)%200#partprobs[i,j,ii]# mus[ii] / sigmas[ii]# partprobs[i,j,ii]  #mus[ii]# / sigmas[ii]
+            index = ii - 1
+
+            if ii == 0:
+                max_partprobs[i,j] = 0 
+            else:
+                obj = descriptor.parts[index]
+                avg = np.tile(obj.mean(axis=-1)[...,np.newaxis], obj.shape[-1])
+                X = edges[i:i+sh[0],j:j+sh[1]]
+                wplus = np.log(obj / avg)
+                wminus = np.log((1 - obj) / (1 - avg))
+
+                v = np.sum(X * wplus) + np.sum((1 - X) * wminus)
+
+
+                
+                #if ii == 0:
+                    #v = np.nan
+                #else:
+                    #v = mus[ii]
+
+                #bkg = descriptor.parts
+
+
+                max_partprobs[i,j] = v
+                #max_partprobs[i,j] = partprobs[i,j,ii]# mus[ii] / sigmas[ii]# partprobs[i,j,ii]  #mus[ii]# / sigmas[ii]
+                #max_partprobs[i,j] = hash(ii**20)%200#partprobs[i,j,ii]# mus[ii] / sigmas[ii]# partprobs[i,j,ii]  #mus[ii]# / sigmas[ii]
 
     #print partprobs.shape
     #max_partprobs = partprobs.max(axis=-1)
@@ -88,11 +109,13 @@ for count, f in enumerate(files[:10]):
     max2 = scipy.stats.scoreatpercentile(partprobs, 98, axis=-1)
     print max2.shape
 
-    max_partprobs[max_partprobs == 0] = np.nan
+    #max_partprobs[max_partprobs == 0] = np.nan
 
     fig = plt.figure()
     plt.subplot(111)
-    plt.imshow(max_partprobs, interpolation='nearest')
+    mm = max(max_partprobs.max(), -max_partprobs.min())
+    print mm
+    plt.imshow(max_partprobs, interpolation='nearest', vmin=-mm, vmax=mm, cmap=plt.cm.RdBu_r)
     plt.colorbar()
     plt.savefig('edges/{}-partprobs.png'.format(count))
     plt.close()

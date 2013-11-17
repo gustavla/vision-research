@@ -528,25 +528,53 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             # LEAVE-BEHIND: From multi-channel images
             unspread_edges = ag.features.bedges_from_image(image, **sett)
     
-
-        # Now do spreading
         edges = ag.features.bspread(unspread_edges, spread=self.bedges_settings()['spread'], radius=self.bedges_settings()['radius'])  
 
-        feats = self.extract_parts(edges, unspread_edges, settings=settings, dropout=dropout)
+        # Now do spreading
+        th = self.threshold_in_counts(self.settings['threshold'], edges.shape[-1])
 
-        sett = self.settings
-        sett.update(settings)
-        psize = sett.get('subsample_size', (1, 1))
-        feats = gv.sub.subsample(feats, psize)
+        if 1:
+            sett = self.settings
+            sett.update(settings)
+            psize = sett.get('subsample_size', (1, 1))
+            feats = ag.features.extract_parts(edges, unspread_edges, 
+                                              self._log_parts,
+                                              self._log_invparts,
+                                              th,
+                                              self.settings['patch_frame'],
+                                              spread_radii=sett['spread_radii'],
+                                              subsample_size=psize,
+                                              collapse=2)
+            
+            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
+            lower = (buf[0]//2, buf[1]//2)
+            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
 
-        buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
-        lower = (buf[0]//2, buf[1]//2)
-        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+        else:
+            feats = self.extract_parts(edges, unspread_edges, settings=settings, dropout=dropout)
 
-        # Now collapse the polarities
-        #feats = feats.reshape((int(feats.shape[0]//2), 2) + feats.shape[1:])
-        feats = feats.reshape(feats.shape[:2] + (feats.shape[2]//2, 2))
-        feats = feats.max(axis=-1)
+            sett = self.settings
+            sett.update(settings)
+            psize = sett.get('subsample_size', (1, 1))
+            feats = gv.sub.subsample(feats, psize)
+
+            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
+            lower = (buf[0]//2, buf[1]//2)
+            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+
+            # Now collapse the polarities
+            #feats = feats.reshape((int(feats.shape[0]//2), 2) + feats.shape[1:])
+            feats = feats.reshape(feats.shape[:2] + (feats.shape[2]//2, 2))
+            feats = feats.max(axis=-1)
+
+        # TODO: Experiment
+        if 1:
+            U = np.load('U3.npy')
+            new_feats = np.empty(feats.shape, dtype=np.uint8)
+            for i, j in itr.product(xrange(feats.shape[0]), xrange(feats.shape[1])):
+                # Transform the basis
+                new_feats[i,j] = (np.fabs(np.dot(feats[i,j], U)) >= 0.572).astype(np.uint8)
+            feats = new_feats
 
         return gv.ndfeature(feats, lower=lower, upper=upper)
 
