@@ -25,7 +25,6 @@ def map_unordered(function, sequence, *args, **kwargs):
     if rank == 0:
         # Controller
         for res in _mpi_controller_unordered(sequence, *args, **kwargs):
-            print "PROPAGATING"
             yield res
     else:
         # Worker

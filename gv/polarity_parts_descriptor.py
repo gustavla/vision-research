@@ -542,9 +542,10 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                                               self._log_invparts,
                                               th,
                                               self.settings['patch_frame'],
-                                              spread_radii=sett['spread_radii'],
+                                              spread_radii=sett.get('spread_radii', (1, 1)),
                                               subsample_size=psize,
-                                              collapse=2)
+                                              collapse=2,
+                                              accept_threshold=10.0)
             
             buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
             lower = (buf[0]//2, buf[1]//2)
@@ -568,7 +569,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             feats = feats.max(axis=-1)
 
         # TODO: Experiment
-        if 1:
+        if 0:
             U = np.load('U3.npy')
             new_feats = np.empty(feats.shape, dtype=np.uint8)
             for i, j in itr.product(xrange(feats.shape[0]), xrange(feats.shape[1])):
