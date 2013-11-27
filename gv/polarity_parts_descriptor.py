@@ -63,12 +63,12 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
     @property
     def num_features(self):
-        return TMP_each*self._num_parts
+        return self._num_parts
 
     # TODO: Remove this one
     @property
     def num_parts(self):
-        return TMP_each*self._num_parts
+        return self._num_parts
 
     @property
     def subsample_size(self):
