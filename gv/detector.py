@@ -1893,6 +1893,8 @@ class BernoulliDetector(Detector):
             obj.fixed_spread_bkg = d.get('fixed_spread_bkg')
             obj.fixed_spread_bkg2 = d.get('fixed_spread_bkg2') # TODO: New
 
+            obj.prepare_eps(obj.fixed_spread_bkg[0][0])
+
             obj.standardization_info = d.get('standardization_info')
             obj.standardization_info2 = d.get('standardization_info2')
             obj.clfs = d.get('clfs')
