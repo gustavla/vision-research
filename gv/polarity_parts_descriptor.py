@@ -34,8 +34,6 @@ def convert_partprobs_to_feature_vector(partprobs, tau=0.0):
     
     return feats
 
-TMP_each = 1
-
 @BinaryDescriptor.register('polarity-parts')
 class PolarityPartsDescriptor(BinaryDescriptor):
     def __init__(self, patch_size, num_parts, settings={}):
@@ -555,8 +553,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                                                   spread_radii=sett.get('spread_radii', (0, 0)),
                                                   subsample_size=psize,
                                                   collapse=2,
-                                                  accept_threshold=-100000,
-                                                  TMP_each=TMP_each)
+                                                  accept_threshold=-100000)
 
             else:
                 all_feats = []
@@ -569,8 +566,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                                                       spread_radii=sett.get('spread_radii', (0, 0)),
                                                       subsample_size=psize,
                                                       collapse=2,
-                                                      accept_threshold=-100000,
-                                                      TMP_each=TMP_each)
+                                                      accept_threshold=-100000)
                     all_feats.append(feats)
                 all_feats = np.asarray(all_feats)
 
