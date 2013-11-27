@@ -56,6 +56,7 @@ class BernoulliDetector(Detector):
         self.standardization_info = None
         self.standardization_info2 = None # TODO: New
         self.indices = None # TODO: Recently added, keeper?
+        self._eps = None
 
         self.indices2 = None
         self.clfs = None
@@ -466,7 +467,6 @@ class BernoulliDetector(Detector):
         if not self.use_basis:
             kernels = deepcopy(self.kernel_templates)
 
-        eps = sett['min_probability']
         psize = sett['subsample_size']
 
         if self.train_unspread:
@@ -522,7 +522,7 @@ class BernoulliDetector(Detector):
                 
 
         for i in xrange(self.num_mixtures):
-            sub_kernels[i] = np.clip(sub_kernels[i], eps, 1-eps)
+            sub_kernels[i] = np.clip(sub_kernels[i], self.eps, 1-self.eps)
 
         K = self.settings.get('quantize_bins')
         if K is not None:
@@ -618,8 +618,8 @@ class BernoulliDetector(Detector):
             neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
             # TODO: Don't do this anymore
             spread_back = 1 - (1 - unspread_bkg)**neighborhood_area
-            eps = self.settings['min_probability']
-            spread_back = np.clip(spread_back, eps, 1 - eps)
+            self.eps = self.settings['min_probability']
+            spread_back = np.clip(spread_back, self.eps, 1 - self.eps)
 
             weights = self.build_weights(sub_kernels[0], spread_back)
             weights_plus = np.clip(np.log(sub_kernels[0]/(1-sub_kernels[0]) * ((1-spread_back)/spread_back)), 0, np.inf)
@@ -1073,7 +1073,6 @@ class BernoulliDetector(Detector):
         th = scoreatpercentile(resmap.ravel(), 80)
         #th = -0.1
         #th = -np.inf
-        eps = self.settings['min_probability']
     
         #th = resmap.mean() 
         bbs = []
@@ -1084,7 +1083,7 @@ class BernoulliDetector(Detector):
 
         # TODO: New
         if self.TEMP_second:
-            kern0 = np.clip(kern[0], eps, 1 - eps)
+            kern0 = np.clip(kern[0], self.eps, 1 - self.eps)
             #bkg2 = np.clip(self.fixed_spread_bkg2[mixcomp][0], eps, 1 - eps)
             #weights2 = np.log(kern0 / (1 - kern0) * ((1 - bkg2) / bkg2))
 
@@ -1203,8 +1202,8 @@ class BernoulliDetector(Detector):
                                     # Check backgrounds
                                     for bk in xrange(BK):
                                         k, b = info[bk]['kern'], info[bk]['bkg']        
-                                        k = np.clip(k, eps, 1-eps)
-                                        b = np.clip(b, eps, 1-eps)
+                                        k = np.clip(k, self.eps, 1-self.eps)
+                                        b = np.clip(b, self.eps, 1-self.eps)
                                         weights = np.log(k / (1 - k) * ((1 - b) / b))
 
                                         # Does not use keypoints, hmm???
@@ -1216,8 +1215,8 @@ class BernoulliDetector(Detector):
                                 else:
                                     bk = 0
                                 k, b = info[bk]['kern'], info[bk]['bkg']        
-                                k = np.clip(k, eps, 1-eps)
-                                b = np.clip(b, eps, 1-eps)
+                                k = np.clip(k, self.eps, 1-self.eps)
+                                b = np.clip(b, self.eps, 1-self.eps)
                                 weights = np.log(k / (1 - k) * ((1 - b) / b))
 
                                 #R = (X * weights).sum()
@@ -1236,8 +1235,8 @@ class BernoulliDetector(Detector):
                             if self.indices2 is not None and score >= self.extra['bottom_th'][0] and False: 
                                 X = bigger[i:i+sh0[0], j:j+sh0[1]]
                                 
-                                bkg = np.clip(self.fixed_spread_bkg2[mixcomp][0], eps, 1 - eps)
-                                kern = np.clip(self.kernel_templates[mixcomp][0], eps, 1 - eps)
+                                bkg = np.clip(self.fixed_spread_bkg2[mixcomp][0], self.eps, 1 - self.eps)
+                                kern = np.clip(self.kernel_templates[mixcomp][0], self.eps, 1 - self.eps)
                                 weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
 
                                 from gv.fast import multifeature_correlate2d_with_indices 
@@ -1450,14 +1449,25 @@ class BernoulliDetector(Detector):
     @classmethod
     def build_weights(cls, obj, bkg):
         w = np.log(obj / (1 - obj) * ((1 - bkg) / bkg))
-        #w[:,:,0] *= 8 
-        #w[:,:,1] *= 4
         return w
 
+    def prepare_eps(self, model):
+        eps = self.settings.get('min_probability')
+        if eps is None:
+            import scipy.stats.mstats as ms
+            self._eps = ms.scoreatpercentile(model.ravel(), self.settings['min_probability_percentile'])
+        else:
+            self._eps = eps 
+
+    @classmethod
+    def build_clipped_weights(cls, obj, bkg, eps):
+        clipped_bkg = np.clip(bkg, eps, 1 - eps)
+        clipped_obj = np.clip(obj, eps, 1 - eps)
+        return cls.build_weights(clipped_obj, clipped_bkg)
+
     def weights(self, mixcomp):
-        eps = self.settings['min_probability']
-        bkg = np.clip(self.fixed_spread_bkg[mixcomp][0], eps, 1 - eps)
-        kern = np.clip(self.kernel_templates[mixcomp][0], eps, 1 - eps)
+        bkg = np.clip(self.fixed_spread_bkg[mixcomp][0], self.eps, 1 - self.eps)
+        kern = np.clip(self.kernel_templates[mixcomp][0], self.eps, 1 - self.eps)
         #w = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
         w = self.build_weights(kern, bkg)
         #pd = self.kernel_templates[mixcomp][0].mean(axis=-1)
@@ -1467,9 +1477,8 @@ class BernoulliDetector(Detector):
     def cascade_weights(self, mixcomp, bkgcomp):
         if bkgcomp == -1:
             return self.weights(mixcomp)
-        eps = self.settings['min_probability']
-        bkg = np.clip(self.extra['bkg_mixtures'][mixcomp][bkgcomp]['bkg'], eps, 1 - eps)
-        kern = np.clip(self.extra['bkg_mixtures'][mixcomp][bkgcomp]['kern'], eps, 1 - eps)
+        bkg = np.clip(self.extra['bkg_mixtures'][mixcomp][bkgcomp]['bkg'], self.eps, 1 - self.eps)
+        kern = np.clip(self.extra['bkg_mixtures'][mixcomp][bkgcomp]['kern'], self.eps, 1 - self.eps)
         return self.build_weights(kern, bkg) 
 
     def keypoint_weights(self, mixcomp):
@@ -1512,7 +1521,6 @@ class BernoulliDetector(Detector):
         radii = self.settings['spread_radii']
         neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
 
-        eps = self.settings['min_probability']
         #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
 
         
@@ -1521,8 +1529,8 @@ class BernoulliDetector(Detector):
         #kern = np.clip(kern, eps, 1 - eps) 
         #clipped_bkg = np.asarray([np.clip(b, eps, 1-eps) for b in spread_bkg[mixcomp]])
         #clipped_kernels = np.asarray([np.clip(kern, eps, 1-eps) for kern in sub_kernels[mixcomp]])
-        clipped_bkg = np.clip(spread_bkg[mixcomp], eps, 1 - eps)
-        clipped_kernels = np.clip(sub_kernels[mixcomp], eps, 1 - eps)
+        clipped_bkg = np.clip(spread_bkg[mixcomp], self.eps, 1 - self.eps)
+        clipped_kernels = np.clip(sub_kernels[mixcomp], self.eps, 1 - self.eps)
 
         #all_weights = np.asarray([np.log(clipped_kernels[k]/(1-clipped_kernels[k]) * ((1-clipped_bkg[k])/clipped_bkg[k])) for k in xrange(K)])
         all_weights = self.build_weights(clipped_kernels, clipped_bkg)
@@ -1617,13 +1625,12 @@ class BernoulliDetector(Detector):
         radii = self.settings['spread_radii']
         neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
 
-        eps = self.settings['min_probability']
         #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
 
         
         # TEMP
-        spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
-        kern = np.clip(kern, eps, 1 - eps) 
+        spread_bkg = np.clip(spread_bkg, self.eps, 1 - self.eps)
+        kern = np.clip(kern, self.eps, 1 - self.eps) 
 
         weights = self.build_weights(kern, spread_bkg)
     
@@ -1847,11 +1854,17 @@ class BernoulliDetector(Detector):
                     tot += 1
                 used_bb.add(best_bb)
 
+    @property
+    def eps(self):
+        return self._eps
+
+
     def _preprocess(self):
         """Pre-processes things"""
         # Prepare bounding boxes for all mixture model
         self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
         self.boundingboxes2 = np.array([self.bounding_box_for_mix_comp2(i) for i in xrange(self.num_mixtures)])
+        self.prepare_eps(self.fixed_spread_bkg[0][0])
 
     @classmethod
     def load_from_dict(cls, d):

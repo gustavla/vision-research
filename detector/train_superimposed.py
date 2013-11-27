@@ -249,7 +249,6 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
     gen = generate_random_patches(neg_files, size, seed=0)
     descriptor = gv.load_descriptor(settings)
 
-    eps = settings['detector']['min_probability']
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
     duplicates = settings['detector'].get('duplicates', 1)
@@ -326,7 +325,6 @@ def _create_kernel_for_mixcomp2(mixcomp, settings, bb, indices, files, neg_files
     
     descriptor = gv.load_descriptor(settings)
 
-    eps = settings['detector']['min_probability']
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
     duplicates = settings['detector'].get('duplicates', 1)
@@ -462,7 +460,6 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
     
     descriptor = gv.load_descriptor(settings)
 
-    eps = settings['detector']['min_probability']
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
     duplicates = settings['detector'].get('duplicates', 1)
@@ -496,6 +493,7 @@ def _create_kernel_for_mixcomp3(mixcomp, settings, bb, indices, files, neg_files
             neg_im = gen.next()
             neg_feats = descriptor.extract_features(neg_im, settings=setts)
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
+
             feats = descriptor.extract_features(superimposed_im, settings=setts)
 
             if K > 1:
@@ -614,7 +612,6 @@ def _create_kernel_from_negs(mixcomp, settings, bb, indices, files, neg_ims):
     
     descriptor = gv.load_descriptor(settings)
 
-    eps = settings['detector']['min_probability']
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
     duplicates = settings['detector'].get('duplicates', 1)
@@ -700,106 +697,109 @@ def _load_cad_image(fn, im_size, bb):
     gray_im, alpha = gv.img.asgray(im), im[...,3] 
     return gray_im, alpha
         
-def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices, files, neg_files):
-    im_size = settings['detector']['image_size']
-    size = gv.bb.size(bb)
+#{{{
+if 0:
+    def _calc_standardization_for_mixcomp(mixcomp, settings, bb, kern, bkg, indices, files, neg_files):
+        im_size = settings['detector']['image_size']
+        size = gv.bb.size(bb)
 
-    # Use the same seed for all mixture components! That will make them easier to compare,
-    # without having to sample to infinity.
-    gen = generate_random_patches(neg_files, size, seed=0)
-    descriptor = gv.load_descriptor(settings)
+        # Use the same seed for all mixture components! That will make them easier to compare,
+        # without having to sample to infinity.
+        gen = generate_random_patches(neg_files, size, seed=0)
+        descriptor = gv.load_descriptor(settings)
 
-    eps = settings['detector']['min_probability']
-    radii = settings['detector']['spread_radii']
-    psize = settings['detector']['subsample_size']
-    duplicates = settings['detector'].get('duplicates', 1) 
-    cb = settings['detector'].get('crop_border')
+        eps = settings['detector']['min_probability']
+        radii = settings['detector']['spread_radii']
+        psize = settings['detector']['subsample_size']
+        duplicates = settings['detector'].get('duplicates', 1) 
+        cb = settings['detector'].get('crop_border')
 
-    total = 0
+        total = 0
 
-    neg_llhs = []
-    llhs = []
+        neg_llhs = []
+        llhs = []
 
-    kern = np.clip(kern, eps, 1 - eps)
-    bkg = np.clip(bkg, eps, 1 - eps)
-    weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+        kern = np.clip(kern, eps, 1 - eps)
+        bkg = np.clip(bkg, eps, 1 - eps)
+        weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
 
-    for index in indices: 
-        ag.info("Standardizing image of index {0} and mixture component {1}".format(index, mixcomp))
-        gray_im, alpha = _load_cad_image(files[index], im_size, bb)
-        for dup in xrange(duplicates):
-            neg_im = gen.next()
-            superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
-            #superimposed_im = neg_im
+        for index in indices: 
+            ag.info("Standardizing image of index {0} and mixture component {1}".format(index, mixcomp))
+            gray_im, alpha = _load_cad_image(files[index], im_size, bb)
+            for dup in xrange(duplicates):
+                neg_im = gen.next()
+                superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
+                #superimposed_im = neg_im
 
-            neg_feats = descriptor.extract_features(neg_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
-            neg_llh = float((weights * neg_feats).sum())
-            neg_llhs.append(neg_llh)
+                neg_feats = descriptor.extract_features(neg_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
+                neg_llh = float((weights * neg_feats).sum())
+                neg_llhs.append(neg_llh)
 
-            feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
-            llh = float((weights * feats).sum())
-            llhs.append(llh)
+                feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
+                llh = float((weights * feats).sum())
+                llhs.append(llh)
 
-    #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
+        #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
 
-    return np.asarray(llhs), np.asarray(neg_llhs)
-    #return np.mean(llhs), np.std(llhs)
+        return np.asarray(llhs), np.asarray(neg_llhs)
+        #return np.mean(llhs), np.std(llhs)
+    def _calc_standardization_for_mixcomp_star(args):
+        return _calc_standardization_for_mixcomp(*args)
 
-def _calc_standardization_for_mixcomp_star(args):
-    return _calc_standardization_for_mixcomp(*args)
 
-def _calc_standardization_for_mixcomp2(mixcomp, settings, bb, kern, bkg, indices, files, neg_files, neg_selectors=None, duplicates_mult=1):
-    im_size = settings['detector']['image_size']
-    size = gv.bb.size(bb)
+    def _calc_standardization_for_mixcomp2(mixcomp, settings, bb, kern, bkg, indices, files, neg_files, neg_selectors=None, duplicates_mult=1):
+        im_size = settings['detector']['image_size']
+        size = gv.bb.size(bb)
 
-    # Use the same seed for all mixture components! That will make them easier to compare,
-    # without having to sample to infinity.
-    gen = generate_random_patches(neg_files, size, seed=0)
-    if neg_selectors is not None:
-        gen = itr.compress(gen, neg_selectors)
-    gen = itr.cycle(gen)
-    descriptor = gv.load_descriptor(settings)
+        # Use the same seed for all mixture components! That will make them easier to compare,
+        # without having to sample to infinity.
+        gen = generate_random_patches(neg_files, size, seed=0)
+        if neg_selectors is not None:
+            gen = itr.compress(gen, neg_selectors)
+        gen = itr.cycle(gen)
+        descriptor = gv.load_descriptor(settings)
 
-    eps = settings['detector']['min_probability']
-    radii = settings['detector']['spread_radii']
-    psize = settings['detector']['subsample_size']
-    duplicates = settings['detector'].get('duplicates', 1) * duplicates_mult
-    cb = settings['detector'].get('crop_border')
+        eps = settings['detector']['min_probability']
+        radii = settings['detector']['spread_radii']
+        psize = settings['detector']['subsample_size']
+        duplicates = settings['detector'].get('duplicates', 1) * duplicates_mult
+        cb = settings['detector'].get('crop_border')
 
-    total = 0
+        total = 0
 
-    neg_llhs = []
-    llhs = []
+        neg_llhs = []
+        llhs = []
 
-    kern = np.clip(kern, eps, 1 - eps)
-    bkg = np.clip(bkg, eps, 1 - eps)
-    weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
-    print(indices)
+        kern = np.clip(kern, eps, 1 - eps)
+        bkg = np.clip(bkg, eps, 1 - eps)
+        weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+        print(indices)
 
-    for index in indices: 
-        ag.info("Standardizing image of index {0} and mixture component {1}".format(index, mixcomp))
-        gray_im, alpha = _load_cad_image(files[index], im_size, bb)
-        for dup in xrange(duplicates):
-            neg_im = gen.next()
-            superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
-            #superimposed_im = neg_im
+        for index in indices: 
+            ag.info("Standardizing image of index {0} and mixture component {1}".format(index, mixcomp))
+            gray_im, alpha = _load_cad_image(files[index], im_size, bb)
+            for dup in xrange(duplicates):
+                neg_im = gen.next()
+                superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
+                #superimposed_im = neg_im
 
-            neg_feats = descriptor.extract_features(neg_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
-            neg_llh = float((weights * neg_feats).sum())
-            neg_llhs.append(neg_llh)
+                neg_feats = descriptor.extract_features(neg_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
+                neg_llh = float((weights * neg_feats).sum())
+                neg_llhs.append(neg_llh)
 
-            feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
-            llh = float((weights * feats).sum())
-            llhs.append(llh)
+                feats = descriptor.extract_features(superimposed_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
+                llh = float((weights * feats).sum())
+                llhs.append(llh)
 
-    #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
+        #np.save('llhs-{0}.npy'.format(mixcomp), llhs)
 
-    #return np.mean(llhs), np.std(llhs)
-    return np.asarray(llhs), np.asarray(neg_llhs)
+        #return np.mean(llhs), np.std(llhs)
+        return np.asarray(llhs), np.asarray(neg_llhs)
 
-def _calc_standardization_for_mixcomp2_star(args):
-    return _calc_standardization_for_mixcomp2(*args)
+    def _calc_standardization_for_mixcomp2_star(args):
+        return _calc_standardization_for_mixcomp2(*args)
 
+#}}}
 def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg, bkg_mixture_params, indices, files, neg_files, weight_indices, duplicates_mult=1):
     im_size = settings['detector']['image_size']
     size = gv.bb.size(bb)
@@ -813,7 +813,12 @@ def _calc_standardization_for_mixcomp3(mixcomp, settings, bb, all_kern, all_bkg,
     gen = generate_random_patches(neg_files, size, seed=0)
     descriptor = gv.load_descriptor(settings)
 
-    eps = settings['detector']['min_probability']
+    eps = settings['detector'].get('min_probability')
+    if eps is None:
+        b = np.apply_over_axes(np.mean, all_bkg[0], [0, 1])[0,0]
+        import scipy.stats.mstats as ms
+        eps = ms.scoreatpercentile(b, 10).flat[0]
+
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
     duplicates = settings['detector'].get('standardization_duplicates', 1) * duplicates_mult
@@ -1593,10 +1598,13 @@ def superimposed_model(settings, threading=True):
             for m in xrange(detector.num_bkg_mixtures): 
                 kern = detector.kernel_templates[k][m]
                 bkg = detector.fixed_spread_bkg[k][m]
-                eps = detector.settings['min_probability']
-                kern = np.clip(kern, eps, 1 - eps)
-                bkg = np.clip(bkg, eps, 1 - eps)
-                weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+                if detector.eps is None:
+                    detector.prepare_eps(bkg)
+
+                #kern = np.clip(kern, detector.eps, 1 - eps)
+                #bkg = np.clip(bkg, eps, 1 - eps)
+                #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+                weights = detector.build_clipped_weights(kern, bkg, detector.eps)
 
                 indices = get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
                 these_indices.append(indices)
@@ -1797,9 +1805,10 @@ def superimposed_model(settings, threading=True):
                 for f in xrange(bkg.shape[-1]):
                     bkg[...,f] = bkg[...,f].mean()
 
-                clipped_kern = np.clip(kern, eps, 1 - eps) 
-                clipped_bkg = np.clip(bkg, eps, 1 - eps) 
-                weights = np.log(clipped_kern / (1 - clipped_kern) * ((1 - clipped_bkg) / clipped_bkg))
+                #clipped_kern = np.clip(kern, eps, 1 - eps) 
+                #clipped_bkg = np.clip(bkg, eps, 1 - eps) 
+                #weights = np.log(clipped_kern / (1 - clipped_kern) * ((1 - clipped_bkg) / clipped_bkg))
+                weights = detector.build_clipped_weights(kern, bkg, eps)
 
                 # Find indices
                 indices_bk = get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
@@ -2050,9 +2059,10 @@ def superimposed_model(settings, threading=True):
 
         detector.indices2 = []
         for k in xrange(detector.num_mixtures):
-            bkg = np.clip(bkgs2[k][0], eps, 1 - eps)
-            kern = np.clip(detector.kernel_templates[k][0], eps, 1 - eps)
-            weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+            #bkg = np.clip(bkgs2[k][0], eps, 1 - eps)
+            #kern = np.clip(detector.kernel_templates[k][0], eps, 1 - eps)
+            #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+            weights = detector.build_clipped_weights(detector.kernel_templates[k][0], bkgs2[k][0], eps)
 
             detector.indices2.append(get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4)))
 

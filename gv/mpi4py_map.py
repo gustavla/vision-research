@@ -296,6 +296,7 @@ def _mpi_worker(function, sequence, *args, **kwargs):
                 # Send to master that we are quitting
                 MPI.COMM_WORLD.send((recv, None), dest=0, tag=2)
                 # Reraise exception
+                import traceback
                 raise e
 
             if debug: print("Worker %i on %s: finished job %i" % (rank, proc_name, recv))

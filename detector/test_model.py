@@ -312,7 +312,7 @@ if __name__ == '__main__':
 
 
 
-    MPI = True #threading 
+    MPI = threading 
     if MPI:
         from mpi4py import MPI
 

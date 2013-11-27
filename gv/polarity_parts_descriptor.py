@@ -34,11 +34,13 @@ def convert_partprobs_to_feature_vector(partprobs, tau=0.0):
     
     return feats
 
+TMP_each = 1
+
 @BinaryDescriptor.register('polarity-parts')
 class PolarityPartsDescriptor(BinaryDescriptor):
     def __init__(self, patch_size, num_parts, settings={}):
         self.patch_size = patch_size
-        self.num_parts = num_parts 
+        self._num_parts = num_parts 
 
         self.parts = None
         self.unspread_parts = None
@@ -63,7 +65,12 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
     @property
     def num_features(self):
-        return self.num_parts
+        return TMP_each*self._num_parts
+
+    # TODO: Remove this one
+    @property
+    def num_parts(self):
+        return TMP_each*self._num_parts
 
     @property
     def subsample_size(self):
@@ -206,7 +213,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         llhs = []
         from gv.polarity_bernoulli_mm import PolarityBernoulliMM
 
-        mixture = PolarityBernoulliMM(n_components=self.num_parts, n_iter=20, random_state=0, min_probability=self.settings['min_probability'])
+        mixture = PolarityBernoulliMM(n_components=self._num_parts, n_iter=20, random_state=0, min_probability=self.settings['min_probability'])
         mixture.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
 
         ag.info("Done.")
@@ -331,7 +338,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         #self.extra['originals'] = [originals[ii] for ii in II]
         #self.extra['originals'] = [self.extra['originals'][ii] for ii in II]
 
-        self.num_parts = self.parts.shape[0]
+        self._num_parts = self.parts.shape[0]
 
         self.parts = self.parts.reshape((self.parts.shape[0] * self.P,) + self.parts.shape[2:])
 
@@ -354,7 +361,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         order_single = np.asarray(new_order_single)
 
-        self.num_parts = len(order_single)
+        self._num_parts = len(order_single)
+        print 'num_parts', self._num_parts
 
         order = np.zeros(self.num_features * 2, dtype=int) 
         for f in xrange(self.num_features):
@@ -470,7 +478,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             #self.unspread_parts = unspread_parts_all[ok]
             #self.unspread_parts_padded = unspread_parts_padded_all[ok]
             self.visparts = visparts[ok]
-            self.num_parts = self.parts.shape[0]
+            self._num_parts = self.parts.shape[0]
             
             # Update num_parts
             
@@ -485,7 +493,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                 E = self.parts.shape[-1]
                 ang = np.array([[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, 1]])
                 nang = ang / np.expand_dims(np.sqrt(ang[:,0]**2 + ang[:,1]**2), 1)
-                orrs = np.apply_over_axes(np.mean, self.parts, [1, 2]).reshape((self.num_parts, -1))
+                orrs = np.apply_over_axes(np.mean, self.parts, [1, 2]).reshape((self._num_parts, -1))
                 if E == 8:
                     orrs = orrs[...,:4] + orrs[...,4:]    
                 nang = nang[:4]
@@ -533,19 +541,40 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         # Now do spreading
         th = self.threshold_in_counts(self.settings['threshold'], edges.shape[-1])
 
-        if 1:
+        # TODO : Since we're using a hard-coded tau
+        if self.settings.get('tau', 0) == 0:
             sett = self.settings
             sett.update(settings)
             psize = sett.get('subsample_size', (1, 1))
-            feats = ag.features.extract_parts(edges, unspread_edges, 
-                                              self._log_parts,
-                                              self._log_invparts,
-                                              th,
-                                              self.settings['patch_frame'],
-                                              spread_radii=sett.get('spread_radii', (1, 1)),
-                                              subsample_size=psize,
-                                              collapse=2,
-                                              accept_threshold=10.0)
+            if 1:
+                feats = ag.features.extract_parts(edges, unspread_edges, 
+                                                  self._log_parts,
+                                                  self._log_invparts,
+                                                  th,
+                                                  self.settings['patch_frame'],
+                                                  spread_radii=sett.get('spread_radii', (0, 0)),
+                                                  subsample_size=psize,
+                                                  collapse=2,
+                                                  accept_threshold=-100000,
+                                                  TMP_each=TMP_each)
+
+            else:
+                all_feats = []
+                for i in xrange(10):
+                    feats = ag.features.extract_parts(edges, unspread_edges, 
+                                                      self._log_parts,
+                                                      self._log_invparts,
+                                                      th,
+                                                      self.settings['patch_frame'],
+                                                      spread_radii=sett.get('spread_radii', (0, 0)),
+                                                      subsample_size=psize,
+                                                      collapse=2,
+                                                      accept_threshold=-100000,
+                                                      TMP_each=TMP_each)
+                    all_feats.append(feats)
+                all_feats = np.asarray(all_feats)
+
+                feats = all_feats.max(axis=0)
             
             buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
             lower = (buf[0]//2, buf[1]//2)
@@ -573,8 +602,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             U = np.load('U3.npy')
             new_feats = np.empty(feats.shape, dtype=np.uint8)
             for i, j in itr.product(xrange(feats.shape[0]), xrange(feats.shape[1])):
-                # Transform the basis
-                new_feats[i,j] = (np.fabs(np.dot(feats[i,j], U)) >= 0.572).astype(np.uint8)
+                # Transform the basis 0.572
+                new_feats[i,j] = (np.fabs(np.dot(feats[i,j], U)) >= 0.75).astype(np.uint8)
             feats = new_feats
 
         return gv.ndfeature(feats, lower=lower, upper=upper)
@@ -649,8 +678,9 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                #feats = ag.features.convert_partprobs_to_feature_vector(partprobs.astype(np.float32), 2.0)
                 feats = ag.features.convert_part_to_feature_vector(partprobs.argmax(axis=-1).astype(np.uint32), self.num_parts*2)
             else:
-                feats = ag.features.convert_part_to_feature_vector(partprobs.argmax(axis=-1).astype(np.uint32), self.num_parts*2)
-                #feats = convert_partprobs_to_feature_vector(partprobs.astype(np.float32), 2.0)
+                #feats = ag.features.convert_part_to_feature_vector(partprobs.argmax(axis=-1).astype(np.uint32), self.num_parts*2)
+                #feats = convert_partprobs_to_feature_vector(partprobs.astype(np.float32), 0.0)
+                feats = ag.features.convert_partprobs_to_feature_vector(partprobs.astype(np.float32), self.settings.get('tau', 0))
 
 
         # Pad with background (TODO: maybe incorporate as an option to code_parts?)
@@ -760,7 +790,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
     def save_to_dict(self):
         # TODO: Experimental
         #return dict(num_parts=self.num_parts, patch_size=self.patch_size, parts=self.parts, visparts=self.visparts, settings=self.settings)
-        return dict(num_parts=self.num_parts, 
+        return dict(num_parts=self._num_parts, 
                     patch_size=self.patch_size, 
                     parts=self.parts, 
                     unspread_parts=self.unspread_parts, 
