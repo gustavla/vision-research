@@ -1579,6 +1579,7 @@ def superimposed_model(settings, threading=True):
     detector.settings['bkg_type'] = 'from-file'
 
     detector._preprocess()
+    detector.prepare_eps(detector.fixed_spread_bkg[0][0])
 
     # Determine the standardization values
     ag.info("Determining standardization values")

@@ -1864,7 +1864,6 @@ class BernoulliDetector(Detector):
         # Prepare bounding boxes for all mixture model
         self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
         self.boundingboxes2 = np.array([self.bounding_box_for_mix_comp2(i) for i in xrange(self.num_mixtures)])
-        self.prepare_eps(self.fixed_spread_bkg[0][0])
 
     @classmethod
     def load_from_dict(cls, d):
