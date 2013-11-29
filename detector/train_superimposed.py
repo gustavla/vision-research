@@ -946,15 +946,21 @@ def _calc_standardization_for_mixcomp3_star(args):
 def _calc_standardization_for_mixcomp4(mixcomp, settings, bb, all_kern, all_bkg, bkg_mixture_params, indices, files, neg_files, weight_indices, duplicates_mult=1):
 
     K = len(bkg_mixture_params)
-    eps = settings['detector']['min_probability']
+    #eps = settings['detector']['min_probability']
+    eps = gv.BernoulliDetector.calc_eps(all_bkg[0], settings['detector'])
+
+    #descriptor = gv.load_descriptor(settings)
+    #descriptor.prepare_eps(all_clipped_bkg[0])
 
     all_clipped_kern = [np.clip(kern, eps, 1 - eps) for kern in all_kern] 
     all_clipped_bkg = [np.clip(bkg, eps, 1 - eps) for bkg in all_bkg]
     weights = [np.log(all_clipped_kern[k] / (1 - all_clipped_kern[k]) * ((1 - all_clipped_bkg[k]) / all_clipped_bkg[k])) for k in xrange(K)]
+
+
     #const_weights = [np.log((1 - all_clipped_kern[k]) / ((1 - all_clipped_bkg[k]) / all_clipped_bkg[k])) for k in xrange(K)]
 
-    plus_weights = [np.log(all_clipped_kern[k] / all_clipped_bkg[k]) for k in xrange(K)]
-    minus_weights = [np.log((1 - all_clipped_kern[k]) / (1 - all_clipped_bkg[k])) for k in xrange(K)]
+    #plus_weights = [np.log(all_clipped_kern[k] / all_clipped_bkg[k]) for k in xrange(K)]
+    #minus_weights = [np.log((1 - all_clipped_kern[k]) / (1 - all_clipped_bkg[k])) for k in xrange(K)]
 
 
     standardization_info = []

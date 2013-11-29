@@ -1451,6 +1451,15 @@ class BernoulliDetector(Detector):
         w = np.log(obj / (1 - obj) * ((1 - bkg) / bkg))
         return w
 
+    @classmethod
+    def calc_eps(self, model, settings):
+        eps = settings.get('min_probability')
+        if eps is None:
+            import scipy.stats.mstats as ms
+            return ms.scoreatpercentile(model.ravel(), settings['min_probability_percentile'])
+        else:
+            return eps 
+
     def prepare_eps(self, model):
         eps = self.settings.get('min_probability')
         if eps is None:
