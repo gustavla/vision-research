@@ -1069,7 +1069,9 @@ class BernoulliDetector(Detector):
         sh = (full_sh[0]//psize[0], full_sh[1]//psize[1])
 
         from scipy.stats import scoreatpercentile
-        # TODO: Might be set too high
+        if resmap.size == 0:
+            return [], resmap, bkgcomp
+
         th = scoreatpercentile(resmap.ravel(), 80)
         #th = -0.1
         #th = -np.inf
