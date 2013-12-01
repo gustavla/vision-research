@@ -2,22 +2,29 @@ from __future__ import absolute_import
 from .detector import *
 from .real_detector import RealDetector
 from . import img
-from . import voc
-from . import uiuc
 from . import bb
 from . import sub 
 from . import rescalc
 from . import datasets
+# Datasets
+from . import voc
+from . import uiuc
+from . import custom
+from .beta_mixture import BetaMixture, binary_search # Temporarily exposed
+from . import parallel 
+
+from .core import *
+
 from .ndfeature import ndfeature
 
 from .binary_descriptor import *
 from . import edge_descriptor
 from . import parts_descriptor
+from . import polarity_parts_descriptor
 from . import binary_hog_descriptor
 
 from .real_descriptor import *
 from . import hog_descriptor
-
 
 # TODO: Put somewhere better
 

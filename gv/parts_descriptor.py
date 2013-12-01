@@ -4,7 +4,8 @@ import copy
 import amitgroup as ag
 import numpy as np
 import gv
-from itertools import product
+import math
+import itertools as itr
 from .binary_descriptor import BinaryDescriptor
 
 @BinaryDescriptor.register('parts')
@@ -25,6 +26,9 @@ class PartsDescriptor(BinaryDescriptor):
         self.settings['samples_per_image'] = 500 
         self.settings['min_probability'] = 0.005
         self.settings['strides'] = 1
+    
+        # TODO
+        self.extra = {}
 
         # Or maybe just do defaults?
         # self.settings['bedges'] = {}
@@ -75,7 +79,7 @@ class PartsDescriptor(BinaryDescriptor):
         w, h = [edges.shape[i]-self.patch_size[i]+1 for i in xrange(2)]
 
         # TODO: Maybe shuffle an iterator of the indices?
-        indices = list(product(xrange(w-1), xrange(h-1)))
+        indices = list(itr.product(xrange(w-1), xrange(h-1)))
         random.shuffle(indices)
         i_iter = iter(indices)
 
@@ -157,12 +161,27 @@ class PartsDescriptor(BinaryDescriptor):
         raw_patches, raw_unspread_patches, raw_unspread_patches_padded, raw_originals = self.random_patches_from_images(filenames)
         if len(raw_patches) == 0:
             raise Exception("No patches found, maybe your thresholds are too strict?")
-        mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0)
         # Also store these in "settings"
-        mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
+
+        mixtures = []
+        llhs = []
+        for i in xrange(1):
+            mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0+i)
+            mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
+            mixtures.append(mixture)
+            llhs.append(mixture.loglikelihood)
+
+            
+        best_i = np.argmax(llhs)
+        mixture = mixtures[best_i]
+
         ag.info("Done.")
 
         counts = np.bincount(mixture.mixture_components(), minlength=self.num_parts)
+        print counts
+        print 'Total', np.sum(counts)
+        from scipy.stats.mstats import mquantiles
+        print mquantiles(counts)
 
         # Reject weak parts
         scores = np.empty(self.num_parts) 
@@ -174,7 +193,9 @@ class PartsDescriptor(BinaryDescriptor):
             pec = p.mean(axis=0)
         
             N = np.sum(p * np.log(p/pec) + (1-p)*np.log((1-p)/(1-pec)))
-            D = np.sqrt(np.sum(np.log(p/(1-p))**2 * p * (1-p)))
+            D = np.sqrt(np.sum(np.log(p/pec * (1-pec)/(1-p))**2 * p * (1-p)))
+            # Old:
+            #D = np.sqrt(np.sum(np.log(p/(1-p))**2 * p * (1-p)))
 
             scores[i] = N/D 
 
@@ -183,16 +204,51 @@ class PartsDescriptor(BinaryDescriptor):
                 #scores[i] = 0
 
         # Only keep with a certain score
-        visparts = mixture.remix(raw_originals)
+        if not self.settings['bedges']['contrast_insensitive']:
+
+            visparts = mixture.remix(raw_originals)
+        else:
+            visparts = np.empty((self.num_parts,) + raw_originals.shape[1:])
+
+            self.extra['originals'] = []
+        
+            # Improved visparts
+            comps = mixture.mixture_components()
+            for i in xrange(self.num_parts):
+                ims = raw_originals[comps == i].copy()
+
+                self.extra['originals'].append(ims)
+
+                # Stretch them all out
+                #for j in xrange(len(ims)):
+                    #ims[j] = (ims[j] - ims[j].min()) / (ims[j].max() - ims[j].min())
+
+                # Now, run a GMM with NM components on this and take the most common
+                NM = 2
+
+                from sklearn.mixture import GMM
+                gmix = GMM(n_components=NM)
+                gmix.fit(ims.reshape((ims.shape[0], -1)))
+
+                visparts[i] = gmix.means_[gmix.weights_.argmax()].reshape(ims.shape[1:])
 
         # Unspread parts
         unspread_parts_all = mixture.remix(raw_unspread_patches) 
         unspread_parts_padded_all = mixture.remix(raw_unspread_patches_padded) 
+
+        # The parts to keep
+        ok = (scores > 1) & (counts >= 10)
+
+        if 'originals' in self.extra:
+            self.extra['originals'] = list(itr.compress(self.extra['originals'], ok))
+
+        scores = scores[ok]
+        counts = counts[ok]
         
-        self.parts = mixture.templates[scores > 1]
-        self.unspread_parts = unspread_parts_all[scores > 1]
-        self.unspread_parts_padded = unspread_parts_padded_all[scores > 1]
-        self.visparts = visparts[scores > 1]
+        self.parts = mixture.templates[ok]
+        self.unspread_parts = unspread_parts_all[ok]
+        self.unspread_parts_padded = unspread_parts_padded_all[ok]
+        self.visparts = visparts[ok]
         self.num_parts = self.parts.shape[0]
         
         # Update num_parts
@@ -200,6 +256,37 @@ class PartsDescriptor(BinaryDescriptor):
         # Store the stuff in the instance
         #self.parts = mixture.templates
         #self.visparts = mixture.remix(raw_originals)
+
+        # Sort the parts according to orientation, for better diagonistics
+        if 1:
+            E = self.parts.shape[-1]
+            E = self.parts.shape[-1]
+            ang = np.array([[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, 1]])
+            nang = ang / np.expand_dims(np.sqrt(ang[:,0]**2 + ang[:,1]**2), 1)
+            orrs = np.apply_over_axes(np.mean, self.parts, [1, 2]).reshape((self.num_parts, -1))
+            if E == 8:
+                orrs = orrs[...,:4] + orrs[...,4:]    
+            nang = nang[:4]
+            norrs = orrs / np.expand_dims(orrs.sum(axis=1), 1)
+            dirs = (np.expand_dims(norrs, -1) * nang).sum(axis=1)
+            self.orientations = np.asarray([math.atan2(x[1], x[0]) for x in dirs])
+            II = np.argsort(self.orientations)
+
+        II = np.argsort(scores)
+
+        scores = scores[II]
+        counts = counts[II]
+
+        self.extra['scores'] = scores
+        self.extra['counts'] = counts
+        self.extra['originals'] = [self.extra['originals'][ii] for ii in II]
+        
+        # Now resort the parts according to this sorting
+        self.orientations = self.orientations[II]
+        self.parts = self.parts[II]
+        self.unspread_parts = self.unspread_parts[II]
+        self.unspread_parts_padded = self.unspread_parts_padded[II]
+        self.visparts = self.visparts[II]
 
         self._preprocess_logs()
 
@@ -254,13 +341,23 @@ class PartsDescriptor(BinaryDescriptor):
 
     def extract_parts(self, edges, edges_unspread, settings={}):
         #print 'strides', self.settings.get('strides', 1)
-        feats = ag.features.code_parts_as_features(edges, 
-                                                   edges_unspread,
-                                                   self._log_parts, self._log_invparts, 
-                                                   self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'], 
-                                                   strides=self.settings.get('strides', 1), 
-                                                   tau=self.settings.get('tau', 0.0),
-                                                   max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
+        if 'indices' in self.extra:
+            feats = ag.features.code_parts_as_features_INDICES(edges, 
+                                                       edges_unspread,
+                                                       self._log_parts, self._log_invparts, 
+                                                       self.extra['indices'],
+                                                       self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'], 
+                                                       strides=self.settings.get('strides', 1), 
+                                                       tau=self.settings.get('tau', 0.0),
+                                                       max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
+        else:
+            feats = ag.features.code_parts_as_features(edges, 
+                                                       edges_unspread,
+                                                       self._log_parts, self._log_invparts, 
+                                                       self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'], 
+                                                       strides=self.settings.get('strides', 1), 
+                                                       tau=self.settings.get('tau', 0.0),
+                                                       max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
 
         # Pad with background (TODO: maybe incorporate as an option to code_parts?)
         # This just makes things a lot easier, and we don't have to match for instance the
@@ -275,7 +372,7 @@ class PartsDescriptor(BinaryDescriptor):
             if self._log_parts.shape[1] % 2 == 0:
                 feats = feats[:-1]
             if self._log_parts.shape[2] % 2 == 0:
-                feats = partprobs[:,:-1]
+                feats = feats[:,:-1]
 
         sett = self.settings.copy()
         sett.update(settings)
@@ -360,11 +457,21 @@ class PartsDescriptor(BinaryDescriptor):
         obj.unspread_parts_padded = d['unspread_parts_padded']
         obj.visparts = d['visparts']
         obj.settings = d['settings']
+        obj.orientations = d.get('orientations')
         obj._preprocess_logs()
+        obj.extra = d.get('extra', {})
         return obj
 
     def save_to_dict(self):
         # TODO: Experimental
         #return dict(num_parts=self.num_parts, patch_size=self.patch_size, parts=self.parts, visparts=self.visparts, settings=self.settings)
-        return dict(num_parts=self.num_parts, patch_size=self.patch_size, parts=self.parts, unspread_parts=self.unspread_parts, unspread_parts_padded=self.unspread_parts_padded, visparts=self.visparts, settings=self.settings)
+        return dict(num_parts=self.num_parts, 
+                    patch_size=self.patch_size, 
+                    parts=self.parts, 
+                    unspread_parts=self.unspread_parts, 
+                    unspread_parts_padded=self.unspread_parts_padded, 
+                    visparts=self.visparts, 
+                    orientations=self.orientations,
+                    settings=self.settings,
+                    extra=self.extra)
 

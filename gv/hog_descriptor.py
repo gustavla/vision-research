@@ -20,11 +20,17 @@ class HOGDescriptor(RealDescriptor):
         from skimage import feature
         orientations = self.settings['orientations']
         ppc = self.settings['pixels_per_cell']
-        hog = unraveled_hog(image, 
-                          orientations=self.settings['orientations'],
-                          pixels_per_cell=ppc,
-                          cells_per_block=self.settings['cells_per_block'],
-                          normalise=self.settings['normalise'])
+        if 0:
+            hog = unraveled_hog(image, 
+                              orientations=self.settings['orientations'],
+                              pixels_per_cell=ppc,
+                              cells_per_block=self.settings['cells_per_block'],
+                              normalise=self.settings['normalise'])
+
+        from gv.hog import hog as hogf
+        X = np.tile(image[...,np.newaxis], 3)
+        image = np.asarray(X, dtype=np.double)
+        hog = hogf(image, sbin=4) 
 
         if not self.settings['polarity_sensitive']:
             assert self.settings['orientations'] % 2 == 0, "Must have even number of orientations for polarity insensitive edges"

@@ -13,11 +13,10 @@ if captions:
     assert len(captions) == len(results_files), "Must supply caption for all"
 
 import numpy as np
-import scipy.integrate
 import matplotlib.pylab as plt
 import gv
 
-use_other_style = True
+use_other_style = False 
 
 
 for i, results_file in enumerate(results_files):
@@ -30,7 +29,7 @@ for i, results_file in enumerate(results_files):
     ap = gv.rescalc.calc_ap(p, r) 
 
     print(results_file.name)
-    print('AP:', ap)
+    print('AP: {0:.02f}% ({1})'.format(100*ap, ap))
     #print(detections[-10:])
     print()
 
@@ -50,10 +49,8 @@ for i, results_file in enumerate(results_files):
     plt.xlim((0, 1))
     plt.ylim((0, 1))
 
-if use_other_style:
-    plt.legend(loc=4)
-else:
-    plt.legend(loc=3)
+plt.legend(fontsize='xx-small', framealpha=0.2)
+
 plt.grid()
 #plt.xticks(np.arange(0, 1+0.001, 0.05))
 #plt.yticks(np.arange(0, 1+0.001, 0.05))

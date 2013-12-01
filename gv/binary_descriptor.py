@@ -1,9 +1,8 @@
 from __future__ import absolute_import
-from .saveable import Saveable
-from .named_registry import NamedRegistry
+from .saveable import SaveableRegistry
 
-@NamedRegistry.root
-class BinaryDescriptor(Saveable, NamedRegistry):
+@SaveableRegistry.root
+class BinaryDescriptor(SaveableRegistry):
     """
     This class is the base class of a binary descriptor. It should be able to
     take an image and spit out binary vectors of shape ``(X, Y, F)``, where ``(X, Y)``

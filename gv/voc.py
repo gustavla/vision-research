@@ -2,10 +2,8 @@ from __future__ import division
 import os.path
 import numpy as np
 from xml.dom.minidom import parse
-from collections import namedtuple
 import gv
-
-ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
+from .datasets import ImgFile
 
 def _get_text(nodelist):
     rc = []
@@ -24,8 +22,14 @@ def image_from_bounding_box(im, bb):
     #else:
     return im[bb[0]:bb[2], bb[1]:bb[3]]
 
+def gen_negative_files(excluding_class, contest='train'):
+    path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(excluding_class, contest))
+    for line in open(path):
+        img_id, s = line.split() 
+        if int(s) == -1:
+            yield load_file(excluding_class, int(img_id), load_boxes=False)
 
-def load_file(class_name, img_id, load_boxes=True):
+def load_file(class_name, img_id, load_boxes=True, poses=None):
     img_path = os.path.join(os.environ['VOC_DIR'], 'JPEGImages', '{0:06}.jpg'.format(img_id))
     bbs = []
     if load_boxes: 
@@ -37,7 +41,9 @@ def load_file(class_name, img_id, load_boxes=True):
         for obj in objs:
             # Check what kind of object
             name = _get_text(obj.getElementsByTagName('name')[0].childNodes)
-            if name == class_name:
+            pose = _get_text(obj.getElementsByTagName('pose')[0].childNodes)
+            pose_ok = poses is None or pose in poses
+            if (name == class_name or class_name is None) and pose_ok:
                 truncated = bool(int(_get_text(obj.getElementsByTagName('truncated')[0].childNodes)))
                 difficult = bool(int(_get_text(obj.getElementsByTagName('difficult')[0].childNodes)))
                 bndbox_obj = obj.getElementsByTagName('bndbox')[0] 
@@ -50,7 +56,7 @@ def load_file(class_name, img_id, load_boxes=True):
     fileobj = ImgFile(path=img_path, boxes=bbs, img_id=img_id)
     return fileobj
 
-def load_specific_files(class_name, img_ids, has_objects=None, padding=0):
+def load_specific_files(class_name, img_ids, has_objects=None, padding=0, poses=None):
     """img_ids and has_objects should be lists of equal length"""
     N = len(img_ids) 
 
@@ -60,7 +66,7 @@ def load_specific_files(class_name, img_ids, has_objects=None, padding=0):
         img_id = img_ids[i]
         if has_objects is not None:
             hasobject = has_objects[i] 
-        fileobj = load_file(class_name, img_id, load_boxes=(hasobject == 1))
+        fileobj = load_file(class_name, img_id, load_boxes=(hasobject == 1), poses=poses)
         files.append(fileobj)
 
     # Get the total count
@@ -68,18 +74,61 @@ def load_specific_files(class_name, img_ids, has_objects=None, padding=0):
 
     return files, tot
 
+_TEST_NEGS = [
+    1, 2, 3, 6, 8, 10, 11, 13, 15, 18, 
+    22, 25, 27, 28, 29, 31, 37, 38, 40, 
+    43, 45, 49, 53, 54, 55, 56, 57, 58, 
+    59, 62, 67, 67, 68, 69, 70, 75, 76, 
+    79, 80, 84, 85, 86, 87, 88, 90, 92, 
+    94, 96, 97, 98, 100, 105, 106, 108, 
+    111, 114, 115, 116, 119, 124, 126, 127,
+    128, 136, 139, 144, 145, 148, 149, 151, 
+    155, 157, 160, 166, 167, 168, 175, 176,
+    178, 179, 181, 182, 183, 185, 186, 191, 
+    195, 196, 199, 201, 202, 204, 205, 206,
+    212, 213, 216,
+]
+
+_NEGS = [1, 2, 5, 6, 8, 9, 10, 11, 13, 15, 16, 30, 31, 42, 43, 44, 45, 46, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 61, 62, 63, 64, 65, 66, 67, 68, 70, 73, 75, 76, 100]
+_NEGS2 = range(104, 130)
+_NEGS3 = range(138, 141+1) + range(143, 151+1) + range(162, 168+1) + [170, 171] + range(173, 179+1) + range(181, 187+1) + range(191, 196+1) + range(198, 209+1) + range(211, 219+1)
+_VOC_OTHER_PROFILES = [3971, 3973, 4830, 4962, 5199, 5350, 5749, 6062, 7843, 8057, 8329, 8429, 8461, 9029, 9671, 9913]
 _VOC_PROFILES = [153, 220, 263, 317, 522, 871, 1060, 1119, 1662, 2182, 3790, 3936]
-_VOC_PROFILES2 = _VOC_PROFILES + [1, 2, 5, 6, 8, 9, 10, 11, 13, 15, 16, 30, 31, 42, 43, 44, 45, 46, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 61, 62, 63, 64, 65, 66, 67, 68, 70, 73, 75, 76, 100]
+_VOC_PROFILES2 = _VOC_PROFILES + _NEGS
+_VOC_PROFILES3 = _VOC_PROFILES + [334, 2436, 4231, 5020, 7279, 8044, 7819, 8483, 8891, 8929, 9078, 9409, 9959] + _NEGS + _NEGS2 + _NEGS3
+_VOC_PROFILES4 = _VOC_OTHER_PROFILES + _NEGS + _NEGS2 + _NEGS3
+_VOC_PROFILES5 = _VOC_PROFILES + _TEST_NEGS  # Does not have training data negatives in it!
 _VOC_EASY_NONPROFILES = [26, 1237, 1334, 1488, 1494, 1576, 2153, 2178, 2247, 2534]
+_VOC_FRONTBACKS = [74, 152, 240, 252, 271, 313, 341, 361, 390, 471, 505, 580, 586, 593, 602, 607, 646, 649, 1003, 1111, 1252]
+_VOC_FRONTBACKS_NEGS = _VOC_FRONTBACKS + _TEST_NEGS
 
-def load_files(class_name, dataset='train'):
+_VOC_SIDES = [
+    4, 71, 82, 103, 135, 137, 152, 172, 293, 301, 358, 415, 585, 679, 693, 715, 721, 
+    724, 736, 801, 881, 1005, 1034, 1280, 1283, 1356, 1369, 1379, 1382, 1394, 1422, 1491,
+    1511, 1525, 1535, 1550, 1552, 1560, 1572, 1700, 1770, 1838, 1923, 1924, 1935, 1951, 1991,
+    2154, 2232, 2242, 2271, 2331, 2346, 2416, 2484, 2531, 2703, 2733, 2840, 2900, 2927, 3006,
+    3033, 3046, 3055, 3070, 3109, 3143, 3276, 3306, 3348, 3357, 3364, 3375
+]
+
+def load_files(class_name, dataset='train', poses=None):
     if dataset == 'profile':
-        return load_specific_files(class_name, _VOC_PROFILES)
+        return load_specific_files(class_name, _VOC_PROFILES, poses=poses)
     elif dataset == 'profile2':
-        return load_specific_files(class_name, _VOC_PROFILES2)
+        return load_specific_files(class_name, _VOC_PROFILES2, poses=poses)
+    elif dataset == 'profile3':
+        return load_specific_files(class_name, _VOC_PROFILES3, poses=poses)
+    elif dataset == 'profile4':
+        return load_specific_files(class_name, _VOC_PROFILES4, poses=poses)
+    elif dataset == 'profile5':
+        return load_specific_files(class_name, _VOC_PROFILES5, poses=poses)
     elif dataset == 'easy':
-        return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPROFILES)
-
+        return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPROFILES, poses=poses)
+    elif dataset == 'fronts':
+        return load_specific_files(class_name, _VOC_FRONTBACKS, poses=poses)
+    elif dataset == 'fronts-negs':
+        return load_specific_files(class_name, _VOC_FRONTBACKS_NEGS, poses=poses)
+    elif dataset == 'sides':
+        return load_specific_files(class_name, _VOC_SIDES, poses=poses)
 
     path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))
 
@@ -87,7 +136,7 @@ def load_files(class_name, dataset='train'):
     N = f.shape[0]
     img_ids = f[:,0]
     has_objects = f[:,1] 
-    return load_specific_files(class_name, img_ids, has_objects)
+    return load_specific_files(class_name, img_ids, has_objects, poses=poses)
 
 def _load_images(objfiles, tot, size, padding=0):
     bbs = []

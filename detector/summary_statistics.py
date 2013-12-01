@@ -4,15 +4,15 @@ from settings import load_settings
 parser = argparse.ArgumentParser(description='Train mixture model on edge data')
 parser.add_argument('settings', metavar='<settings file>', type=argparse.FileType('r'), help='Filename of settings file')
 #parser.add_argument('--spread', action='store_true')
-parser.add_argument('--limit', nargs=1, type=int, default=[10])
-parser.add_argument('--factor', nargs=1, type=float, default=[1.0])
-parser.add_argument('--sort', action='store_true')
+parser.add_argument('--limit', type=int, default=10)
+parser.add_argument('--factor', type=float, default=1.0)
+parser.add_argument('--shuffle', action='store_true')
 
 args = parser.parse_args()
 settings_file = args.settings
-limit = args.limit[0]
-factor = args.factor[0]
-do_sorting = args.sort
+limit = args.limit
+factor = args.factor
+do_shuffle = args.shuffle
 
 import gv
 import os
@@ -30,7 +30,7 @@ descriptor = gv.load_descriptor(settings)
 path = os.path.expandvars(settings['detector']['neg_dir'])
 files = sorted(glob.glob(path))
 
-if do_sorting:
+if do_shuffle:
     import random
     random.shuffle(files)
 
@@ -61,7 +61,6 @@ for f in files:
     edges = ag.features.bedges(im, **descriptor.bedges_settings())
 
     feats = descriptor.extract_features(im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cut))
-    #feats = gv.sub.subsample(feats, psize)
     x = np.rollaxis(feats, 2).reshape((descriptor.num_parts, -1))
     tot += x.shape[1]
     pi += x.sum(axis=1)

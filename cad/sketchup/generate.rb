@@ -185,6 +185,27 @@ UI.menu("Plugins").add_item("Generate data") {
       #end
     end
   end 
+
+
+  if false
+    2.times do |flip|
+      6.times do |loop|
+        if save_image.call(i, rand() * 7.5 * Math::PI / 180.0, (180 * flip + (rand() - 0.5) * 7.5) * Math::PI / 180.0, (rand() - 0.5) * 2.5 * Math::PI / 180.0, [2.5, 0, 0], dist)
+          i += 1
+        end
+      end
+    end
+  end
+
+  # Save some specialized frontal shots
+  2.times do |flip|
+    sgn = [1, -1][flip]
+    6.times do |loop|
+      if save_image.call(i, rand() * 15 * Math::PI / 180.0, (180.0 * flip + 90.0 + (rand() - 0.5) * 15) * Math::PI / 180.0, (rand() - 0.5) * 5 * Math::PI / 180.0, [0, sgn * 80, 0], dist2)
+        i += 1
+      end
+    end
+  end
   UI.messagebox("Data saved! (#{i})")
 }
 

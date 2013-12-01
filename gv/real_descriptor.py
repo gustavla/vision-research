@@ -1,9 +1,9 @@
 from __future__ import absolute_import
-from .saveable import Saveable
+from .saveable import SaveableRegistry
 from .named_registry import NamedRegistry
 
-@NamedRegistry.root
-class RealDescriptor(Saveable, NamedRegistry):
+@SaveableRegistry.root
+class RealDescriptor(SaveableRegistry):
     """
     This class is the base class of a real-value descriptor. It should be able to
     take an image and spit out binary vectors of shape ``(X, Y, F)``, where ``(X, Y)``

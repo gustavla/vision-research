@@ -3,7 +3,7 @@ import os.path
 import numpy as np
 import re
 import gv
-from .voc import ImgFile
+from .datasets import ImgFile
 
 _SIZE = (40, 100)
 
