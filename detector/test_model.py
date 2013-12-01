@@ -42,7 +42,7 @@ def detect_raw(args):
     #logger.info('Exiting')
     return (tp, tp_fp, tp_fn, bbs, fileobj.img_id)
 
-if __name__ == '__main__':
+if __name__ == '__main__' and gv.parallel.main():
     parser = argparse.ArgumentParser(description='Test response of model')
     parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
     parser.add_argument('obj_class', metavar='<object class>', type=str, help='Object class')
@@ -66,10 +66,6 @@ if __name__ == '__main__':
     logdir = args.log
     logging = args.log is not None
 
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-
     if logging:
         import matplotlib
         matplotlib.use('Agg')
@@ -84,7 +80,7 @@ if __name__ == '__main__':
     import os
     import itertools as itr
 
-    if logging and rank == 0:
+    if logging:
         try:
             os.mkdir(logdir)
         except OSError:
@@ -124,7 +120,7 @@ if __name__ == '__main__':
     LOG_ALL = True 
 
     # Log the features and the model first
-    if logging and rank == 0:
+    if logging:
         # Log features
         if LOG_ALL:
             ag.info("Logging features...")
@@ -213,7 +209,7 @@ if __name__ == '__main__':
                 # Visualize keypoints and weights with only keypoints
                 kp = np.zeros(base_weights.shape, dtype=np.uint8)
                 kp_mean_weights = np.zeros(base_weights.shape[:2])
-                II = detector.indices[m][0]
+                II = detector.indices[m]
                 kp_weights = np.empty(len(II))
                 kp_only_weights = np.zeros(base_weights.shape)
                 for i, index in enumerate(II):
@@ -257,7 +253,7 @@ if __name__ == '__main__':
 
                 # Average part density 
                 plt.figure()
-                part_density = detector.kernel_templates[m][0].mean(axis=-1)
+                part_density = detector.kernel_templates[m].mean(axis=-1)
                 plt.imshow(part_density, interpolation='nearest', vmin=0, vmax=1, cmap=plt.cm.cool)
                 plt.savefig(os.path.join(mixture_dir, 'part-density.png'))
                 plt.close()
@@ -311,70 +307,9 @@ if __name__ == '__main__':
     #fout = open("detections.txt", "w")
 
 
+    
+    res = gv.parallel.imap_unordered(detect_raw, itr.izip(itr.cycle([detector]), files))
 
-    MPI = threading 
-    if MPI:
-        from mpi4py import MPI
-
-        comm = MPI.COMM_WORLD
-        chunks = list(itr.izip(itr.repeat(detector), files))
-        res = gv.pmap(detect_raw, chunks, debug=True)
-
-        rank, size = comm.Get_rank(), comm.Get_size()
-
-        if 0:
-            comm = MPI.COMM_WORLD
-            rank, size = comm.Get_rank(), comm.Get_size()
-
-            chunks = None
-            if rank == 0:
-                all_indices = np.array_split(np.arange(len(files)), size)
-
-                chunks = []
-                for indices in all_indices:
-                    chunk = []
-                    for i in indices:
-                        chunk.append((detector, files[i]))
-                    chunks.append(chunk)
-                
-            chunk = comm.scatter(chunks, root=0)
-
-            #print(rank, len(chunk), chunk[0])
-            #import sys
-            #sys.exit(0)
-            import itertools as itr
-            chunk_res = map(detect_raw, chunk)
-
-            gathered_res = comm.gather(chunk_res, root=0)
-
-            if rank != 0:
-                # This node is no longer needed
-                sys.exit(0)
-            
-            res = itr.chain(*gathered_res)
-    elif 1: 
-        if threading:
-            from multiprocessing import Pool
-            p = Pool(3)
-            imapf = p.imap_unordered
-        else:
-            from itertools import imap as imapf
-
-        res = imapf(detect_raw, itr.izip(itr.cycle([detector]), files))
-    elif 0:
-        from IPython.parallel import Client
-
-        try:
-            c = Client(profile='myprofile')
-        except IOError:
-            print("ERROR: Please start ipcluster", file=sys.stderr)
-            sys.exit(1)
-        v = c[:]
-
-        print("Dispatching multi-processing")
-        res = v.imap(detect_raw, itr.izip(itr.cycle([detector]), files))
-
-    #per_file_dets = []
 
     tp_fn_dict = {}
 
@@ -384,9 +319,11 @@ if __name__ == '__main__':
 
     parts_help = np.zeros((2, detector.num_features))
 
-    averages = [np.zeros((2,) + detector.kernel_templates[m][0].shape) for m in xrange(detector.num_mixtures)] 
+    if logging:
+        averages = [np.zeros((2,) + detector.kernel_templates[m].shape) for m in xrange(detector.num_mixtures)] 
 
-    averages_counts = np.zeros((detector.num_mixtures, 2), dtype=int)
+        averages_counts = np.zeros((detector.num_mixtures, 2), dtype=int)
+
     colors = np.array(['b', 'r'])
 
     if logging:
@@ -398,172 +335,170 @@ if __name__ == '__main__':
         os.mkdir(positives_dir)
         os.mkdir(negatives_dir)
 
-    if rank == 0:
-        for loop, (tp, tp_fp, tp_fn, bbs, img_id) in enumerate(res):
-            tot_tp += tp
-            tot_tp_fp += tp_fp
-            tot_tp_fn += tp_fn
-            tp_fn_dict[img_id] = tp_fn
+    for loop, (tp, tp_fp, tp_fn, bbs, img_id) in enumerate(res):
+        tot_tp += tp
+        tot_tp_fp += tp_fp
+        tot_tp_fn += tp_fn
+        tp_fn_dict[img_id] = tp_fn
+        for bbobj in bbs:
+            detections.append((bbobj.confidence, bbobj.scale, bbobj.score0, bbobj.score1, bbobj.plusscore, bbobj.correct, bbobj.mixcomp, bbobj.bkgcomp, img_id, int(bbobj.box[1]), int(bbobj.box[0]), int(bbobj.box[3]), int(bbobj.box[2]), bbobj.index_pos[0], bbobj.index_pos[1]))
+        #detections.extend(dets)
+
+        # Log all positives
+        if logging:
+            active_weights_bins = np.linspace(-8, 8, 50)
+            svm_active_weights_bins = np.linspace(-0.01, 0.01, 50)
+            svms = detector.extra.get('svms')
+
+            sett = detector.descriptor.settings['bedges']
+            unspread_sett = sett.copy()
+            unspread_sett['radius'] = 0
+
             for bbobj in bbs:
-                detections.append((bbobj.confidence, bbobj.scale, bbobj.score0, bbobj.score1, bbobj.plusscore, bbobj.correct, bbobj.mixcomp, bbobj.bkgcomp, img_id, int(bbobj.box[1]), int(bbobj.box[0]), int(bbobj.box[3]), int(bbobj.box[2]), bbobj.index_pos[0], bbobj.index_pos[1]))
-            #detections.extend(dets)
+                pos_ok = bbobj.correct
+                neg_ok = not bbobj.correct and bbobj.score0 >= detector.extra['cascade_threshold']
 
-            # Log all positives
-            if logging:
-                active_weights_bins = np.linspace(-8, 8, 50)
-                svm_active_weights_bins = np.linspace(-0.01, 0.01, 50)
-                svms = detector.extra.get('svms')
+                #if (bbobj.correct == True or (bbobj and not bbobj.difficult:
+                if (pos_ok or neg_ok) and not bbobj.difficult:
+                    if pos_ok:
+                        directory = positives_dir 
+                    else:
+                        directory = negatives_dir 
 
-                sett = detector.descriptor.settings['bedges']
-                unspread_sett = sett.copy()
-                unspread_sett['radius'] = 0
+                    # Output to file
+                    fig, axarr = plt.subplots(3, 5, figsize=(23, 15))
+                    if bbobj.image is not None and np.min(bbobj.image.shape) > 0:
+                        ax_original = axarr[0,0]
+                        ax_original.set_axis_off()
+                        ax_original.imshow(bbobj.image, interpolation='nearest', cmap=plt.cm.gray)
+                        ax_original.set_title('Original (img_id = {})'.format(bbobj.img_id))
 
-                for bbobj in bbs:
-                    pos_ok = bbobj.correct
-                    neg_ok = not bbobj.correct and bbobj.score0 >= detector.extra['cascade_threshold']
-
-                    #if (bbobj.correct == True or (bbobj and not bbobj.difficult:
-                    if (pos_ok or neg_ok) and not bbobj.difficult:
-                        if pos_ok:
-                            directory = positives_dir 
-                        else:
-                            directory = negatives_dir 
-
-                        # Output to file
-                        fig, axarr = plt.subplots(3, 5, figsize=(23, 15))
-                        if bbobj.image is not None and np.min(bbobj.image.shape) > 0:
-                            ax_original = axarr[0,0]
-                            ax_original.set_axis_off()
-                            ax_original.imshow(bbobj.image, interpolation='nearest', cmap=plt.cm.gray)
-                            ax_original.set_title('Original (img_id = {})'.format(bbobj.img_id))
-
-                            # Extract edges and display
-                            unspread_edges = ag.features.bedges(bbobj.image, **unspread_sett)
-                            edges = ag.features.bedges(bbobj.image, **sett)
-                            for e in xrange(4):
-                                ax = axarr[0,1+e]
-                                ax.set_axis_off()
-                                ax.imshow(edges[...,e].astype(int) - edges[...,e+4].astype(int), interpolation='nearest', vmin=-1, vmax=1, cmap=plt.cm.RdBu)
-                                ax.set_title(EDGE_TITLES[e])
-
-                        # An info box of text
-                        ax_text = axarr[1,0]
-                        ax_text.set_axis_off()
-                        ax_text.set_xlim((0, 10))
-                        ax_text.set_ylim((0, 10))
-                        s = textwrap.dedent("""
-                            Base score: {base_score:.03f}
-                            Final score: {score:.03f}
-                            Scale: {scale:.02f}
-                            Correct: {correct}
-                            Overlap metric: {overlap:.02f}
-                            Image ID: {img_id}
-                            """.format(base_score=bbobj.score0, 
-                                   score=bbobj.confidence,
-                                   scale=bbobj.scale,
-                                   correct=bbobj.correct,
-                                   overlap=bbobj.overlap or 0,
-                                   img_id=bbobj.img_id))
-
-                        ax_text.text(1, 6, s, bbox=dict(facecolor='white'))
-
-                        # Matched mixture component
-                        ax_mixture = axarr[2,0]
-                        ax_mixture.set_axis_off()
-                        ax_mixture.imshow(detector.support[bbobj.mixcomp], interpolation='nearest', cmap=plt.cm.gray)
-                        ax_mixture.set_title('Best matched component')
-
-                        if all_kp_only_weights is not None and bbobj.X is not None:
-                            # Spatial keypoint weights
-                            ax_kp_spatial = axarr[1,1]
-                            ax_kp_spatial.set_axis_off()
-                            kp_only_weights = all_kp_only_weights[bbobj.mixcomp]
-                            active_weights = kp_only_weights * bbobj.X
-                            kp_mean = active_weights.mean(axis=-1)
-                            mm = 0.1
-                            ax_kp_spatial.imshow(kp_mean, interpolation='nearest', vmin=-mm, vmax=mm, cmap=plt.cm.RdBu_r)
-                            ax_kp_spatial.set_title('Keypoints spatial weights')
-
-                            # Parts keypoint weights
-                            ax_kp_parts = axarr[1,2]
-                            parts_weights = np.apply_over_axes(np.mean, active_weights, [0, 1])[0,0]
-                            ax_kp_parts.bar(np.arange(detector.num_features), parts_weights, color=colors[(parts_weights > 0).astype(int)])
-                            ax_kp_parts.set_xlabel('Part')
-                            ax_kp_parts.set_ylabel('Weight average')
-                            ax_kp_parts.set_title('Keypoints parts weights')
-
-                            # Active weights histogram
-                            ax_kp_histogram = axarr[1,3]
-                            nonzero_weights = active_weights.ravel()[active_weights.ravel() != 0]
-                            ax_kp_histogram.hist(nonzero_weights, active_weights_bins, normed=True)
-                            ax_kp_histogram.set_title('Keypoint active weights')
-                            ax_kp_histogram.set_xlabel('Weight')
-                            ax_kp_histogram.set_ylim((0, 1))
-
-                            # Parts density
-                            ax_parts_density = axarr[1,4]
-                            ax_parts_density.imshow(bbobj.X.mean(axis=-1), interpolation='nearest', vmin=0, vmax=0.5)
-                            ax_parts_density.set_title('Parts density')
-
-                            # Now do some data aggregation stuff
-                            if bbobj.score0 >= detector.extra['cascade_threshold']:
-                                averages_counts[bbobj.mixcomp,bbobj.correct] += 1
-                                averages[bbobj.mixcomp][bbobj.correct] += bbobj.X
-
-                                #for f in xrange(detector.num_features):
-                                    #parts_help[bbobj.correct][f] += 
-                                parts_help[bbobj.correct] += parts_weights
-
-                        if svms is not None:
-                            svm_weights = svms[bbobj.mixcomp]['weights'].reshape(detector.kernel_templates[bbobj.mixcomp][0].shape)
-                            svm_max_abs = np.fabs(svm_weights).max()
-
-                            # Spatial SVM weights
-                            ax_svm_spatial = axarr[2,1]
-                            ax_svm_spatial.set_axis_off()
-                            active_weights = svm_weights * bbobj.X
-                            svm_mean = active_weights.mean(axis=-1)
-                            ax_svm_spatial.imshow(svm_mean, interpolation='nearest', vmin=-0.0001, vmax=0.0001, cmap=plt.cm.RdBu_r)
-                            ax_svm_spatial.set_title('SVM spatial weights')
-
-                            # Parts SVM weights
-                            ax_svm_parts = axarr[2,2]
-                            svm_parts_weights = np.apply_over_axes(np.mean, active_weights, [0, 1])[0,0]
-                            ax_svm_parts.bar(np.arange(detector.num_features), svm_parts_weights, color=colors[(parts_weights > 0).astype(int)])
-                            ax_svm_parts.set_xlabel('Part')
-                            #ax_svm_parts.set_ylabel('Weight average')
-                            ax_svm_parts.set_title('SVM parts weights')
-
-                            # Active SVM histogram
-                            ax_svm_histogram = axarr[2,3]
-                            nonzero_weights = active_weights.ravel()[active_weights.ravel() != 0]
-                            ax_svm_histogram.hist(nonzero_weights, svm_active_weights_bins, normed=True)
-                            ax_svm_histogram.set_title('SVM active weights')
-                            ax_svm_histogram.set_xlabel('Weight')
-                            ax_svm_histogram.set_ylim((0, 800))
-
-                        # Hide the rest
-                        for ax in (axarr[ii] for ii in [(2,0), (1, 4), (2, 4)]):
+                        # Extract edges and display
+                        unspread_edges = ag.features.bedges(bbobj.image, **unspread_sett)
+                        edges = ag.features.bedges(bbobj.image, **sett)
+                        for e in xrange(4):
+                            ax = axarr[0,1+e]
                             ax.set_axis_off()
+                            ax.imshow(edges[...,e].astype(int) - edges[...,e+4].astype(int), interpolation='nearest', vmin=-1, vmax=1, cmap=plt.cm.RdBu)
+                            ax.set_title(EDGE_TITLES[e])
 
-                        # Save image
-                        fig.savefig(os.path.join(directory, 'base{score:05.02f}-final{final:06.02f}-{mixcomp}.png'.format(score=bbobj.score0, final=bbobj.confidence, mixcomp=bbobj.mixcomp)))
-                        plt.close()
-                                
+                    # An info box of text
+                    ax_text = axarr[1,0]
+                    ax_text.set_axis_off()
+                    ax_text.set_xlim((0, 10))
+                    ax_text.set_ylim((0, 10))
+                    s = textwrap.dedent("""
+                        Base score: {base_score:.03f}
+                        Final score: {score:.03f}
+                        Scale: {scale:.02f}
+                        Correct: {correct}
+                        Overlap metric: {overlap:.02f}
+                        Image ID: {img_id}
+                        """.format(base_score=bbobj.score0, 
+                               score=bbobj.confidence,
+                               scale=bbobj.scale,
+                               correct=bbobj.correct,
+                               overlap=bbobj.overlap or 0,
+                               img_id=bbobj.img_id))
 
-                     
-            if MPI and rank == 0:
-                # Get a snapshot of the current precision recall
-                detarr = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
-                detarr.sort(order='confidence')
-                p, r = gv.rescalc.calc_precision_recall(detarr, tot_tp_fn)
-                ap = gv.rescalc.calc_ap(p, r) 
+                    ax_text.text(1, 6, s, bbox=dict(facecolor='white'))
 
-                print("{ap:6.02f}% {loop} Testing file {img_id} (tp:{tp} tp+fp:{tp_fp} tp+fn:{tp_fn})".format(loop=loop, ap=100*ap, img_id=img_id, tp=tp, tp_fp=tp_fp, tp_fn=tp_fn))
+                    # Matched mixture component
+                    ax_mixture = axarr[2,0]
+                    ax_mixture.set_axis_off()
+                    ax_mixture.imshow(detector.support[bbobj.mixcomp], interpolation='nearest', cmap=plt.cm.gray)
+                    ax_mixture.set_title('Best matched component')
 
-            # If logging
+                    if all_kp_only_weights is not None and bbobj.X is not None:
+                        # Spatial keypoint weights
+                        ax_kp_spatial = axarr[1,1]
+                        ax_kp_spatial.set_axis_off()
+                        kp_only_weights = all_kp_only_weights[bbobj.mixcomp]
+                        active_weights = kp_only_weights * bbobj.X
+                        kp_mean = active_weights.mean(axis=-1)
+                        mm = 0.1
+                        ax_kp_spatial.imshow(kp_mean, interpolation='nearest', vmin=-mm, vmax=mm, cmap=plt.cm.RdBu_r)
+                        ax_kp_spatial.set_title('Keypoints spatial weights')
 
-            #per_file_dets.append(dets)
+                        # Parts keypoint weights
+                        ax_kp_parts = axarr[1,2]
+                        parts_weights = np.apply_over_axes(np.mean, active_weights, [0, 1])[0,0]
+                        ax_kp_parts.bar(np.arange(detector.num_features), parts_weights, color=colors[(parts_weights > 0).astype(int)])
+                        ax_kp_parts.set_xlabel('Part')
+                        ax_kp_parts.set_ylabel('Weight average')
+                        ax_kp_parts.set_title('Keypoints parts weights')
+
+                        # Active weights histogram
+                        ax_kp_histogram = axarr[1,3]
+                        nonzero_weights = active_weights.ravel()[active_weights.ravel() != 0]
+                        ax_kp_histogram.hist(nonzero_weights, active_weights_bins, normed=True)
+                        ax_kp_histogram.set_title('Keypoint active weights')
+                        ax_kp_histogram.set_xlabel('Weight')
+                        ax_kp_histogram.set_ylim((0, 1))
+
+                        # Parts density
+                        ax_parts_density = axarr[1,4]
+                        ax_parts_density.imshow(bbobj.X.mean(axis=-1), interpolation='nearest', vmin=0, vmax=0.5)
+                        ax_parts_density.set_title('Parts density')
+
+                        # Now do some data aggregation stuff
+                        if bbobj.score0 >= detector.extra['cascade_threshold']:
+                            averages_counts[bbobj.mixcomp,bbobj.correct] += 1
+                            averages[bbobj.mixcomp][bbobj.correct] += bbobj.X
+
+                            #for f in xrange(detector.num_features):
+                                #parts_help[bbobj.correct][f] += 
+                            parts_help[bbobj.correct] += parts_weights
+
+                    if svms is not None:
+                        svm_weights = svms[bbobj.mixcomp]['weights'].reshape(detector.kernel_templates[bbobj.mixcomp].shape)
+                        svm_max_abs = np.fabs(svm_weights).max()
+
+                        # Spatial SVM weights
+                        ax_svm_spatial = axarr[2,1]
+                        ax_svm_spatial.set_axis_off()
+                        active_weights = svm_weights * bbobj.X
+                        svm_mean = active_weights.mean(axis=-1)
+                        ax_svm_spatial.imshow(svm_mean, interpolation='nearest', vmin=-0.0001, vmax=0.0001, cmap=plt.cm.RdBu_r)
+                        ax_svm_spatial.set_title('SVM spatial weights')
+
+                        # Parts SVM weights
+                        ax_svm_parts = axarr[2,2]
+                        svm_parts_weights = np.apply_over_axes(np.mean, active_weights, [0, 1])[0,0]
+                        ax_svm_parts.bar(np.arange(detector.num_features), svm_parts_weights, color=colors[(parts_weights > 0).astype(int)])
+                        ax_svm_parts.set_xlabel('Part')
+                        #ax_svm_parts.set_ylabel('Weight average')
+                        ax_svm_parts.set_title('SVM parts weights')
+
+                        # Active SVM histogram
+                        ax_svm_histogram = axarr[2,3]
+                        nonzero_weights = active_weights.ravel()[active_weights.ravel() != 0]
+                        ax_svm_histogram.hist(nonzero_weights, svm_active_weights_bins, normed=True)
+                        ax_svm_histogram.set_title('SVM active weights')
+                        ax_svm_histogram.set_xlabel('Weight')
+                        ax_svm_histogram.set_ylim((0, 800))
+
+                    # Hide the rest
+                    for ax in (axarr[ii] for ii in [(2,0), (1, 4), (2, 4)]):
+                        ax.set_axis_off()
+
+                    # Save image
+                    fig.savefig(os.path.join(directory, 'base{score:05.02f}-final{final:06.02f}-{mixcomp}.png'.format(score=bbobj.score0, final=bbobj.confidence, mixcomp=bbobj.mixcomp)))
+                    plt.close()
+                            
+
+                 
+        # Get a snapshot of the current precision recall
+        detarr = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
+        detarr.sort(order='confidence')
+        p, r = gv.rescalc.calc_precision_recall(detarr, tot_tp_fn)
+        ap = gv.rescalc.calc_ap(p, r) 
+
+        print("{ap:6.02f}% {loop} Testing file {img_id} (tp:{tp} tp+fp:{tp_fp} tp+fn:{tp_fn})".format(loop=loop, ap=100*ap, img_id=img_id, tp=tp, tp_fp=tp_fp, tp_fn=tp_fn))
+
+        # If logging
+
+        #per_file_dets.append(dets)
 
 
     if 0:
@@ -629,19 +564,16 @@ if __name__ == '__main__':
                                       output_file=os.path.join(detections_dir, 'svm-hist.png'))
 
 
-    if rank == 0:
+    p, r = gv.rescalc.calc_precision_recall(detections, tot_tp_fn)
+    ap = gv.rescalc.calc_ap(p, r) 
+    np.savez(output_file, detections=detections, tp_fn=tot_tp_fn, tp_fn_dict=tp_fn_dict, ap=ap, contest=contest, obj_class=obj_class)
 
-
-        p, r = gv.rescalc.calc_precision_recall(detections, tot_tp_fn)
-        ap = gv.rescalc.calc_ap(p, r) 
-        np.savez(output_file, detections=detections, tp_fn=tot_tp_fn, tp_fn_dict=tp_fn_dict, ap=ap, contest=contest, obj_class=obj_class)
-
-        print('tp', tot_tp)
-        print('tp+fp', tot_tp_fp)
-        print('tp+fn', tot_tp_fn)
-        print('----------------')
-        #if tot_tp_fp:
-        #    print('Precision', tot_tp / tot_tp_fp)
-        #if tot_tp_fn:
-        #    print('Recall', tot_tp / tot_tp_fn)
-        print('AP {0:.2f}% ({1})'.format(100*ap, ap))
+    print('tp', tot_tp)
+    print('tp+fp', tot_tp_fp)
+    print('tp+fn', tot_tp_fn)
+    print('----------------')
+    #if tot_tp_fp:
+    #    print('Precision', tot_tp / tot_tp_fp)
+    #if tot_tp_fn:
+    #    print('Recall', tot_tp / tot_tp_fn)
+    print('AP {0:.2f}% ({1})'.format(100*ap, ap))

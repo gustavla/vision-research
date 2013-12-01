@@ -16,16 +16,9 @@ class RealDetector(BernoulliDetector):
     def _load_img(self, fn):
         return gv.img.asgray(gv.img.load_image(fn))
 
-    def train_from_images(self, image_filenames, labels):
-        assert len(image_filenames) == len(labels)
-
+    def train_from_features(self, feats, labels):
+        assert len(feats) == len(labels)
         labels = np.asarray(labels)
-
-        print 'extrcting features'
-        images = [self._load_img(fn) for fn in image_filenames]
-        feats = np.asarray([self.descriptor.extract_features(img) for img in images])
-
-        print feats.shape
 
         pos_feats = feats[labels==1]
         neg_feats = feats[labels==0]
@@ -50,6 +43,7 @@ class RealDetector(BernoulliDetector):
         self.kernel_sizes = []
         self.svms = []
         for k in xrange(K):
+            from sklearn import svm
             k_pos_feats = comp_feats[k]
 
             print '-', k
@@ -58,9 +52,9 @@ class RealDetector(BernoulliDetector):
             k_feats = np.concatenate([neg_feats, k_pos_feats])
             k_labels = np.concatenate([np.zeros(len(neg_feats)), np.ones(len(k_pos_feats))])
 
-            img = images[0]
+            #img = images[0]
             self.kernel_sizes.append(self.settings['image_size'])
-            self.orig_kernel_size = (img.shape[0], img.shape[1])
+            #self.orig_kernel_size = (img.shape[0], img.shape[1])
 
             flat_k_feats = k_feats.reshape((k_feats.shape[0], -1))        
 
@@ -70,6 +64,24 @@ class RealDetector(BernoulliDetector):
             self.svms.append(dict(intercept=svc.intercept_, 
                                   weights=svc.coef_.reshape(feats.shape[1:])))
     
+        
+
+    def train_from_images(self, image_filenames, labels):
+        assert len(image_filenames) == len(labels)
+
+        images = [self._load_img(fn) for fn in image_filenames]
+        feats = np.asarray([self.descriptor.extract_features(img) for img in images])
+
+        return self.train_from_features(feats, labels)
+
+    def train_from_image_data(self, images, labels):
+        assert len(images) == len(labels)
+
+        feats = np.asarray([self.descriptor.extract_features(img) for img in images])
+
+        return self.train_from_features(feats, labels)
+
+
     def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, *args, **kwargs):
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
@@ -200,7 +212,7 @@ class RealDetector(BernoulliDetector):
             obj = cls(descriptor, d['settings'])
             #obj.weights = d['weights']
             obj.svms = d['svms']
-            obj.orig_kernel_size = d.get('orig_kernel_size')
+            #obj.orig_kernel_size = d.get('orig_kernel_size')
             obj.kernel_sizes = d.get('kernel_sizes')
 
             obj._preprocess()
@@ -216,7 +228,7 @@ class RealDetector(BernoulliDetector):
         d['descriptor'] = self.descriptor.save_to_dict()
         #d['weights'] = self.weights
         d['svms'] = self.svms
-        d['orig_kernel_size'] = self.orig_kernel_size
+        #d['orig_kernel_size'] = self.orig_kernel_size
         d['kernel_sizes'] = self.kernel_sizes
         d['settings'] = self.settings
 

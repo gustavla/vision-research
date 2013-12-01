@@ -62,7 +62,7 @@ if side is not None:
     assert mixcomp is not None
     #bbs, x, small = detector.detect_coarse_unfiltered_at_scale(grayscale_img, side, mixcomp) 
 
-    factor = side/max(detector.orig_kernel_size)
+    factor = side/max(detector.settings['image_size'])
     print(factor)
     bbs, x, bkgcomp, feats, img_resized = detector.detect_coarse_single_factor(grayscale_img, factor, mixcomp)
     detector.label_corrects(bbs, fileobj)

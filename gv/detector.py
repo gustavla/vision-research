@@ -21,7 +21,7 @@ class Detector(SaveableRegistry):
     DESCRIPTOR = None
 
     def __init__(self, num_mixtures, descriptor, settings={}):
-        assert isinstance(descriptor, self.DESCRIPTOR)
+        assert isinstance(descriptor, self.DESCRIPTOR), (descriptor, self.DESCRIPTOR)
         self.descriptor = descriptor 
         self.num_mixtures = num_mixtures
 
@@ -79,10 +79,6 @@ class BernoulliDetector(Detector):
         return self.settings['train_unspread']
 
     @property
-    def num_bkg_mixtures(self):
-        return self.settings.get('num_bkg_mixtures', 1)
-
-    @property
     def num_features(self):
         return self.descriptor.num_features
 
@@ -129,7 +125,7 @@ class BernoulliDetector(Detector):
             yield final_edges
 
     def train_from_images(self, images, labels=None):
-        self.orig_kernel_size = None
+        #self.orig_kernel_size = None
 
         mixture, kernel_templates, kernel_sizes, support = self._train(images)
 
@@ -185,8 +181,8 @@ class BernoulliDetector(Detector):
             if extra_bits is None:  
                 extra_bits = flat_extra.size
 
-            if self.orig_kernel_size is None:
-                self.orig_kernel_size = (img.shape[0], img.shape[1])
+            #if self.orig_kernel_size is None:
+                #self.orig_kernel_size = (img.shape[0], img.shape[1])
         
             # Extract the parts, with some pooling 
             if output is None:
@@ -369,9 +365,9 @@ class BernoulliDetector(Detector):
             bb = bb0
 
             # Now, inflate the bounding box
-            inf_bb = self.settings.get('inflate_bounding_box')
-            if inf_bb is not None:
-                bb = gv.bb.inflate(bb, inf_bb)
+            #inf_bb = self.settings.get('inflate_bounding_box')
+            #if inf_bb is not None:
+                #bb = gv.bb.inflate(bb, inf_bb)
 
             psize = self.settings['subsample_size']
             #bb = tuple([(bb[i] - alphas.shape[i%2] // 2) / psize[i%2] for i in xrange(4)])
@@ -825,9 +821,10 @@ class BernoulliDetector(Detector):
         # resizes everything from scratch, which is MUCH SLOWER
 
         min_size = self.settings['min_size'] 
-        min_factor = min_size / max(self.orig_kernel_size)
+        img_size = max(self.settings['image_size'])
+        min_factor = min_size / img_size 
         max_size = self.settings['max_size'] 
-        max_factor = max_size / max(self.orig_kernel_size)
+        max_factor = max_size / img_size 
 
         resmaps = {}
 
@@ -893,10 +890,10 @@ class BernoulliDetector(Detector):
                                  more_detections=False):
 
         if 0:
-            self.standardization_info[mixcomp][0]['mean'] = self.extra['bkg_mixtures'][mixcomp][0]['mean']
-            self.standardization_info[mixcomp][0]['std'] = self.extra['bkg_mixtures'][mixcomp][0]['std']
+            self.standardization_info[mixcomp]['mean'] = self.extra['bkg_mixtures'][mixcomp]['mean']
+            self.standardization_info[mixcomp]['std'] = self.extra['bkg_mixtures'][mixcomp]['std']
 
-            self.indices[mixcomp][0] = self.extra['bkg_mixtures'][mixcomp][0]['indices']
+            self.indices[mixcomp] = self.extra['bkg_mixtures'][mixcomp]['indices']
 
             sub_kernels = [[self.extra['bkg_mixtures'][i][j]['kern'] for j in xrange(1)] for i in xrange(self.num_mixtures)]
             spread_bkg = [[self.extra['bkg_mixtures'][i][j]['bkg'] for j in xrange(1)] for i in xrange(self.num_mixtures)]
@@ -933,13 +930,13 @@ class BernoulliDetector(Detector):
                 i = int(np.round(np.log2(factor) / np.log2(self.settings['scale_factor'])))
                 f = np.log2(100*factor*0.8)
 
-                #pos_mu = self.standardization_info[mixcomp][0]['pos_llhs'].mean()
+                #pos_mu = self.standardization_info[mixcomp]['pos_llhs'].mean()
                 #i = np.argmin(np.fabs((xs - f)**2))
                 #resmap -= np.log(tt[i]) / pos_mu
                 #alpha = 1/(1 + tt[i])
 
                 # 17.09%
-                factor_info = self.standardization_info[mixcomp][0]['factor_info'][i]
+                factor_info = self.standardization_info[mixcomp]['factor_info'][i]
                 data = factor_info['neg_llhs']
                 nonzero = data != 0.0
                 alpha = nonzero.mean()**3
@@ -967,8 +964,8 @@ class BernoulliDetector(Detector):
                     #resmap -= pos_mu**2 / 2
                     #resmap += np.log(alpha / (1 - alpha))
                     #means = np.load('means{}.npy'.format(mixcomp))
-                    #resmap += -np.log(tt[i]) / pos_mu - means[np.round(np.log2(factor)*3)] / self.standardization_info[mixcomp][0]['neg_llhs'].std()
-                    #resmap += (2 * f * np.log(2) - means[np.round(np.log2(factor)*3)] / self.standardization_info[mixcomp][0]['neg_llhs'].std()) / 1
+                    #resmap += -np.log(tt[i]) / pos_mu - means[np.round(np.log2(factor)*3)] / self.standardization_info[mixcomp]['neg_llhs'].std()
+                    #resmap += (2 * f * np.log(2) - means[np.round(np.log2(factor)*3)] / self.standardization_info[mixcomp]['neg_llhs'].std()) / 1
 
 
                 #resmap -= mus[i]
@@ -1054,8 +1051,8 @@ class BernoulliDetector(Detector):
         psize = self.settings['subsample_size']
 
         # TODO: Decide this in a way common to response_map
-        sh = kern[0].shape
-        sh0 = kern[0].shape
+        sh = kern.shape
+        sh0 = kern.shape
         if use_padding:
             padding = (sh[0]//2, sh[1]//2, 0)
         else:
@@ -1125,6 +1122,7 @@ class BernoulliDetector(Detector):
     
                     score = resmap[i,j]
                     orig_score = orig_resmap[i,j]
+                    X = None
                     if score >= th:# and score == local_max:
 
                         # ...
@@ -1132,6 +1130,7 @@ class BernoulliDetector(Detector):
                             #th = self.clfs[mixcomp]['th']
 
                         cascade_score = self.extra.get('cascade_threshold')
+                        do_cascade = self.settings.get('cascade')
                         bk = -1 
                         X = bigger[i:i+sh0[0], j:j+sh0[1]].copy()
 
@@ -1144,7 +1143,7 @@ class BernoulliDetector(Detector):
                         #if score >= 15:
                             #print X.mean()
 
-                        if False and cascade and 'svms' in self.extra and score >= cascade_score:
+                        if cascade and do_cascade and 'svms' in self.extra and score >= cascade_score:
                             # Take the maximum of a neighborhood
                             scores = []
                             Xes = []
@@ -1322,7 +1321,7 @@ class BernoulliDetector(Detector):
                         
                         orig_im = None
                         # This will only work correctly when use_padding is False.
-                        if True: #if not use_padding:
+                        if False: #if not use_padding:
                             if use_padding:
                                 padded_image = ag.util.zeropad(image, image_padding)
                             else:
@@ -1346,6 +1345,10 @@ class BernoulliDetector(Detector):
                                 
                             orig_im = padded_image[P0[0]:P1[0], P0[1]:P1[1]]
 
+                        if cascade and do_cascade and score >= cascade_score:
+                            save_X = X.copy()
+                        else:
+                            save_X = None
 
                         dbb = gv.bb.DetectionBB(score=score, 
                                                 box=bb, 
@@ -1355,88 +1358,13 @@ class BernoulliDetector(Detector):
                                                 scale=factor, 
                                                 mixcomp=mixcomp, 
                                                 bkgcomp=bk, 
-                                                img_id=img_id)#,  KILLS MEMORY CONSUMPTION
+                                                img_id=img_id,
+                                                X=save_X)#,  KILLS MEMORY CONSUMPTION
                                                 #image=orig_im, X=X)
 
                         if gv.bb.area(bb) > 0:
                             bbs.append(dbb)
 
-                        #{{{ Old code
-                        if 0:
-                            i_corner = i-sh[0]//2
-                            j_corner = j-sh[1]//2
-
-                            index_pos = (i-padding[0], j-padding[1])
-
-                            obj_bb = self.boundingboxes[mixcomp]
-                            bb = [(i_corner + obj_bb[0]) * agg_factors[0],
-                                  (j_corner + obj_bb[1]) * agg_factors[1],
-                                  (i_corner + obj_bb[2]) * agg_factors[0],
-                                  (j_corner + obj_bb[3]) * agg_factors[1],
-                            ]
-
-                            # Clip to bb_bigger 
-                            bb = gv.bb.intersection(bb, bb_bigger)
-            
-                            #score0 = score1 = 0
-                            
-                            score1 = j
-
-                            conf = score
-                            dbb = gv.bb.DetectionBB(score=score, score0=score0, score1=score1, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
-
-                            if gv.bb.area(bb) > 0:
-                                bbs.append(dbb)
-                        #}}}
-            
-        else:
-            #{{{ Unused else
-            for i in xrange(resmap.shape[0]):
-                for j in xrange(resmap.shape[1]):
-                    score = resmap[i,j]
-                    if score >= th:
-                        conf = score
-                        pos = resmap.pos((i, j))
-                        #lower = resmap.pos((i + self.boundingboxes2[mixcomp][0]))
-                        bb = ((pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][0] * agg_factors[0]),
-                              (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][1] * agg_factors[1]),
-                              (pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][2] * agg_factors[0]),
-                              (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors[1]))
-
-                        index_pos = (i-padding[0], j-padding[1])
-        
-                        #dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
-                        dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=bkgcomp[i,j])
-
-                        if gv.bb.area(bb) > 0:
-                            bbs.append(dbb)
-
-                        if 0:
-                            i_corner = i-sh[0]//2
-                            j_corner = j-sh[1]//2
-
-                            index_pos = (i-padding[0], j-padding[1])
-
-                            obj_bb = self.boundingboxes[mixcomp]
-                            bb = [(i_corner + obj_bb[0]) * agg_factors[0],
-                                  (j_corner + obj_bb[1]) * agg_factors[1],
-                                  (i_corner + obj_bb[2]) * agg_factors[0],
-                                  (j_corner + obj_bb[3]) * agg_factors[1],
-                            ]
-
-                            # Clip to bb_bigger 
-                            bb = gv.bb.intersection(bb, bb_bigger)
-            
-                            #score0 = score1 = 0
-                            score0 = i
-                            score1 = j
-
-                            conf = score
-                            dbb = gv.bb.DetectionBB(score=score, score0=score0, score1=score1, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
-
-                            if gv.bb.area(bb) > 0:
-                                bbs.append(dbb)
-            #}}}
 
         # Let's limit to five per level
         bbs_sorted = self.nonmaximal_suppression(bbs)
@@ -1458,17 +1386,18 @@ class BernoulliDetector(Detector):
         eps = settings.get('min_probability')
         if eps is None:
             import scipy.stats.mstats as ms
-            return ms.scoreatpercentile(model.ravel(), settings['min_probability_percentile'])
+            eps = ms.scoreatpercentile(model.ravel(), settings['min_probability_percentile'])
+            fallback_eps = settings.get('min_probability_fallback', 0.0001)
+            if eps < fallback_eps:
+                eps = fallback_eps
+            print model.shape
+            print "EPS", eps
+            return eps
         else:
             return eps 
 
     def prepare_eps(self, model):
-        eps = self.settings.get('min_probability')
-        if eps is None:
-            import scipy.stats.mstats as ms
-            self._eps = ms.scoreatpercentile(model.ravel(), self.settings['min_probability_percentile'])
-        else:
-            self._eps = eps 
+        self._eps = self.calc_eps(model, self.settings)
 
     @classmethod
     def build_clipped_weights(cls, obj, bkg, eps):
@@ -1477,11 +1406,11 @@ class BernoulliDetector(Detector):
         return cls.build_weights(clipped_obj, clipped_bkg)
 
     def weights(self, mixcomp):
-        bkg = np.clip(self.fixed_spread_bkg[mixcomp][0], self.eps, 1 - self.eps)
-        kern = np.clip(self.kernel_templates[mixcomp][0], self.eps, 1 - self.eps)
+        bkg = np.clip(self.fixed_spread_bkg[mixcomp], self.eps, 1 - self.eps)
+        kern = np.clip(self.kernel_templates[mixcomp], self.eps, 1 - self.eps)
         #w = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
         w = self.build_weights(kern, bkg)
-        #pd = self.kernel_templates[mixcomp][0].mean(axis=-1)
+        #pd = self.kernel_templates[mixcomp].mean(axis=-1)
         #return w / np.minimum(pd, 0.5)
         return w
 
@@ -1494,7 +1423,7 @@ class BernoulliDetector(Detector):
 
     def keypoint_weights(self, mixcomp):
         w = self.weights(mixcomp)
-        I = self.indices[mixcomp][0] 
+        I = self.indices[mixcomp] 
         return w.ravel()[np.array([np.ravel_multi_index(Ii, w.shape) for Ii in I])]
 
     def keypoint_cascade_weights(self, mixcomp, bkgcomp):
@@ -1507,120 +1436,18 @@ class BernoulliDetector(Detector):
     def dense_keypoint_weights(self, mixcomp):
         base_weights = self.weights(mixcomp)
         kp_only_weights = np.zeros(base_weights.shape)
-        for i, index in enumerate(self.indices[mixcomp][0]):
+        for i, index in enumerate(self.indices[mixcomp]):
             kp_only_weights[tuple(index)] = base_weights[tuple(index)]
         return kp_only_weights
-
-
-    def response_map_NEW_MULTI(self, sub_feats, sub_kernels, spread_bkg, mixcomp, bkgcomps, level=0, standardize=True, probs=None):
-        if np.min(sub_feats.shape) <= 1:
-            return None
-
-        K = self.num_bkg_mixtures 
-    
-        #kern = sub_kernels[mixcomp]
-        #if self.settings.get('per_mixcomp_bkg'):
-            #spread_bkg =  spread_bkg[mixcomp]
-
-        sh = sub_kernels[mixcomp][0].shape
-        padding = (sh[0]//2, sh[1]//2, 0)
-
-        bigger = gv.ndfeature.zeropad(sub_feats, padding)
-
-        # Since the kernel is spread, we need to convert the background
-        # model to spread
-        radii = self.settings['spread_radii']
-        neighborhood_area = ((2*radii[0]+1)*(2*radii[1]+1))
-
-        #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
-
-        
-        # TEMP
-        #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
-        #kern = np.clip(kern, eps, 1 - eps) 
-        #clipped_bkg = np.asarray([np.clip(b, eps, 1-eps) for b in spread_bkg[mixcomp]])
-        #clipped_kernels = np.asarray([np.clip(kern, eps, 1-eps) for kern in sub_kernels[mixcomp]])
-        clipped_bkg = np.clip(spread_bkg[mixcomp], self.eps, 1 - self.eps)
-        clipped_kernels = np.clip(sub_kernels[mixcomp], self.eps, 1 - self.eps)
-
-        #all_weights = np.asarray([np.log(clipped_kernels[k]/(1-clipped_kernels[k]) * ((1-clipped_bkg[k])/clipped_bkg[k])) for k in xrange(K)])
-        all_weights = self.build_weights(clipped_kernels, clipped_bkg)
-    
-        from .fast import multifeature_correlate2d_multi, multifeature_correlate2d
-        if 0:
-            res = multifeature_correlate2d_multi(bigger, all_weights.astype(np.float64), bkgcomps.astype(np.int32))
-            #from .fast import multifeature_correlate2d
-            #res = multifeature_correlate2d(bigger, all_weights[4].astype(np.float64))
-            lower, upper = gv.ndfeature.inner_frame(bigger, (all_weights.shape[1]/2, all_weights.shape[2]/2))
-            res = gv.ndfeature(res, lower=lower, upper=upper)
-
-
-
-            # Standardization
-            if standardize:
-                testing_type = self.settings.get('testing_type', 'object-model')
-            else:
-                testing_type = 'none'
-
-            for k in xrange(K):
-                from .fast import nonparametric_rescore
-                info = self.standardization_info[mixcomp][k]
-                if testing_type == 'non-parametric':
-                    res0 = res.copy() 
-                    nonparametric_rescore(res0, info['start'], info['step'], info['points']) 
-                elif testing_type == 'fixed':
-                    res0 = res.copy() 
-                    res0 -= self.standardization_info[mixcomp][k]['mean']
-                    res0 /= self.standardization_info[mixcomp][k]['std']
-                else:
-                    assert 0, "Nothing else has been adapted to this new function"
-                    
-
-                res[bkgcomps == k] = res0[bkgcomps == k]
-                #res[bkgcomps == k] = (res0[bkgcomps == k] - info['comp_mean']) / info['comp_std']
-            
-        else:
-            #from .fast import multifeature_correlate2d_with_indices
-            #res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices)
-
-            all_res = []
-            for m in xrange(self.num_bkg_mixtures):
-                if self.indices is not None:
-                    indices = self.indices[mixcomp][m].astype(np.int32)
-                    res = multifeature_correlate2d_with_indices(bigger, all_weights[m].astype(np.float64), indices)
-                else: 
-                    res = multifeature_correlate2d(bigger, all_weights[m].astype(np.float64))
-                all_res.append(res)
-            #all_res = [multifeature_correlate2d(bigger, all_weights[k].astype(np.float64)) for k in xrange(self.num_bkg_mixtures)]
-
-            from .fast import nonparametric_rescore
-
-            for k in xrange(self.num_bkg_mixtures):
-                info = self.standardization_info[mixcomp][k]
-                nonparametric_rescore(all_res[k], info['start'], info['step'], info['points']) 
-
-            lower, upper = gv.ndfeature.inner_frame(bigger, (all_weights.shape[1]/2, all_weights.shape[2]/2))
-
-            res = np.zeros_like(all_res[0]) 
-            #bkgcomp = np.argmax(bkgweight, axis=0)
-            for m in xrange(self.num_bkg_mixtures):
-                res += probs[m] * all_res[m]
-
-                
-            res = gv.ndfeature(res, lower=lower, upper=upper)
-            
-            
-
-        return res
 
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True, use_padding=True):
         if np.min(sub_feats.shape) <= 1:
             return np.zeros((0, 0, 0)), None, None
     
         # TODO: Temporary
-        kern = sub_kernels[mixcomp][0]
+        kern = sub_kernels[mixcomp]
         if self.settings.get('per_mixcomp_bkg') or True:
-            spread_bkg =  spread_bkg[mixcomp][0]
+            spread_bkg =  spread_bkg[mixcomp]
 
 
         sh = kern.shape
@@ -1661,7 +1488,7 @@ class BernoulliDetector(Detector):
 
 
             if self.indices is not None:
-                indices = self.indices[mixcomp][0].astype(np.int32)
+                indices = self.indices[mixcomp].astype(np.int32)
                 from .fast import multifeature_correlate2d_with_indices
                 res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices)
             else:
@@ -1678,8 +1505,8 @@ class BernoulliDetector(Detector):
 
         # TODO: Temporary slow version
         if testing_type == 'NEW':
-            neg_llhs = self.standardization_info[mixcomp][0]['neg_llhs']
-            pos_llhs = self.standardization_info[mixcomp][0]['pos_llhs']
+            neg_llhs = self.standardization_info[mixcomp]['neg_llhs']
+            pos_llhs = self.standardization_info[mixcomp]['pos_llhs']
 
             def logpdf(x, loc=0.0, scale=1.0):
                 return -(x - loc)**2 / (2*scale**2) - 0.5 * np.log(2*np.pi) - np.log(scale)
@@ -1723,15 +1550,15 @@ class BernoulliDetector(Detector):
                 res[x,y] = score2(res[x,y], neg_hist, pos_hist, neg_logs, pos_logs)
 
         if testing_type == 'fixed':
-            res -= self.standardization_info[mixcomp][0]['mean']
-            res /= self.standardization_info[mixcomp][0]['std']
-            #res -= self.standardization_info[mixcomp][0]['mean']
-            #res /= self.standardization_info[mixcomp][0]['std']
-            #res -= self.standardization_info[mixcomp][0]['neg_llhs'].mean()
-            #res /= self.standardization_info[mixcomp][0]['neg_llhs'].std()
+            res -= self.standardization_info[mixcomp]['mean']
+            res /= self.standardization_info[mixcomp]['std']
+            #res -= self.standardization_info[mixcomp]['mean']
+            #res /= self.standardization_info[mixcomp]['std']
+            #res -= self.standardization_info[mixcomp]['neg_llhs'].mean()
+            #res /= self.standardization_info[mixcomp]['neg_llhs'].std()
         elif testing_type == 'non-parametric':
             from .fast import nonparametric_rescore
-            info = self.standardization_info[mixcomp][0]
+            info = self.standardization_info[mixcomp]
             nonparametric_rescore(res, info['start'], info['step'], info['points'])
         elif testing_type == 'object-model':
             a = weights
@@ -1798,7 +1625,7 @@ class BernoulliDetector(Detector):
             return ret
         else:
             psize = self.settings['subsample_size']
-            return (0, 0, self.orig_kernel_size[0]/psize[0], self.orig_kernel_size[1]/psize[1])
+            return (0, 0, self.settings['image_size'][0]/psize[0], self.settings['image_size'][1]/psize[1])
 
     #@classmethod
     #def bounding_box_from_mean_alphas(cls, support, threshold
@@ -1806,15 +1633,17 @@ class BernoulliDetector(Detector):
     def bounding_box_for_mix_comp2(self, k):
         """This returns a bounding box of the support for a given component"""
 
+        #psize = self.settings['subsample_size']
+        psize = self.descriptor.subsample_size
+        print psize
+
         # Take the bounding box of the support, with a certain threshold.
         if 'bbs' in self.extra:
             supp = self.support[k] 
             bb = self.extra['bbs'][k]
              
             image_size = self.settings['image_size']
-            psize = self.settings['subsample_size']
             ret = ((bb[0] - image_size[0]//2)/psize[0], (bb[1] - image_size[1]//2)/psize[1], (bb[2] - image_size[0]//2)/psize[0], (bb[3] - image_size[1]//2)/psize[1])
-            return ret 
 
         elif self.support is not None:
             supp = self.support[k] 
@@ -1831,12 +1660,17 @@ class BernoulliDetector(Detector):
             # TODO: SO TEMP!
             #inflate = 1
             #ret = (ret[0] - inflate, ret[1] - inflate, ret[2] + inflate, ret[3] + inflate)
-            return ret
         else:
             psize = self.settings['subsample_size']
             size = (self.orig_kernel_size[0]/psize[0], self.orig_kernel_size[1]/psize[1])
-            return (-size[0]/2, -size[1]/2, size[0]/2, size[1]/2)
+            ret = (-size[0]/2, -size[1]/2, size[0]/2, size[1]/2)
 
+        ret = gv.bb.inflate2(ret, np.divide(self.settings.get('inflate_bounding_box', 0), psize))
+        return ret
+
+    @property
+    def orig_kernel_size(self):
+        return self.settings['image_size']
 
     def label_corrects(self, bbs, fileobj):
         used_bb = set([])
@@ -1873,7 +1707,7 @@ class BernoulliDetector(Detector):
     def _preprocess(self):
         """Pre-processes things"""
         # Prepare bounding boxes for all mixture model
-        self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
+        #self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
         self.boundingboxes2 = np.array([self.bounding_box_for_mix_comp2(i) for i in xrange(self.num_mixtures)])
 
     @classmethod
@@ -1891,7 +1725,7 @@ class BernoulliDetector(Detector):
             else:
                 obj.mixture = None
             obj.settings = d['settings']
-            obj.orig_kernel_size = d.get('orig_kernel_size')
+            #obj.orig_kernel_size = d.get('orig_kernel_size')
             obj.kernel_basis = d.get('kernel_basis')
             obj.kernel_basis_samples = d.get('kernel_basis_samples')
             obj.kernel_templates = d.get('kernel_templates')
@@ -1904,7 +1738,7 @@ class BernoulliDetector(Detector):
             obj.fixed_spread_bkg = d.get('fixed_spread_bkg')
             obj.fixed_spread_bkg2 = d.get('fixed_spread_bkg2') # TODO: New
 
-            obj.prepare_eps(obj.fixed_spread_bkg[0][0])
+            obj.prepare_eps(obj.fixed_spread_bkg[0])
 
             obj.standardization_info = d.get('standardization_info')
             obj.standardization_info2 = d.get('standardization_info2')
@@ -1928,7 +1762,7 @@ class BernoulliDetector(Detector):
         d['descriptor'] = self.descriptor.save_to_dict()
         if self.mixture is not None:
             d['mixture'] = self.mixture.save_to_dict(save_affinities=True)
-        d['orig_kernel_size'] = self.orig_kernel_size
+        #d['orig_kernel_size'] = self.orig_kernel_size
         d['kernel_templates'] = self.kernel_templates
         d['kernel_basis'] = self.kernel_basis
         d['kernel_basis_samples'] = self.kernel_basis_samples

@@ -29,7 +29,7 @@ def gen_negative_files(excluding_class, contest='train'):
         if int(s) == -1:
             yield load_file(excluding_class, int(img_id), load_boxes=False)
 
-def load_file(class_name, img_id, load_boxes=True):
+def load_file(class_name, img_id, load_boxes=True, poses=None):
     img_path = os.path.join(os.environ['VOC_DIR'], 'JPEGImages', '{0:06}.jpg'.format(img_id))
     bbs = []
     if load_boxes: 
@@ -41,7 +41,9 @@ def load_file(class_name, img_id, load_boxes=True):
         for obj in objs:
             # Check what kind of object
             name = _get_text(obj.getElementsByTagName('name')[0].childNodes)
-            if name == class_name or class_name is None:
+            pose = _get_text(obj.getElementsByTagName('pose')[0].childNodes)
+            pose_ok = poses is None or pose in poses
+            if (name == class_name or class_name is None) and pose_ok:
                 truncated = bool(int(_get_text(obj.getElementsByTagName('truncated')[0].childNodes)))
                 difficult = bool(int(_get_text(obj.getElementsByTagName('difficult')[0].childNodes)))
                 bndbox_obj = obj.getElementsByTagName('bndbox')[0] 
@@ -54,7 +56,7 @@ def load_file(class_name, img_id, load_boxes=True):
     fileobj = ImgFile(path=img_path, boxes=bbs, img_id=img_id)
     return fileobj
 
-def load_specific_files(class_name, img_ids, has_objects=None, padding=0):
+def load_specific_files(class_name, img_ids, has_objects=None, padding=0, poses=None):
     """img_ids and has_objects should be lists of equal length"""
     N = len(img_ids) 
 
@@ -64,7 +66,7 @@ def load_specific_files(class_name, img_ids, has_objects=None, padding=0):
         img_id = img_ids[i]
         if has_objects is not None:
             hasobject = has_objects[i] 
-        fileobj = load_file(class_name, img_id, load_boxes=(hasobject == 1))
+        fileobj = load_file(class_name, img_id, load_boxes=(hasobject == 1), poses=poses)
         files.append(fileobj)
 
     # Get the total count
@@ -108,25 +110,25 @@ _VOC_SIDES = [
     3033, 3046, 3055, 3070, 3109, 3143, 3276, 3306, 3348, 3357, 3364, 3375
 ]
 
-def load_files(class_name, dataset='train'):
+def load_files(class_name, dataset='train', poses=None):
     if dataset == 'profile':
-        return load_specific_files(class_name, _VOC_PROFILES)
+        return load_specific_files(class_name, _VOC_PROFILES, poses=poses)
     elif dataset == 'profile2':
-        return load_specific_files(class_name, _VOC_PROFILES2)
+        return load_specific_files(class_name, _VOC_PROFILES2, poses=poses)
     elif dataset == 'profile3':
-        return load_specific_files(class_name, _VOC_PROFILES3)
+        return load_specific_files(class_name, _VOC_PROFILES3, poses=poses)
     elif dataset == 'profile4':
-        return load_specific_files(class_name, _VOC_PROFILES4)
+        return load_specific_files(class_name, _VOC_PROFILES4, poses=poses)
     elif dataset == 'profile5':
-        return load_specific_files(class_name, _VOC_PROFILES5)
+        return load_specific_files(class_name, _VOC_PROFILES5, poses=poses)
     elif dataset == 'easy':
-        return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPROFILES)
+        return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPROFILES, poses=poses)
     elif dataset == 'fronts':
-        return load_specific_files(class_name, _VOC_FRONTBACKS)
+        return load_specific_files(class_name, _VOC_FRONTBACKS, poses=poses)
     elif dataset == 'fronts-negs':
-        return load_specific_files(class_name, _VOC_FRONTBACKS_NEGS)
+        return load_specific_files(class_name, _VOC_FRONTBACKS_NEGS, poses=poses)
     elif dataset == 'sides':
-        return load_specific_files(class_name, _VOC_SIDES)
+        return load_specific_files(class_name, _VOC_SIDES, poses=poses)
 
     path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))
 
@@ -134,7 +136,7 @@ def load_files(class_name, dataset='train'):
     N = f.shape[0]
     img_ids = f[:,0]
     has_objects = f[:,1] 
-    return load_specific_files(class_name, img_ids, has_objects)
+    return load_specific_files(class_name, img_ids, has_objects, poses=poses)
 
 def _load_images(objfiles, tot, size, padding=0):
     bbs = []

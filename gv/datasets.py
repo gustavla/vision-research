@@ -5,7 +5,8 @@ import amitgroup.util
 ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
 
 def contests():
-    return ('voc-val', 'voc-train', 'voc-trainval', 'voc-test', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-profile5', 'voc-easy', 'voc-fronts', 'voc-fronts-negs', 'voc-sides',
+    return ('voc-val', 'voc-train', 'voc-trainval', 'voc-test', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-profile5', 
+            'voc-easy', 'voc-fronts', 'voc-fronts-negs', 'voc-sides', 'voc-val-profile', 'voc-test-profile',
             'uiuc', 'uiuc-multiscale', 
             'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks')
 
@@ -19,10 +20,14 @@ def load_files(contest, obj_class):
         files, tot = gv.voc.load_files(obj_class, dataset='train')
     elif contest == 'voc-val':
         files, tot = gv.voc.load_files(obj_class, dataset='val')
+    elif contest == 'voc-val-profile':
+        files, tot = gv.voc.load_files(obj_class, dataset='val', poses={'Left', 'Right'})
     elif contest == 'voc-trainval':
         files, tot = gv.voc.load_files(obj_class, dataset='trainval')
     elif contest == 'voc-test':
         files, tot = gv.voc.load_files(obj_class, dataset='test')
+    elif contest == 'voc-test-profile':
+        files, tot = gv.voc.load_files(obj_class, dataset='test', poses={'Left', 'Right'})
     elif contest == 'voc-profile':
         files, tot = gv.voc.load_files(obj_class, dataset='profile')
     elif contest == 'voc-profile2':

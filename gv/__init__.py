@@ -11,8 +11,7 @@ from . import voc
 from . import uiuc
 from . import custom
 from .beta_mixture import BetaMixture, binary_search # Temporarily exposed
-from .mpi4py_map import map as pmap
-from .mpi4py_map import map_unordered as pmap_unordered
+from . import parallel 
 
 from .core import *
 

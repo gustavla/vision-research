@@ -61,6 +61,9 @@ def box_sticks_out(bb_smaller, bb_bigger):
 def inflate(bb, amount):
     return (bb[0] - amount, bb[1] - amount, bb[2] + amount, bb[3] + amount)
 
+def inflate2(bb, amounts):
+    return (bb[0] - amounts[0], bb[1] - amounts[1], bb[2] + amounts[0], bb[3] + amounts[1])
+
 def center(bb):
     return ((bb[0]+bb[2])//2, (bb[1]+bb[3])//2)
 
