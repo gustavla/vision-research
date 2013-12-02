@@ -19,6 +19,7 @@ class RealDetector(BernoulliDetector):
     def train_from_features(self, feats, labels):
         assert len(feats) == len(labels)
         labels = np.asarray(labels)
+        feats = np.asarray(feats)
 
         pos_feats = feats[labels==1]
         neg_feats = feats[labels==0]
@@ -32,6 +33,8 @@ class RealDetector(BernoulliDetector):
             from sklearn.mixture import GMM
             mixture = GMM(n_components=K, n_iter=10)
             X = pos_feats.reshape((pos_feats.shape[0], -1))
+            print np.shape(pos_feats)
+            print np.shape(X)
             print 'THERE'
             mixture.fit(X)
             print 'EVERYWHERE'
@@ -65,6 +68,7 @@ class RealDetector(BernoulliDetector):
                                   weights=svc.coef_.reshape(feats.shape[1:])))
     
         
+        self._preprocess()
 
     def train_from_images(self, image_filenames, labels):
         assert len(image_filenames) == len(labels)
@@ -112,19 +116,20 @@ class RealDetector(BernoulliDetector):
         lower, upper = gv.ndfeature.inner_frame(bigger, (sh[0]/2, sh[1]/2))
         res = gv.ndfeature(res, lower=lower, upper=upper)
 
-        return res
+        return res, bigger
 
     def subsample_size(self):
         return self.descriptor.subsample_size
 
     def _detect_coarse_at_factor(self, feats, factor, mixcomp):
         # Get background level
-        resmap = self._response_map(feats, mixcomp)
+        resmap, bigger = self._response_map(feats, mixcomp)
 
         kern = self.svms[mixcomp]['weights']
 
         # TODO: Decide this in a way common to response_map
         sh = kern.shape
+        sh0 = kern.shape
         padding = (sh[0]//2, sh[1]//2, 0)
 
         # Get size of original kernel (but downsampled)
@@ -154,8 +159,10 @@ class RealDetector(BernoulliDetector):
                           (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors2[1]))
 
                     index_pos = (i-padding[0], j-padding[1])
+
+                    X = bigger[i:i+sh0[0], j:j+sh0[1]].copy()
     
-                    dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=0)
+                    dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=0, X=X)
 
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)

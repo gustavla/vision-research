@@ -19,54 +19,152 @@ import os.path
 import numpy as np
 import amitgroup as ag
 import random
-
+import itertools as itr
 ag.set_verbose(True)
 
-#descriptor = gv.load_descriptor(gv.RealDetector.DESCRIPTOR, sett)
-descriptor = gv.load_descriptor(sett)
-detector = gv.RealDetector(descriptor, dsettings)
+def get_strong_fps(detector, i, fileobj, threshold):
+    topsy = [[] for k in xrange(detector.num_mixtures)]
+    #for i, fileobj in enumerate(itr.islice(gen, COUNT)):
+    ag.info('{0} Farming {1}'.format(i, fileobj.img_id))
+    #img = gv.img.load_image(img_fn)
+    img = gv.img.load_image(fileobj.path)
+    grayscale_img = gv.img.asgray(img)
 
-all_files = sorted(glob.glob(os.path.expandvars(dsettings['train_dir'])))
-random.seed(0)
-random.shuffle(all_files)
-files = all_files[:dsettings.get('train_limit')]
-labels = [1] * len(files)
-images = []
+    for m in xrange(detector.num_mixtures):
+        bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[m], use_padding=False, use_scale_prior=False, cascade=True, more_detections=True)
+        # Add in img_id
+        for bbobj in bbobjs:
+            bbobj.img_id = fileobj.img_id
 
-for fn in files:
-    im = gv.img.asgray(gv.img.load_image(fn))
-    images.append(im)
+            #array.append(bbobj.X)
 
-from train_superimposed import generate_random_patches
+            if bbobj.confidence > threshold: 
+                #if len(topsy[m]) < TOP_N:
+                #    heapq.heappush(topsy[m], bbobj)
+                #else:
+                #    heapq.heappushpop(topsy[m], bbobj)
+                topsy[m].append(bbobj)
 
-feats = []
+    return topsy
 
-if 1:
-    neg_files = sorted(glob.glob(os.path.expandvars(dsettings['neg_dir'])))
-    gen = generate_random_patches(neg_files, dsettings['image_size'], per_image=5)
-    count = 0
-    for neg in gen:
-        print count
-        images.append(neg)
-        count += 1
-        if count == dsettings['neg_limit']:
-            break
+def get_strong_fps_star(args):
+    return get_strong_fps(*args)
 
-    labels += [0] * count
 
-else:
-    # Add negatives
-    neg_files = sorted(glob.glob(os.path.expandvars(dsettings['neg_dir'])))[:dsettings.get('neg_limit')]
-    files += neg_files
-    labels += [0] * len(neg_files)
+if gv.parallel.main(__name__):
+    #descriptor = gv.load_descriptor(gv.RealDetector.DESCRIPTOR, sett)
+    descriptor = gv.load_descriptor(sett)
+    detector = gv.RealDetector(descriptor, dsettings)
 
-labels = np.asarray(labels)
-    
-print "Training on {0} files".format(len(files))
-print "{0} pos / {1} neg".format(np.sum(labels == 1), np.sum(labels == 0))
-#files = files[:10]
+    all_files = sorted(glob.glob(os.path.expandvars(dsettings['train_dir'])))
+    random.seed(0)
+    random.shuffle(all_files)
+    files = all_files[:dsettings.get('train_limit')]
+    pos_labels = [1] * len(files)
+    pos_images = []
+    pos_feats = []
 
-detector.train_from_image_data(images, labels)
+    for fn in files:
+        im = gv.img.asgray(gv.img.load_image(fn))
+        pos_images.append(im)
 
-detector.save(dsettings['file'])
+        feat = detector.descriptor.extract_features(im)
+        print 'feat.shape', feat.shape
+        pos_feats.append(feat)
+
+    from train_superimposed import generate_random_patches
+
+    feats = []
+
+    images = pos_images[:]
+
+    neg_feats = []
+    neg_labels = []
+
+    if 1:
+        neg_files = sorted(glob.glob(os.path.expandvars(dsettings['neg_dir'])))
+        gen = generate_random_patches(neg_files, dsettings['image_size'], per_image=5)
+        count = 0
+        for neg in gen:
+            print count
+            #images.append(neg)
+            feat = detector.descriptor.extract_features(neg)
+            neg_feats.append(feat)
+            neg_labels.append(0)
+            count += 1
+            if count == dsettings['neg_limit']:
+                break
+
+        #labels = pos_labels + [0] * count
+
+    else:
+        # Add negatives
+        neg_files = sorted(glob.glob(os.path.expandvars(dsettings['neg_dir'])))[:dsettings.get('neg_limit')]
+        files += neg_files
+        labels += [0] * len(neg_files)
+
+
+    feats = pos_feats + neg_feats
+    labels = pos_labels + neg_labels
+
+    print "Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1))
+    detector.train_from_features(feats, labels)
+
+    N_FARMING_ITER = 3
+
+    #neg_files_loop = itr.cycle(neg_files)
+    contest = 'voc'
+    obj_class = 'car'
+    gen = gv.voc.gen_negative_files(obj_class, 'train')
+    gen = itr.cycle(gen)
+
+    print "Farming loop..."
+
+    index = 0
+    feats = pos_feats + neg_feats
+    labels = pos_labels + neg_labels
+    for loop in xrange(N_FARMING_ITER):
+        th = -0.75
+
+        # Process files
+        #for i in xrange(100):
+            #topsy = get_strong_fps 
+        #argses = itr.islice(files, 
+        N = 50
+        neg_files_segment = itr.islice(gen, N)
+
+        argses = [(detector, index+i, fileobj, th) for i, fileobj in enumerate(neg_files_segment)] 
+        index += N 
+
+        topsies = list(gv.parallel.imap_unordered(get_strong_fps_star, argses))
+        confs = np.asarray([bbobj.confidence for topsy in topsies for topsy_m in topsy for bbobj in topsy_m])
+        from scipy.stats.mstats import scoreatpercentile
+        th0 = scoreatpercentile(confs, 75)
+
+        negs = []
+        print "Starting..."
+        #for topsy in gv.parallel.imap_unordered(get_strong_fps_star, argses):
+        for topsy in topsies:
+            for m in xrange(detector.num_mixtures):
+                for bbobj in topsy[m]:
+                    if bbobj.confidence >= th0:
+                        feats.append(bbobj.X)
+                        labels.append(0)
+
+        print "Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1))
+        detector.train_from_features(feats, labels)
+
+        #print "Training on {0} files".format(len(files))
+        #print "{0} pos / {1} neg".format(np.sum(labels == 1), np.sum(labels == 0))
+        # Re-train the detector now
+        #labels +=
+        #detector.train_from_image_data(images, labels)
+
+
+    #labels = np.asarray(labels)
+        
+    #files = files[:10]
+
+    detector.save(dsettings['file'])
+    print "Saved, exiting"
 

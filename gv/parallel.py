@@ -26,8 +26,6 @@ def imap_unordered(f, workloads):
         return
      
     global _g_available_workers
-    if _g_available_workers is None:
-        _init() 
 
     for job_index, workload in enumerate(itr.chain(workloads, itr.repeat(None))):
         if workload is None and len(_g_available_workers) == N:
@@ -58,8 +56,6 @@ def imap(f, workloads):
             yield res
         return
     global _g_available_workers
-    if _g_available_workers is None:
-        _init() 
 
     results = []
     indices = []
@@ -107,9 +103,9 @@ def worker():
 
         elif status.tag == 666:
             # Kill code
-            break
+            sys.exit(0)
 
-def main():
+def main(name=None):
     """
     Main function.
 
@@ -118,9 +114,13 @@ def main():
     if gv.parallel.main():
         gv.parallel.map_unordered 
     """
+    if name is not None and name != '__main__':
+        return False
+
     from mpi4py import MPI
     rank =  MPI.COMM_WORLD.Get_rank()
     if rank == 0:
+        _init()
         return True
     else:
         worker()

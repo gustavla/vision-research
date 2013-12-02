@@ -780,27 +780,26 @@ def superimposed_model(settings, threading=True):
     return detector 
 
 
-if __name__ == '__main__':
+ag.set_verbose(True)
+
+if gv.parallel.main(__name__): 
     import argparse
     from settings import load_settings
-   
-    ag.set_verbose(True)
-    if gv.parallel.main():
         
-        parser = argparse.ArgumentParser(description="Convert model to integrate background model")
-        parser.add_argument('settings', metavar='<settings file>', type=argparse.FileType('r'), help='Filename of settings file')
-        parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Model output file')
-        parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
+    parser = argparse.ArgumentParser(description="Convert model to integrate background model")
+    parser.add_argument('settings', metavar='<settings file>', type=argparse.FileType('r'), help='Filename of settings file')
+    parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Model output file')
+    parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
 
-        args = parser.parse_args()
-        settings_file = args.settings
-        output_file = args.output
-        threading = not args.no_threading
+    args = parser.parse_args()
+    settings_file = args.settings
+    output_file = args.output
+    threading = not args.no_threading
 
-        settings = load_settings(settings_file)
-        detector = superimposed_model(settings, threading=threading)
+    settings = load_settings(settings_file)
+    detector = superimposed_model(settings, threading=threading)
 
-        #detector = gv.Detector(settings['detector']['num_mixtures'], descriptor, settings['detector'])
-        #detector.kernel_templates = 
+    #detector = gv.Detector(settings['detector']['num_mixtures'], descriptor, settings['detector'])
+    #detector.kernel_templates = 
 
-        detector.save(output_file)
+    detector.save(output_file)

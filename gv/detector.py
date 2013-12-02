@@ -1639,7 +1639,6 @@ class BernoulliDetector(Detector):
 
         # Take the bounding box of the support, with a certain threshold.
         if 'bbs' in self.extra:
-            supp = self.support[k] 
             bb = self.extra['bbs'][k]
              
             image_size = self.settings['image_size']
@@ -1706,6 +1705,10 @@ class BernoulliDetector(Detector):
 
     def _preprocess(self):
         """Pre-processes things"""
+
+        self.descriptor.settings['subsample_size'] = self.settings['subsample_size']
+        self.descriptor.settings['spread_radii'] = self.settings['spread_radii']
+        
         # Prepare bounding boxes for all mixture model
         #self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
         self.boundingboxes2 = np.array([self.bounding_box_for_mix_comp2(i) for i in xrange(self.num_mixtures)])
