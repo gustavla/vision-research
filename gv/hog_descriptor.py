@@ -30,7 +30,7 @@ class HOGDescriptor(RealDescriptor):
         from gv.hog import hog as hogf
         X = np.tile(image[...,np.newaxis], 3)
         image = np.asarray(X, dtype=np.double)
-        hog = hogf(image, sbin=4) 
+        hog = hogf(image, sbin=self.subsample_size[0]) 
 
         if not self.settings['polarity_sensitive']:
             assert self.settings['orientations'] % 2 == 0, "Must have even number of orientations for polarity insensitive edges"
