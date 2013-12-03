@@ -21,7 +21,26 @@ import amitgroup as ag
 import random
 import itertools as itr
 from copy import deepcopy
+from train_superimposed import generate_random_patches
+
 ag.set_verbose(True)
+
+PER_IMAGE = 5
+
+def get_fps(detector, i, fileobj):
+    ag.info('{0} Initial processing {1}'.format(i, fileobj.img_id))
+    gen = generate_random_patches([fileobj.path], dsettings['image_size'], per_image=PER_IMAGE)
+    neg_feats = []
+
+    for neg in itr.islice(gen, PER_IMAGE):
+        #images.append(neg)
+        feat = detector.descriptor.extract_features(neg)
+        neg_feats.append(feat)
+
+    return neg_feats
+
+def get_fps_star(args):
+    return get_fps(*args)
 
 def get_strong_fps(detector, i, fileobj, threshold):
     topsy = [[] for k in xrange(detector.num_mixtures)]
@@ -70,10 +89,7 @@ if gv.parallel.main(__name__):
         pos_images.append(im)
 
         feat = detector.descriptor.extract_features(im)
-        print 'feat.shape', feat.shape
         pos_feats.append(feat)
-
-    from train_superimposed import generate_random_patches
 
     feats = []
 
@@ -92,17 +108,10 @@ if gv.parallel.main(__name__):
         #neg_files_segment = itr.islice(gen, dsettings['neg_limit'])
         count = 0
 
-        for fileobj in gen:
-            gen = generate_random_patches([fileobj.path], dsettings['image_size'], per_image=5)
-            for neg in itr.islice(gen, 5):
-                print count
-                #images.append(neg)
-                feat = detector.descriptor.extract_features(neg)
-                neg_feats.append(feat)
-                neg_labels.append(0)
-                count += 1
-                if count == dsettings['neg_limit']:
-                    break
+        argses = [(detector, i, fileobj) for i, fileobj in enumerate(itr.islice(gen, dsettings['neg_limit']//PER_IMAGE))]
+        for new_neg_feats in gv.parallel.imap_unordered(get_fps_star, argses):
+            neg_feats += new_neg_feats 
+            neg_labels += [0] * len(new_neg_feats)
 
         #labels = pos_labels + [0] * count
 

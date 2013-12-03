@@ -24,8 +24,6 @@ class RealDetector(BernoulliDetector):
         pos_feats = feats[labels==1]
         neg_feats = feats[labels==0]
 
-        print 'HERE'
-
         K = self.settings.get('num_mixtures', 1)
         if K == 1:
             comp_feats = [pos_feats]
@@ -33,11 +31,9 @@ class RealDetector(BernoulliDetector):
             from sklearn.mixture import GMM
             mixture = GMM(n_components=K, n_iter=10)
             X = pos_feats.reshape((pos_feats.shape[0], -1))
-            print np.shape(pos_feats)
-            print np.shape(X)
-            print 'THERE'
+            #print np.shape(pos_feats)
+            #print np.shape(X)
             mixture.fit(X)
-            print 'EVERYWHERE'
 
             comps = mixture.predict(X)
 
@@ -49,9 +45,9 @@ class RealDetector(BernoulliDetector):
             from sklearn import svm
             k_pos_feats = comp_feats[k]
 
-            print '-', k
-            print k_pos_feats.shape
-            print neg_feats.shape
+            #print '-', k
+            #print k_pos_feats.shape
+            #print neg_feats.shape
             k_feats = np.concatenate([neg_feats, k_pos_feats])
             k_labels = np.concatenate([np.zeros(len(neg_feats)), np.ones(len(k_pos_feats))])
 
@@ -94,7 +90,6 @@ class RealDetector(BernoulliDetector):
     def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, *args, **kwargs):
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
-        print 'factor', factor
         cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
