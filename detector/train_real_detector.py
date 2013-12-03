@@ -82,19 +82,27 @@ if gv.parallel.main(__name__):
     neg_feats = []
     neg_labels = []
 
+    contest = 'voc'
+    obj_class = 'car'
+    gen = gv.voc.gen_negative_files(obj_class, 'train')
+    gen = itr.cycle(gen)
+    index = 0
+
     if 1:
-        neg_files = sorted(glob.glob(os.path.expandvars(dsettings['neg_dir'])))
-        gen = generate_random_patches(neg_files, dsettings['image_size'], per_image=5)
+        #neg_files_segment = itr.islice(gen, dsettings['neg_limit'])
         count = 0
-        for neg in gen:
-            print count
-            #images.append(neg)
-            feat = detector.descriptor.extract_features(neg)
-            neg_feats.append(feat)
-            neg_labels.append(0)
-            count += 1
-            if count == dsettings['neg_limit']:
-                break
+
+        for fileobj in gen:
+            gen = generate_random_patches([fileobj.path], dsettings['image_size'], per_image=5)
+            for neg in itr.islice(gen, 5):
+                print count
+                #images.append(neg)
+                feat = detector.descriptor.extract_features(neg)
+                neg_feats.append(feat)
+                neg_labels.append(0)
+                count += 1
+                if count == dsettings['neg_limit']:
+                    break
 
         #labels = pos_labels + [0] * count
 
@@ -114,14 +122,7 @@ if gv.parallel.main(__name__):
     N_FARMING_ITER = 1
 
     #neg_files_loop = itr.cycle(neg_files)
-    contest = 'voc'
-    obj_class = 'car'
-    gen = gv.voc.gen_negative_files(obj_class, 'train')
-    gen = itr.cycle(gen)
-
     print "Farming loop..."
-
-    index = 0
 
     detectors = []
     detectors.append(detector)
