@@ -1,5 +1,4 @@
 import numpy as np
-import Image
 cimport numpy as np
 cimport cython
 

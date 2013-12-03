@@ -40,8 +40,9 @@ class HOGDescriptor(RealDescriptor):
         # Let's binarize the features somehow
         #hog = (hog > self.settings['binarize_threshold']).astype(np.uint8)
 
-        if raveled:
-            hog = hog.reshape(hog.shape[:2] + (-1,))
+        #if raveled:
+            #hog = hog.reshape(hog.shape[:2] + (-1,))
+        print 'hog shape', hog.shape
 
         # How much space was cut away?
         buf = tuple(image.shape[i] - hog.shape[i] * ppc[i] for i in xrange(2))

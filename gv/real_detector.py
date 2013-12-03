@@ -110,6 +110,9 @@ class RealDetector(BernoulliDetector):
         sh = self.svms[mixcomp]['weights'].shape
         padding = (sh[0]//2, sh[1]//2, 0)
 
+        if min(feats.shape[:2]) < 2:
+            return np.array([]), None 
+
         bigger = gv.ndfeature.zeropad(feats, padding)
 
         from .fast import multifeature_real_correlate2d
@@ -130,6 +133,9 @@ class RealDetector(BernoulliDetector):
     def _detect_coarse_at_factor(self, feats, factor, mixcomp, cascade=True, farming=False):
         # Get background level
         resmap, bigger = self._response_map(feats, mixcomp)
+
+        if resmap.size == 0:
+            return [], resmap
 
         kern = self.svms[mixcomp]['weights']
 
