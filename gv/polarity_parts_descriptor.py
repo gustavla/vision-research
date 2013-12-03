@@ -541,7 +541,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         # TODO : Since we're using a hard-coded tau
         if self.settings.get('tau', 0) == 0:
-            sett = self.settings
+            sett = self.settings.copy()
             sett.update(settings)
             psize = sett.get('subsample_size', (1, 1))
             if 1:
@@ -577,10 +577,11 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
 
         else:
-            feats = self.extract_parts(edges, unspread_edges, settings=settings, dropout=dropout)
-
-            sett = self.settings
+            sett = self.settings.copy()
             sett.update(settings)
+
+            feats = self.extract_parts(edges, unspread_edges, settings=sett, dropout=dropout)
+
             psize = sett.get('subsample_size', (1, 1))
             feats = gv.sub.subsample(feats, psize)
 

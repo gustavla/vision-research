@@ -1635,7 +1635,6 @@ class BernoulliDetector(Detector):
 
         #psize = self.settings['subsample_size']
         psize = self.descriptor.subsample_size
-        print psize
 
         # Take the bounding box of the support, with a certain threshold.
         if 'bbs' in self.extra:
@@ -1653,14 +1652,14 @@ class BernoulliDetector(Detector):
             bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
 
             # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
-            psize = self.settings['subsample_size']
+            psize = self.descriptor.subsample_size
             ret = ((bb[0][0] - supp.shape[0]//2)/psize[0], (bb[1][0] - supp.shape[1]//2)/psize[1], (bb[0][1] - supp.shape[0]//2)/psize[0], (bb[1][1] - supp.shape[1]//2)/psize[1])
 
             # TODO: SO TEMP!
             #inflate = 1
             #ret = (ret[0] - inflate, ret[1] - inflate, ret[2] + inflate, ret[3] + inflate)
         else:
-            psize = self.settings['subsample_size']
+            psize = self.descriptor.subsample_size
             size = (self.orig_kernel_size[0]/psize[0], self.orig_kernel_size[1]/psize[1])
             ret = (-size[0]/2, -size[1]/2, size[0]/2, size[1]/2)
 

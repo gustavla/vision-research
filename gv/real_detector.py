@@ -10,8 +10,8 @@ class RealDetector(BernoulliDetector):
 
     def __init__(self, descriptor, settings={}):
         super(RealDetector, self).__init__(settings['num_mixtures'], descriptor, settings)
-
         self.settings.update(settings)
+        self._preprocess()
 
     def _load_img(self, fn):
         return gv.img.asgray(gv.img.load_image(fn))
@@ -122,6 +122,7 @@ class RealDetector(BernoulliDetector):
 
         return res, bigger
 
+    @property
     def subsample_size(self):
         return self.descriptor.subsample_size
 
@@ -141,7 +142,7 @@ class RealDetector(BernoulliDetector):
 
         # Get size of original kernel (but downsampled)
         full_sh = self.kernel_sizes[mixcomp]
-        psize = self.subsample_size()
+        psize = self.subsample_size
         sh2 = sh
         sh = (full_sh[0]//psize[0], full_sh[1]//psize[1])
 
@@ -186,10 +187,10 @@ class RealDetector(BernoulliDetector):
                     conf = score
                     pos = resmap.pos((i, j))
                     #lower = resmap.pos((i + self.boundingboxes2[mixcomp][0]))
-                    bb = ((pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][0] * agg_factors2[0]),
-                          (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][1] * agg_factors2[1]),
-                          (pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][2] * agg_factors2[0]),
-                          (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors2[1]))
+                    bb = ((pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][0] * agg_factors[0]),
+                          (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][1] * agg_factors[1]),
+                          (pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][2] * agg_factors[0]),
+                          (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors[1]))
 
                     index_pos = (i-padding[0], j-padding[1])
 
@@ -197,41 +198,6 @@ class RealDetector(BernoulliDetector):
 
                     if gv.bb.area(bb) > 0:
                         bbs.append(dbb)
-
-                    if 0:
-                        i_corner = i-sh[0]//2
-                        j_corner = j-sh[1]//2
-
-                        index_pos = (i-padding[0], j-padding[1])
-
-                        obj_bb = self.boundingboxes[mixcomp]
-                        bb = [(i_corner + obj_bb[0]) * agg_factors[0],
-                              (j_corner + obj_bb[1]) * agg_factors[1],
-                              (i_corner + obj_bb[2]) * agg_factors[0],
-                              (j_corner + obj_bb[3]) * agg_factors[1],
-                        ]
-
-                        # Clip to bb_bigger 
-                        bb = gv.bb.intersection(bb, bb_bigger)
-        
-                        #score0 = score1 = 0
-                        score0 = i
-                        score1 = j
-
-                        conf = score
-                        dbb = gv.bb.DetectionBB(score=score, 
-                                                score0=score0, 
-                                                score1=score1, 
-                                                box=bb, 
-                                                index_pos=index_pos, 
-                                                confidence=conf, 
-                                                scale=factor, 
-                                                mixcomp=mixcomp, 
-                                                bkgcomp=0, 
-                                                img_id=0)
-
-                        if gv.bb.area(bb) > 0:
-                            bbs.append(dbb)
 
         # Let's limit to five per level
         if not farming:

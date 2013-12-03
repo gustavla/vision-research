@@ -42,7 +42,6 @@ class HOGDescriptor(RealDescriptor):
 
         #if raveled:
             #hog = hog.reshape(hog.shape[:2] + (-1,))
-        print 'hog shape', hog.shape
 
         # How much space was cut away?
         buf = tuple(image.shape[i] - hog.shape[i] * ppc[i] for i in xrange(2))
