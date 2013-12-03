@@ -20,6 +20,7 @@ import numpy as np
 import amitgroup as ag
 import random
 import itertools as itr
+from copy import deepcopy
 ag.set_verbose(True)
 
 def get_strong_fps(detector, i, fileobj, threshold):
@@ -31,7 +32,7 @@ def get_strong_fps(detector, i, fileobj, threshold):
     grayscale_img = gv.img.asgray(img)
 
     for m in xrange(detector.num_mixtures):
-        bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[m], use_padding=False, use_scale_prior=False, cascade=True, more_detections=True)
+        bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[m], use_padding=False, use_scale_prior=False, cascade=False, more_detections=True)
         # Add in img_id
         for bbobj in bbobjs:
             bbobj.img_id = fileobj.img_id
@@ -110,7 +111,7 @@ if gv.parallel.main(__name__):
     print "Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1))
     detector.train_from_features(feats, labels)
 
-    N_FARMING_ITER = 3
+    N_FARMING_ITER = 1
 
     #neg_files_loop = itr.cycle(neg_files)
     contest = 'voc'
@@ -121,38 +122,57 @@ if gv.parallel.main(__name__):
     print "Farming loop..."
 
     index = 0
-    feats = pos_feats + neg_feats
-    labels = pos_labels + neg_labels
+
+    detectors = []
+    detectors.append(detector)
+    cascades = []
+    cur_detector = detector
     for loop in xrange(N_FARMING_ITER):
-        th = -0.75
+        feats = pos_feats #+ neg_feats
+        labels = pos_labels #+ neg_labels
+        #th = -0.75
+        th = 0.0
 
         # Process files
         #for i in xrange(100):
             #topsy = get_strong_fps 
         #argses = itr.islice(files, 
-        N = 50
+        N = 100
         neg_files_segment = itr.islice(gen, N)
 
-        argses = [(detector, index+i, fileobj, th) for i, fileobj in enumerate(neg_files_segment)] 
+        argses = [(cur_detector, index+i, fileobj, th) for i, fileobj in enumerate(neg_files_segment)] 
         index += N 
 
         topsies = list(gv.parallel.imap_unordered(get_strong_fps_star, argses))
         confs = np.asarray([bbobj.confidence for topsy in topsies for topsy_m in topsy for bbobj in topsy_m])
         from scipy.stats.mstats import scoreatpercentile
-        th0 = scoreatpercentile(confs, 75)
+
+        # Maybe a different th0 for each component?
+        th0 = float(scoreatpercentile(confs, 75))
 
         negs = []
         print "Starting..."
         #for topsy in gv.parallel.imap_unordered(get_strong_fps_star, argses):
         for topsy in topsies:
-            for m in xrange(detector.num_mixtures):
+            for m in xrange(cur_detector.num_mixtures):
                 for bbobj in topsy[m]:
                     if bbobj.confidence >= th0:
                         feats.append(bbobj.X)
                         labels.append(0)
 
+        detector0 = deepcopy(cur_detector)
         print "Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1))
-        detector.train_from_features(feats, labels)
+        svms, kernel_sizes = detector0.train_from_features(feats, labels)
+
+        count = np.sum(np.asarray(labels)==0)
+
+        detectors.append(detector0) 
+        cascades.append(dict(th=th0, svms=svms, count=count))
+
+        cur_detector = detector0
+
+    detector = detectors[0]
+    detector.extra['cascades'] = cascades
 
         #print "Training on {0} files".format(len(files))
         #print "{0} pos / {1} neg".format(np.sum(labels == 1), np.sum(labels == 0))

@@ -16,7 +16,7 @@ class RealDetector(BernoulliDetector):
     def _load_img(self, fn):
         return gv.img.asgray(gv.img.load_image(fn))
 
-    def train_from_features(self, feats, labels):
+    def train_from_features(self, feats, labels, save=True):
         assert len(feats) == len(labels)
         labels = np.asarray(labels)
         feats = np.asarray(feats)
@@ -43,8 +43,8 @@ class RealDetector(BernoulliDetector):
 
             comp_feats = [pos_feats[comps==k] for k in xrange(K)]
 
-        self.kernel_sizes = []
-        self.svms = []
+        kernel_sizes = []
+        svms = []
         for k in xrange(K):
             from sklearn import svm
             k_pos_feats = comp_feats[k]
@@ -56,19 +56,24 @@ class RealDetector(BernoulliDetector):
             k_labels = np.concatenate([np.zeros(len(neg_feats)), np.ones(len(k_pos_feats))])
 
             #img = images[0]
-            self.kernel_sizes.append(self.settings['image_size'])
+            kernel_sizes.append(self.settings['image_size'])
             #self.orig_kernel_size = (img.shape[0], img.shape[1])
 
             flat_k_feats = k_feats.reshape((k_feats.shape[0], -1))        
 
             svc = svm.LinearSVC(C=self.settings.get('penalty_parameter', 1))
-            svc.fit(flat_k_feats, k_labels) 
+            svc.fit(flat_k_feats.astype(np.float64), k_labels) 
 
-            self.svms.append(dict(intercept=svc.intercept_, 
+            svms.append(dict(intercept=svc.intercept_, 
                                   weights=svc.coef_.reshape(feats.shape[1:])))
     
-        
-        self._preprocess()
+        if save:
+            self._preprocess()
+            self.svms = svms
+            self.kernel_sizes = kernel_sizes
+
+        return svms, kernel_sizes
+
 
     def train_from_images(self, image_filenames, labels):
         assert len(image_filenames) == len(labels)
@@ -86,15 +91,16 @@ class RealDetector(BernoulliDetector):
         return self.train_from_features(feats, labels)
 
 
-    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, *args, **kwargs):
+    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, *args, **kwargs):
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
+        print 'factor', factor
         cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
         spread_feats = self.descriptor.extract_features(img_resized)
 
-        bbs, resmap = self._detect_coarse_at_factor(spread_feats, factor, mixcomp)
+        bbs, resmap = self._detect_coarse_at_factor(spread_feats, factor, mixcomp, cascade=cascade)
 
         final_bbs = bbs
 
@@ -111,7 +117,7 @@ class RealDetector(BernoulliDetector):
         #res = multifeature_correlate2d(bigger[...,index:index+1], weights[...,index:index+1].astype(np.float64)) 
 
         res = self.svms[mixcomp]['intercept'] + \
-              multifeature_real_correlate2d(bigger, self.svms[mixcomp]['weights'])
+              multifeature_real_correlate2d(bigger.astype(np.float64), self.svms[mixcomp]['weights'])
 
         lower, upper = gv.ndfeature.inner_frame(bigger, (sh[0]/2, sh[1]/2))
         res = gv.ndfeature(res, lower=lower, upper=upper)
@@ -121,7 +127,7 @@ class RealDetector(BernoulliDetector):
     def subsample_size(self):
         return self.descriptor.subsample_size
 
-    def _detect_coarse_at_factor(self, feats, factor, mixcomp):
+    def _detect_coarse_at_factor(self, feats, factor, mixcomp, cascade=True, farming=False):
         # Get background level
         resmap, bigger = self._response_map(feats, mixcomp)
 
@@ -139,7 +145,11 @@ class RealDetector(BernoulliDetector):
         sh = (full_sh[0]//psize[0], full_sh[1]//psize[1])
 
         import scipy.stats
-        th = scipy.stats.scoreatpercentile(resmap.ravel(), 75) 
+        if farming:
+            percentile = 90
+        else:
+            percentile = 75
+        th = scipy.stats.scoreatpercentile(resmap.ravel(), percentile) 
         top_th = 200.0
         bbs = []
 
@@ -150,6 +160,28 @@ class RealDetector(BernoulliDetector):
             for j in xrange(resmap.shape[1]):
                 score = resmap[i,j]
                 if score >= th:
+                    X = bigger[i:i+sh0[0], j:j+sh0[1]].copy()
+        
+                    # Cascade
+                    if cascade:
+                        cur_score = score
+                        for cas_i, cas in enumerate(self.extra['cascades']):
+                            svm = cas['svms'][mixcomp]
+                            threshold = cas['th']
+
+                            if cur_score < threshold:
+                                break
+
+                            score0 = float(svm['intercept'] + np.sum(svm['weights'] * X))
+                            #print 'score:', score, score0
+
+                            #if score0 < threshold:
+                                #break
+                            #else:
+                            score = score0 + 5 * (cas_i + 1)
+                            cur_score = score0
+
+
                     conf = score
                     pos = resmap.pos((i, j))
                     #lower = resmap.pos((i + self.boundingboxes2[mixcomp][0]))
@@ -160,8 +192,6 @@ class RealDetector(BernoulliDetector):
 
                     index_pos = (i-padding[0], j-padding[1])
 
-                    X = bigger[i:i+sh0[0], j:j+sh0[1]].copy()
-    
                     dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=0, X=X)
 
                     if gv.bb.area(bb) > 0:
@@ -203,8 +233,11 @@ class RealDetector(BernoulliDetector):
                             bbs.append(dbb)
 
         # Let's limit to five per level
-        bbs_sorted = self.nonmaximal_suppression(bbs)
-        bbs_sorted = bbs_sorted[:15]
+        if not farming:
+            bbs_sorted = self.nonmaximal_suppression(bbs)
+            bbs_sorted = bbs_sorted[:15]
+        else:
+            bbs_sorted = bbs_sorted[:30]
 
         return bbs_sorted, resmap
         
@@ -219,6 +252,7 @@ class RealDetector(BernoulliDetector):
             obj = cls(descriptor, d['settings'])
             #obj.weights = d['weights']
             obj.svms = d['svms']
+            obj.extra = d['extra']
             #obj.orig_kernel_size = d.get('orig_kernel_size')
             obj.kernel_sizes = d.get('kernel_sizes')
 
@@ -234,6 +268,7 @@ class RealDetector(BernoulliDetector):
         d['descriptor_name'] = self.descriptor.name
         d['descriptor'] = self.descriptor.save_to_dict()
         #d['weights'] = self.weights
+        d['extra'] = self.extra
         d['svms'] = self.svms
         #d['orig_kernel_size'] = self.orig_kernel_size
         d['kernel_sizes'] = self.kernel_sizes
