@@ -531,11 +531,11 @@ class BernoulliDetector(Detector):
     def detect_coarse_single_factor(self, img, factor, mixcomp, 
                                     img_id=0, use_padding=True, 
                                     use_scale_prior=True, cascade=True,
-                                    more_detections=False):
+                                    more_detections=False,
+                                    discard_weak=False):
         """
         TODO: Experimental changes under way!
         """
-        
 
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
@@ -570,7 +570,8 @@ class BernoulliDetector(Detector):
                                                              use_padding=use_padding, 
                                                              use_scale_prior=use_scale_prior,
                                                              cascade=cascade,
-                                                             more_detections=more_detections)
+                                                             more_detections=more_detections,
+                                                             discard_weak=discard_weak)
 
         final_bbs = bbs
 
@@ -812,7 +813,7 @@ class BernoulliDetector(Detector):
         return final_bbs
     #}}}
 
-    def detect_coarse(self, img, fileobj=None, mixcomps=None, return_resmaps=False, use_padding=True, use_scale_prior=True, cascade=True, more_detections=False):
+    def detect_coarse(self, img, fileobj=None, mixcomps=None, return_resmaps=False, use_padding=True, use_scale_prior=True, cascade=True, more_detections=False, discard_weak=False):
         if mixcomps is None:
             mixcomps = range(self.num_mixtures)
 
@@ -855,7 +856,8 @@ class BernoulliDetector(Detector):
                                                          use_padding=use_padding, 
                                                          use_scale_prior=use_scale_prior,
                                                          cascade=cascade,
-                                                         more_detections=more_detections)
+                                                         more_detections=more_detections,
+                                                         discard_weak=discard_weak)
                 bbs += bbs0
                 if return_resmaps:
                     resmaps_factor.append(resmap)
@@ -887,7 +889,8 @@ class BernoulliDetector(Detector):
                                  use_scale_prior=True, 
                                  use_padding=True,
                                  cascade=True,
-                                 more_detections=False):
+                                 more_detections=False,
+                                 discard_weak=False):
 
         if 0:
             self.standardization_info[mixcomp]['mean'] = self.extra['bkg_mixtures'][mixcomp]['mean']

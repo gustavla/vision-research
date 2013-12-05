@@ -1,3 +1,4 @@
+import numpy as np
 
 def imshow(*args, **kwargs):
     import matplotlib.pylab as plt

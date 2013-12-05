@@ -57,7 +57,30 @@ class RealDetector(BernoulliDetector):
 
             flat_k_feats = k_feats.reshape((k_feats.shape[0], -1))        
 
-            svc = svm.LinearSVC(C=self.settings.get('penalty_parameter', 1))
+            from sklearn import cross_validation
+
+            # Set penalty parameter with leave-out validation
+            if 0:
+                Cs = np.array([10.0, 1.0, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005])
+                clfs = []
+                the_scores = np.zeros(len(Cs))
+                for i, C in enumerate(Cs):
+                    clf = svm.LinearSVC(C=self.settings.get('penalty_parameter', 1))
+                    scores = cross_validation.cross_val_score(clf, flat_k_feats.astype(np.float64), k_labels, cv=5)
+                    the_scores[i] = np.mean(scores)
+                    clfs.append(clf)
+
+                best_i = np.argmax(the_scores)
+                print 'BEST C', Cs[best_i]
+                C = Cs[best_i]
+                #svc = clfs[np.argmax(the_scores)] 
+
+                #print 'penalty', self.settings.get('penalty_parameter', 1)
+                #C = self.settings.get('penalty_parameter', 1)
+            else:
+                C = self.settings.get('penalty_parameter', 1)
+
+            svc = svm.LinearSVC(C=C)
             svc.fit(flat_k_feats.astype(np.float64), k_labels) 
 
             svms.append(dict(intercept=svc.intercept_, 
@@ -87,7 +110,7 @@ class RealDetector(BernoulliDetector):
         return self.train_from_features(feats, labels)
 
 
-    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, *args, **kwargs):
+    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, discard_weak=False, *args, **kwargs):
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
         cb = self.settings.get('crop_border')
@@ -95,7 +118,7 @@ class RealDetector(BernoulliDetector):
         #spread_feats = self.extract_spread_features(img_resized)
         spread_feats = self.descriptor.extract_features(img_resized)
 
-        bbs, resmap = self._detect_coarse_at_factor(spread_feats, factor, mixcomp, cascade=cascade)
+        bbs, resmap = self._detect_coarse_at_factor(spread_feats, factor, mixcomp, cascade=cascade, discard_weak=discard_weak)
 
         final_bbs = bbs
 
@@ -126,7 +149,7 @@ class RealDetector(BernoulliDetector):
     def subsample_size(self):
         return self.descriptor.subsample_size
 
-    def _detect_coarse_at_factor(self, feats, factor, mixcomp, cascade=True, farming=False):
+    def _detect_coarse_at_factor(self, feats, factor, mixcomp, cascade=True, farming=False, discard_weak=False):
         # Get background level
         resmap, bigger = self._response_map(feats, mixcomp)
 
@@ -134,6 +157,7 @@ class RealDetector(BernoulliDetector):
             return [], resmap
 
         kern = self.svms[mixcomp]['weights']
+
 
         # TODO: Decide this in a way common to response_map
         sh = kern.shape
@@ -163,15 +187,18 @@ class RealDetector(BernoulliDetector):
                 score = resmap[i,j]
                 if score >= th:
                     X = bigger[i:i+sh0[0], j:j+sh0[1]].copy()
+                    ok = True
         
                     # Cascade
                     if cascade:
                         cur_score = score
+                        import itertools as itr
                         for cas_i, cas in enumerate(self.extra['cascades']):
                             svm = cas['svms'][mixcomp]
                             threshold = cas['th']
 
                             if cur_score < threshold:
+                                ok = False
                                 break
 
                             score0 = float(svm['intercept'] + np.sum(svm['weights'] * X))
@@ -180,9 +207,12 @@ class RealDetector(BernoulliDetector):
                             #if score0 < threshold:
                                 #break
                             #else:
-                            score = score0 + 5 * (cas_i + 1)
-                            cur_score = score0
+                            score = score0 + 10 * (cas_i + 1)
+                            cur_score = score
 
+
+                    if discard_weak and not ok:
+                        continue
 
                     conf = score
                     pos = resmap.pos((i, j))

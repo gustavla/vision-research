@@ -32,10 +32,11 @@ class HOGDescriptor(RealDescriptor):
         image = np.asarray(X, dtype=np.double)
         hog = hogf(image, sbin=self.subsample_size[0]) 
 
-        if not self.settings['polarity_sensitive']:
-            assert self.settings['orientations'] % 2 == 0, "Must have even number of orientations for polarity insensitive edges"
-            S = self.settings['orientations'] // 2
-            hog = (hog[...,:S] + hog[...,S:]) / 2
+        if 0:
+            if not self.settings['polarity_sensitive']:
+                assert self.settings['orientations'] % 2 == 0, "Must have even number of orientations for polarity insensitive edges"
+                S = self.settings['orientations'] // 2
+                hog = (hog[...,:S] + hog[...,S:]) / 2
 
         # Let's binarize the features somehow
         #hog = (hog > self.settings['binarize_threshold']).astype(np.uint8)

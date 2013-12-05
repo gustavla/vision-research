@@ -51,7 +51,7 @@ def get_strong_fps(detector, i, fileobj, threshold):
     grayscale_img = gv.img.asgray(img)
 
     for m in xrange(detector.num_mixtures):
-        bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[m], use_padding=False, use_scale_prior=False, cascade=False, more_detections=True)
+        bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[m], use_padding=False, use_scale_prior=False, cascade=True, discard_weak=True, more_detections=True)
         # Add in img_id
         for bbobj in bbobjs:
             bbobj.img_id = fileobj.img_id
@@ -128,7 +128,7 @@ if gv.parallel.main(__name__):
     print "Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1))
     detector.train_from_features(feats, labels)
 
-    N_FARMING_ITER = 1
+    N_FARMING_ITER = 0
 
     #neg_files_loop = itr.cycle(neg_files)
     print "Farming loop..."
@@ -136,18 +136,19 @@ if gv.parallel.main(__name__):
     detectors = []
     detectors.append(detector)
     cascades = []
+    detector.extra['cascades'] = []
     cur_detector = detector
     for loop in xrange(N_FARMING_ITER):
-        feats = pos_feats #+ neg_feats
-        labels = pos_labels #+ neg_labels
+        feats = pos_feats + neg_feats
+        labels = pos_labels + neg_labels
         #th = -0.75
-        th = 0.0
+        th = -np.inf 
 
         # Process files
         #for i in xrange(100):
             #topsy = get_strong_fps 
         #argses = itr.islice(files, 
-        N = 100
+        N = [1000, 2000][loop]
         neg_files_segment = itr.islice(gen, N)
 
         argses = [(cur_detector, index+i, fileobj, th) for i, fileobj in enumerate(neg_files_segment)] 
@@ -157,8 +158,15 @@ if gv.parallel.main(__name__):
         confs = np.asarray([bbobj.confidence for topsy in topsies for topsy_m in topsy for bbobj in topsy_m])
         from scipy.stats.mstats import scoreatpercentile
 
+        confs = np.sort(confs)
+
         # Maybe a different th0 for each component?
-        th0 = float(scoreatpercentile(confs, 75))
+        #th0 = float(scoreatpercentile(confs, 75))
+
+        if len(confs) >= 4000: 
+            th0 = confs[-4000]
+        else:
+            th0 = confs[0]
 
         negs = []
         print "Starting..."
@@ -170,19 +178,26 @@ if gv.parallel.main(__name__):
                         feats.append(bbobj.X)
                         labels.append(0)
 
-        detector0 = deepcopy(cur_detector)
+        #detector0 = deepcopy(cur_detector)
+        detector0 = cur_detector
         print "Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1))
-        svms, kernel_sizes = detector0.train_from_features(feats, labels)
+        svms, kernel_sizes = detector0.train_from_features(feats, labels, save=False)
 
         count = np.sum(np.asarray(labels)==0)
 
         detectors.append(detector0) 
-        cascades.append(dict(th=th0, svms=svms, count=count))
+        info = dict(th=th0, svms=svms, count=count)
+        #cascades.append(info)
+        detector.extra['cascades'].append(info)
 
         cur_detector = detector0
 
-    detector = detectors[0]
-    detector.extra['cascades'] = cascades
+    if 1:
+        detector.svms = detector.extra['cascades'][0]['svms']
+        detector.extra['cascades'] = []
+    else:
+        detector = detectors[0]
+    #detector.extra['cascades'] = cascades
 
         #print "Training on {0} files".format(len(files))
         #print "{0} pos / {1} neg".format(np.sum(labels == 1), np.sum(labels == 0))
@@ -196,5 +211,7 @@ if gv.parallel.main(__name__):
     #files = files[:10]
 
     detector.save(dsettings['file'])
+    print 'Counts', [x['count'] for x in detector.extra['cascades']]
+    print 'Th', [x['th'] for x in detector.extra['cascades']]
     print "Saved, exiting"
 
