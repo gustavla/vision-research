@@ -97,7 +97,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             inv_unspread_edges = ag.features.bedges(inv_img, **setts)
         else:
             unspread_edges = gv.gradients.extract(img)
-            inv_unspread_edges = gv.gradients.extract(inv_img, **setts)
+            inv_unspread_edges = gv.gradients.extract(inv_img)
 
         unspread_edges_padded = ag.util.zeropad(unspread_edges, (radius, radius, 0))
         inv_unspread_edges_padded = ag.util.zeropad(inv_unspread_edges, (radius, radius, 0))

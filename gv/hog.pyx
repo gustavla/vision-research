@@ -33,10 +33,10 @@ cpdef hog(im, int sbin = 8):
 
     cdef np.ndarray[np.double_t, ndim=1] uu
     uu = np.array([ 1.0000,  0.9397,  0.7660,  0.500,  0.1736, 
-                   -0.1736, -0.5000, -0.7660, -0.9397])
+        -0.1736, -0.5000, -0.7660, -0.9397]) # same as np.cos(np.linspace(0, np.pi, 10)[:-1])
     cdef np.ndarray[np.double_t, ndim=1] vv
     vv = np.array([0.0000, 0.3420, 0.6428, 0.8660, 0.9848, 
-                   0.9848, 0.8660, 0.6428, 0.3420])
+        0.9848, 0.8660, 0.6428, 0.3420]) # same as np.sin(np.linspace(0, np.pi, 10)[:-1])
 
     cdef double eps = 0.0001 # to avoid division by 0
     cdef unsigned int cc0, cc1, cc2
