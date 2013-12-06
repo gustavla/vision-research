@@ -92,8 +92,12 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         img = gv.img.load_image(filename)
         img = gv.img.asgray(img)
         inv_img = 1 - img
-        unspread_edges = ag.features.bedges(img, **setts)
-        inv_unspread_edges = ag.features.bedges(inv_img, **setts)
+        if 0:
+            unspread_edges = ag.features.bedges(img, **setts)
+            inv_unspread_edges = ag.features.bedges(inv_img, **setts)
+        else:
+            unspread_edges = gv.gradients.extract(img)
+            inv_unspread_edges = gv.gradients.extract(inv_img, **setts)
 
         unspread_edges_padded = ag.util.zeropad(unspread_edges, (radius, radius, 0))
         inv_unspread_edges_padded = ag.util.zeropad(inv_unspread_edges, (radius, radius, 0))
@@ -529,7 +533,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         sett = self.bedges_settings().copy()
         sett['radius'] = 0
         if 1:
-            unspread_edges = ag.features.bedges(image, **sett)
+            #unspread_edges = ag.features.bedges(image, **sett)
+            unspread_edges = gv.gradients.extract(image)
         else:
             # LEAVE-BEHIND: From multi-channel images
             unspread_edges = ag.features.bedges_from_image(image, **sett)

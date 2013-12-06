@@ -619,3 +619,24 @@ def correlate_abunch(np.ndarray[np.uint8_t,ndim=1] X, np.ndarray[np.uint8_t,ndim
                         ret_mv[i,j,k] = corr / (<real>(N - 1) * X_std * Y_stds_mv[i,j,k])
 
     return ret
+
+def convert_new(np.ndarray[dtype=np.int32_t,ndim=2] theta, np.ndarray[dtype=np.float64_t,ndim=2] amplitudes, int num_orientations, double threshold):
+    cdef int dim0 = theta.shape[0]
+    cdef int dim1 = theta.shape[1]
+    cdef double a
+    cdef int i, f, v
+    cdef np.ndarray[dtype=np.uint8_t, ndim=3] feats = np.zeros((dim0, dim1, num_orientations), dtype=np.uint8)
+    cdef np.uint8_t[:,:,:] feats_mv = feats
+
+    cdef np.int32_t[:,:] theta_mv = theta 
+    cdef np.float64_t[:,:] amplitudes_mv = amplitudes
+
+    with nogil:
+        for i in range(dim0):
+            for j in range(dim1):
+                a = amplitudes_mv[i,j]
+                if a >= threshold:
+                    v = theta_mv[i,j] 
+                    feats_mv[i,j,v] = 1
+
+    return feats

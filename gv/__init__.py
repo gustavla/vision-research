@@ -12,10 +12,12 @@ from . import uiuc
 from . import custom
 from .beta_mixture import BetaMixture, binary_search # Temporarily exposed
 from . import parallel 
+from . import gradients
 
 from .core import *
 
 from .ndfeature import ndfeature
+
 
 from .binary_descriptor import *
 from . import edge_descriptor
