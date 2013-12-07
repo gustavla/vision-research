@@ -27,4 +27,4 @@ def extract(im, orientations=8):
 
     amps /= (blurred_amps + eps)
 
-    return convert_new(theta, amps, orientations, 0.001)
+    return convert_new(theta, amps, orientations, 0.000001)
