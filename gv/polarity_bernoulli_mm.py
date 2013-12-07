@@ -40,10 +40,33 @@ class PolarityBernoulliMM(object):
                 logq[:,:,p] += np.dot(X[:,p0], np.log(theta[:,0] / (1 - theta[:,0])).T) + np.log(1 - theta[:,0]).sum(axis=1)[np.newaxis] +\
                                np.dot(X[:,p1], np.log(theta[:,1] / (1 - theta[:,1])).T) + np.log(1 - theta[:,1]).sum(axis=1)[np.newaxis]
 
-            self.q[:] = np.exp(logq)
-            self.q /= np.apply_over_axes(np.sum, self.q, [1, 2])
+            import scipy.misc
+#
+            #self.q[:] = np.exp(logq)
+            #normq = self.q / np.apply_over_axes(np.sum, self.q, [1, 2])
+            #self.q /= np.apply_over_axes(np.sum, self.q, [1, 2])
+            #q2 = np.exp(logq - scipy.misc.logsumexp(logq.reshape((-1, logq.shape[-1])), axis=0)[...,np.newaxis,np.newaxis])
+            norm_logq = logq - scipy.misc.logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis]
+            q2 = np.exp(norm_logq)
+            self.q[:] = q2
 
-            dens = np.apply_over_axes(np.sum, self.q, [0, 2])
+            if 0:
+                try:
+                    np.testing.assert_array_almost_equal(self.q, q2)
+                except:
+                    import pdb; pdb.set_trace()
+            #norm_logq = logq - scipy.misc.logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis]
+            #self.q[:] = np.exp(norm_logq)
+
+            #dens = np.apply_over_axes(np.sum, self.q, [0, 2])
+            log_dens = scipy.misc.logsumexp(np.rollaxis(norm_logq, 2, 1).reshape((-1, norm_logq.shape[1])), axis=0)[np.newaxis,:,np.newaxis]
+            dens = np.exp(log_dens)
+
+            if 0:
+                try:
+                    np.testing.assert_array_almost_equal(dens, dens2)
+                except:
+                    import pdb; pdb.set_trace()
 
             theta[:,0,:] = np.dot(self.q[:,:,0].T, X[:,0]) + np.dot(self.q[:,:,1].T, X[:,1])
             theta[:,1,:] = np.dot(self.q[:,:,0].T, X[:,1]) + np.dot(self.q[:,:,1].T, X[:,0])
