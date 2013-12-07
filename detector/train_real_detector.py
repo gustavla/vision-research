@@ -192,7 +192,7 @@ if gv.parallel.main(__name__):
 
         cur_detector = detector0
 
-    if 1:
+    if 0:
         detector.svms = detector.extra['cascades'][0]['svms']
         detector.extra['cascades'] = []
     else:
