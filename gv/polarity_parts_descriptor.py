@@ -96,8 +96,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             unspread_edges = ag.features.bedges(img, **setts)
             inv_unspread_edges = ag.features.bedges(inv_img, **setts)
         else:
-            unspread_edges = gv.gradients.extract(img)
-            inv_unspread_edges = gv.gradients.extract(inv_img)
+            unspread_edges = gv.gradients.extract(img, orientations=8)
+            inv_unspread_edges = gv.gradients.extract(inv_img, orientations=8)
 
         unspread_edges_padded = ag.util.zeropad(unspread_edges, (radius, radius, 0))
         inv_unspread_edges_padded = ag.util.zeropad(inv_unspread_edges, (radius, radius, 0))
@@ -363,6 +363,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         order_single = np.asarray(new_order_single)
 
+        assert len(order_single) > 0, "No edges kept! Something probably went wrong"
+
         self._num_parts = len(order_single)
         print 'num_parts', self._num_parts
 
@@ -534,7 +536,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         sett['radius'] = 0
         if 1:
             #unspread_edges = ag.features.bedges(image, **sett)
-            unspread_edges = gv.gradients.extract(image)
+            unspread_edges = gv.gradients.extract(image, orientations=8)
         else:
             # LEAVE-BEHIND: From multi-channel images
             unspread_edges = ag.features.bedges_from_image(image, **sett)

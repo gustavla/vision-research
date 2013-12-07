@@ -1,15 +1,11 @@
 from __future__ import division
 import numpy as np
 import scipy.signal
+import amitgroup as ag
 from gv.fast import convert_new
 
 def extract(im, orientations=8):
     kern = np.array([[-1, 0, 1]]) / np.sqrt(2)
-
-    #angs = np.linspace(0, 2*np.pi, orientations+1)[:-1]
-    #ang_cos = np.cos(angs)
-    #ang_sin = np.sin(angs)
-
     gr_x = scipy.signal.convolve(im, kern, mode='same')
     gr_y = scipy.signal.convolve(im, kern.T, mode='same')
 
@@ -17,11 +13,11 @@ def extract(im, orientations=8):
     amps = np.sqrt(gr_x**2 + gr_y**2)
 
     S = 10
-    kern = 1/S * np.ones((S, 1))
-    blurred_amps = \
-        scipy.signal.convolve(
-            scipy.signal.convolve(amps, kern, mode='same'), 
-                kern.T, mode='same')
+    cumsum_amps = amps.cumsum(0).cumsum(1) / S**2
+    hS = S // 2
+    padded = ag.util.border_value_pad(cumsum_amps, hS+1)
+    dim0, dim1 = im.shape[:2]
+    blurred_amps = padded[S:S+dim0,S:S+dim1] - padded[0:0+dim0,S:S+dim1] - padded[S:S+dim0,0:0+dim1] + padded[0:0+dim0,0:0+dim1]
 
     eps = 0.0001 
 
