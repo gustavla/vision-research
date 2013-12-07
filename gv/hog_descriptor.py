@@ -32,6 +32,19 @@ class HOGDescriptor(RealDescriptor):
         image = np.asarray(X, dtype=np.double)
         hog = hogf(image, sbin=self.subsample_size[0]) 
 
+        #hog = hog[...,:9]
+
+        if 0:
+            new_hog = np.concatenate([
+                hog[...,:9],
+                (hog[...,-4:] * np.array([1,1,1,1])).mean(axis=-1)[...,np.newaxis],
+                (hog[...,-4:] * np.array([-1,-1,1,1])).mean(axis=-1)[...,np.newaxis],
+                (hog[...,-4:] * np.array([-1,1,-1,1])).mean(axis=-1)[...,np.newaxis],
+                (hog[...,-4:] * np.array([-1,1,1,-1])).mean(axis=-1)[...,np.newaxis],
+            ], axis=2)
+
+            hog = new_hog
+
         if 0:
             if not self.settings['polarity_sensitive']:
                 assert self.settings['orientations'] % 2 == 0, "Must have even number of orientations for polarity insensitive edges"

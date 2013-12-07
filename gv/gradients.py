@@ -23,8 +23,8 @@ def extract(im, orientations=8):
             scipy.signal.convolve(amps, kern, mode='same'), 
                 kern.T, mode='same')
 
-    eps = 0.1 
+    eps = 0.0001 
 
     amps /= (blurred_amps + eps)
 
-    return convert_new(theta, amps, orientations, 0.01)
+    return convert_new(theta, amps, orientations, 0.001)
