@@ -215,7 +215,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         llhs = []
         from gv.polarity_bernoulli_mm import PolarityBernoulliMM
 
-        mixture = PolarityBernoulliMM(n_components=self._num_parts, n_iter=20, random_state=0, min_probability=self.settings['min_probability'])
+        mixture = PolarityBernoulliMM(n_components=self._num_parts, n_iter=6, random_state=0, min_probability=self.settings['min_probability'])
         mixture.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
 
         ag.info("Done.")
@@ -532,10 +532,17 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         self._log_invparts = np.log(1-self.parts)
 
     def _extract_edges(self, image):
-        sett = self.bedges_settings().copy()
-        sett['radius'] = 0
-
-        return np.concatenate([gv.gradients.extract(image, orientations=8), ag.features.bedges(image, **sett)], axis=2)
+        #sett = self.bedges_settings().copy()
+        #sett['radius'] = 0
+        #sett['preserve_size'] = True
+    
+        #return np.concatenate([gv.gradients.extract(image, orientations=8), ag.features.bedges(image, **sett)], axis=2)
+        #return np.concatenate([gv.gradients.extract(image, orientations=8), gv.gradients.extract(image, orientations=8, threshold=1.5)], axis=2)
+        return gv.gradients.extract(image, 
+                                    orientations=8, 
+                                    threshold=self.settings.get('threshold2', 0.001),
+                                    eps=self.settings.get('eps', 0.001), 
+                                    blur_size=self.settings.get('blur_size', 10))
 
     def extract_features(self, image, settings={}, dropout=None):
         sett = self.bedges_settings().copy()

@@ -537,6 +537,7 @@ class BernoulliDetector(Detector):
         TODO: Experimental changes under way!
         """
 
+        bb_bigger = (0, 0, img.shape[0], img.shape[1])
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
         last_resmap = None
@@ -565,6 +566,7 @@ class BernoulliDetector(Detector):
                                                              spread_bkg, 
                                                              factor, 
                                                              mixcomp, 
+                                                             bb_bigger,
                                                              image=img_resized, 
                                                              img_id=img_id,
                                                              use_padding=use_padding, 
@@ -884,6 +886,7 @@ class BernoulliDetector(Detector):
                                  spread_bkg, 
                                  factor, 
                                  mixcomp, 
+                                 bb_bigger,
                                  image=None, 
                                  img_id=None,
                                  use_scale_prior=True, 
@@ -1057,7 +1060,7 @@ class BernoulliDetector(Detector):
         sh = kern.shape
         sh0 = kern.shape
         if use_padding:
-            padding = (sh[0]//2, sh[1]//2, 0)
+            padding = (int(sh[0]*0.75), int(sh[1]*0.75), 0)
         else:
             padding = (0, 0, 0)
 
@@ -1081,7 +1084,7 @@ class BernoulliDetector(Detector):
 
         agg_factors = tuple([psize[i] * factor for i in xrange(2)])
         agg_factors2 = tuple([factor for i in xrange(2)])
-        bb_bigger = (0.0, 0.0, sub_feats.shape[0] * agg_factors[0], sub_feats.shape[1] * agg_factors[1])
+        #bb_bigger = (0.0, 0.0, sub_feats.shape[0] * agg_factors[0], sub_feats.shape[1] * agg_factors[1])
 
         # TODO: New
         if self.TEMP_second:
@@ -1317,6 +1320,7 @@ class BernoulliDetector(Detector):
 
                         index_pos = (i-padding[0], j-padding[1])
         
+                        bb = gv.bb.intersection(bb, bb_bigger)
                         #dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp)
 
                     
@@ -1712,7 +1716,7 @@ class BernoulliDetector(Detector):
         self.descriptor.settings['spread_radii'] = self.settings['spread_radii']
         
         # Prepare bounding boxes for all mixture model
-        #self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
+        self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
         self.boundingboxes2 = np.array([self.bounding_box_for_mix_comp2(i) for i in xrange(self.num_mixtures)])
 
     @classmethod

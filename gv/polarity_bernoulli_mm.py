@@ -23,7 +23,12 @@ class PolarityBernoulliMM(object):
         K = self.n_components
         eps = self.min_probability
         pi = np.ones((K, P)) / (K * P)
-        theta = self.random_state.uniform(eps, 1 - eps, size=(K, P, F))
+        #theta = self.random_state.uniform(eps, 1 - eps, size=(K, P, F))
+
+        # Initialize
+        clusters = np.random.randint(K, size=N)
+        theta = np.asarray([np.mean(X[clusters == k], axis=0) for k in xrange(K)])
+        theta[:] = np.clip(theta, eps, 1 - eps)
 
         self.q = np.empty((N, K, P))
         logq = np.empty((N, K, P))

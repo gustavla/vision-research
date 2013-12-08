@@ -148,11 +148,12 @@ def _load_cad_image(fn, im_size, bb):
     im = gv.img.load_image(fn)
     im = gv.img.resize(im, im_size)
     im = gv.img.crop_to_bounding_box(im, bb)
-    if im.ndim == 4:
-        gray_im, alpha = gv.img.asgray(im), im[...,3] 
-    elif im.ndim == 3:
-        gray_im = gv.img.asgray(im)
-        alpha = np.zeros(gray_im.shape)
+    if im.ndim == 3:
+        if im.shape[2] == 4:
+            gray_im, alpha = gv.img.asgray(im), im[...,3] 
+        else:
+            gray_im = gv.img.asgray(im)
+            alpha = np.zeros(gray_im.shape)
     else:
         gray_im = im
         alpha = np.zeros(gray_im.shape)
@@ -417,21 +418,20 @@ def superimposed_model(settings, threading=True):
     # Extract clusters (manual or through EM)
     ##############################################################################
 
-    if detector.num_mixtures == 1:
-        comps = np.zeros(len(files), dtype=int)
+    if detector.num_mixtures == 1 or detector.settings.get('manual_clusters', False):
 
-    elif detector.settings.get('manual_clusters', False):
-        comps = np.zeros(len(files), dtype=np.int64)
-        for i, f in enumerate(files):
-            try:
-                v = int(os.path.basename(f).split('-')[0])
-                comps[i] = v
-            except:
-                print("Name of training file ({}) not compatible with manual clustering".format(f), file=sys.stderr)
-                sys.exit(1)
+        if detector.num_mixtures == 1:
+            comps = np.zeros(len(files), dtype=int)
+        else:
+            comps = np.zeros(len(files), dtype=np.int64)
+            for i, f in enumerate(files):
+                try:
+                    v = int(os.path.basename(f).split('-')[0])
+                    comps[i] = v
+                except:
+                    print("Name of training file ({}) not compatible with manual clustering".format(f), file=sys.stderr)
+                    sys.exit(1)
 
-        detector.orig_kernel_size = detector.settings['image_size']
-        
         alpha_maps = []
         for i, grayscale_img, img, alpha in detector.load_img(files):
             alpha_maps.append(alpha)
@@ -495,25 +495,6 @@ def superimposed_model(settings, threading=True):
         bbs = [make_bb(get_full_size_bb(k), max_bb) for k in xrange(detector.num_mixtures)]
 
     print("Checkpoint 6")
-
-    #for mixcomp in xrange(num_mixtures):
-    
-    if 0:
-        if threading:
-            from multiprocessing import Pool
-            p = Pool(7)
-            # Order is important, so we can't use imap_unordered
-            imapf = p.imap
-            imapf_unordered = p.imap_unordered
-        else:
-            #from itr import imap as imapf
-            imapf = itr.imap
-            imapf_unordered = itr.imap
-
-
-    
-
-    #argses = [(i, settings, bbs[i], list(np.where(comps == i)[0]), files, neg_files) for i in xrange(detector.num_mixtures)] 
 
     print("Checkpoint 7")
 

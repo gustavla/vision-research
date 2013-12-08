@@ -60,8 +60,8 @@ class RealDetector(BernoulliDetector):
             from sklearn import cross_validation
 
             # Set penalty parameter with leave-out validation
-            if 0:
-                Cs = np.array([10.0, 1.0, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005])
+            if 1:
+                Cs = np.array([50.0, 10.0, 5.0, 1.0, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
                 clfs = []
                 the_scores = np.zeros(len(Cs))
                 for i, C in enumerate(Cs):
@@ -111,6 +111,8 @@ class RealDetector(BernoulliDetector):
 
 
     def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, discard_weak=False, *args, **kwargs):
+        bb_bigger = (0, 0, img.shape[0], img.shape[1])
+
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
         cb = self.settings.get('crop_border')
@@ -118,7 +120,7 @@ class RealDetector(BernoulliDetector):
         #spread_feats = self.extract_spread_features(img_resized)
         spread_feats = self.descriptor.extract_features(img_resized)
 
-        bbs, resmap = self._detect_coarse_at_factor(spread_feats, factor, mixcomp, cascade=cascade, discard_weak=discard_weak)
+        bbs, resmap = self._detect_coarse_at_factor(spread_feats, factor, mixcomp, bb_bigger, cascade=cascade, discard_weak=discard_weak)
 
         final_bbs = bbs
 
@@ -126,7 +128,9 @@ class RealDetector(BernoulliDetector):
 
     def _response_map(self, feats, mixcomp):
         sh = self.svms[mixcomp]['weights'].shape
-        padding = (sh[0]//2, sh[1]//2, 0)
+        #padding = (sh[0]//2, sh[1]//2, 0)
+        #padding = (sh[0], sh[1], 0)
+        padding = (int(sh[0]*0.75), int(sh[1]*0.75), 0)
 
         if min(feats.shape[:2]) < 2:
             return np.array([]), None 
@@ -149,7 +153,7 @@ class RealDetector(BernoulliDetector):
     def subsample_size(self):
         return self.descriptor.subsample_size
 
-    def _detect_coarse_at_factor(self, feats, factor, mixcomp, cascade=True, farming=False, discard_weak=False):
+    def _detect_coarse_at_factor(self, feats, factor, mixcomp, bb_bigger, cascade=True, farming=False, discard_weak=False):
         # Get background level
         resmap, bigger = self._response_map(feats, mixcomp)
 
@@ -181,7 +185,7 @@ class RealDetector(BernoulliDetector):
 
         agg_factors = tuple([psize[i] * factor for i in xrange(2)])
         agg_factors2 = tuple([factor for i in xrange(2)])
-        bb_bigger = (0.0, 0.0, feats.shape[0] * agg_factors[0], feats.shape[1] * agg_factors[1])
+        #bb_bigger = (0.0, 0.0, feats.shape[0] * agg_factors[0], feats.shape[1] * agg_factors[1])
         for i in xrange(resmap.shape[0]):
             for j in xrange(resmap.shape[1]):
                 score = resmap[i,j]
@@ -221,6 +225,8 @@ class RealDetector(BernoulliDetector):
                           (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][1] * agg_factors[1]),
                           (pos[0] * agg_factors2[0] + self.boundingboxes2[mixcomp][2] * agg_factors[0]),
                           (pos[1] * agg_factors2[1] + self.boundingboxes2[mixcomp][3] * agg_factors[1]))
+
+                    bb = gv.bb.intersection(bb, bb_bigger)
 
                     index_pos = (i-padding[0], j-padding[1])
 

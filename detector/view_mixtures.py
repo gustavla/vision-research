@@ -7,7 +7,7 @@ def view_mixtures(detector, output_file=None):
     import matplotlib.pylab as plt
     data = None
     if detector.support is None:
-        assert 0, "Broken since bkg mixture model"
+        return
         # Visualize feature activity if the support does not exist
         #assert 0, "This is broken since refactoring"
         data = detector.kernel_templates.sum(axis=-1)# / detector.kernel_templates.shape[-1] 
