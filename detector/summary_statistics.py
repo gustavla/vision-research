@@ -14,6 +14,9 @@ limit = args.limit
 factor = args.factor
 do_shuffle = args.shuffle
 
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pylab as plt
 import gv
 import os
 import os.path
@@ -90,6 +93,10 @@ print 'bkg-avg', '{0:.3f}'.format(bkg.mean())
 print 'bkg-min', '{0:.2f}'.format(bkg.min())
 print 'bkg-max', '{0:.2f}'.format(bkg.max())
 print 'quintiles', mstats.mquantiles(bkg, np.linspace(0, 1, 5))
+
+plt.plot(bkg)
+plt.ylim((0, 0.35))
+plt.savefig('bkg.png')
 
 if 0:
     print 'most common', np.argmax(bkg)

@@ -532,17 +532,19 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         self._log_invparts = np.log(1-self.parts)
 
     def _extract_edges(self, image):
-        #sett = self.bedges_settings().copy()
-        #sett['radius'] = 0
-        #sett['preserve_size'] = True
+        sett = self.bedges_settings().copy()
+        sett['radius'] = 0
+        sett['preserve_size'] = True
     
         #return np.concatenate([gv.gradients.extract(image, orientations=8), ag.features.bedges(image, **sett)], axis=2)
         #return np.concatenate([gv.gradients.extract(image, orientations=8), gv.gradients.extract(image, orientations=8, threshold=1.5)], axis=2)
-        return gv.gradients.extract(image, 
-                                    orientations=8, 
-                                    threshold=self.settings.get('threshold2', 0.001),
-                                    eps=self.settings.get('eps', 0.001), 
-                                    blur_size=self.settings.get('blur_size', 10))
+        #return ag.features.bedges(image, **sett)
+        if 1:
+            return gv.gradients.extract(image, 
+                                        orientations=8, 
+                                        threshold=self.settings.get('threshold2', 0.001),
+                                        eps=self.settings.get('eps', 0.001), 
+                                        blur_size=self.settings.get('blur_size', 10))
 
     def extract_features(self, image, settings={}, dropout=None):
         sett = self.bedges_settings().copy()
@@ -555,9 +557,13 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             # LEAVE-BEHIND: From multi-channel images
             unspread_edges = ag.features.bedges_from_image(image, **sett)
     
+        # Now do spreading
         edges = ag.features.bspread(unspread_edges, spread=self.bedges_settings()['spread'], radius=self.bedges_settings()['radius'])  
 
-        # Now do spreading
+        # TODO Temporary
+        #sett['preserve_size'] = True
+        #unspread_edges = ag.features.bedges(image, **sett)
+
         th = self.threshold_in_counts(self.settings['threshold'], edges.shape[-1])
 
         # TODO : Since we're using a hard-coded tau
@@ -565,8 +571,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             sett = self.settings.copy()
             sett.update(settings)
             psize = sett.get('subsample_size', (1, 1))
-            if 1:
-                feats = ag.features.extract_parts(edges, unspread_edges, 
+            if 0:
+                feats = ag.features.extract_parts_adaptive_EXPERIMENTAL(edges, unspread_edges, 
                                                   self._log_parts,
                                                   self._log_invparts,
                                                   th,
@@ -574,7 +580,16 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                                                   spread_radii=sett.get('spread_radii', (0, 0)),
                                                   subsample_size=psize,
                                                   collapse=2,
-                                                  accept_threshold=-100000)
+                                                  accept_threshold=15)
+            elif 1:
+                feats = ag.features.extract_parts(edges, unspread_edges, 
+                                                  self._log_parts,
+                                                  self._log_invparts,
+                                                  th,
+                                                  self.settings['patch_frame'],
+                                                  spread_radii=sett.get('spread_radii', (0, 0)),
+                                                  subsample_size=psize,
+                                                  collapse=2)
 
             else:
                 all_feats = []
@@ -617,11 +632,11 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         # TODO: Experiment
         if 0:
-            U = np.load('U3.npy')
+            U = np.load('U.npy')
             new_feats = np.empty(feats.shape, dtype=np.uint8)
             for i, j in itr.product(xrange(feats.shape[0]), xrange(feats.shape[1])):
                 # Transform the basis 0.572
-                new_feats[i,j] = (np.fabs(np.dot(feats[i,j], U)) >= 0.75).astype(np.uint8)
+                new_feats[i,j] = (np.fabs(np.dot(feats[i,j], U)) >= 0.5).astype(np.uint8)
             feats = new_feats
 
         return gv.ndfeature(feats, lower=lower, upper=upper)

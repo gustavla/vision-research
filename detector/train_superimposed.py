@@ -412,8 +412,9 @@ def superimposed_model(settings, threading=True):
 
     print("Checkpoint 1")
 
-    bkg_type = detector.settings['bkg_type']
-    testing_type = detector.settings['testing_type']
+    testing_type = detector.settings.get('testing_type')
+    bkg_type = detector.settings.get('bkg_type')
+
 
     # Extract clusters (manual or through EM)
     ##############################################################################
