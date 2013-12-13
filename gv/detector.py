@@ -1478,6 +1478,13 @@ class BernoulliDetector(Detector):
         kern = np.clip(kern, self.eps, 1 - self.eps) 
 
         weights = self.build_weights(kern, spread_bkg)
+        # TODO: VERY TEMPORARY
+        #weights *= np.fabs(self.extra['weights'])
+        #weights = self.extra['weights']
+
+        M = np.load('M.npy')
+
+        weights *= (M > 2300)
     
         from .fast import multifeature_correlate2d
 
@@ -1494,9 +1501,10 @@ class BernoulliDetector(Detector):
             #indices = np.hstack([randstate.randint(weights.shape[0], size=(NN, 1)), randstate.randint(weights.shape[0], size=(NN, 1))]).astype(np.int32)
 
 
-            if self.indices is not None:
+            if self.indices is not None and len(self.indices[mixcomp]) > 0:
                 indices = self.indices[mixcomp].astype(np.int32)
                 from .fast import multifeature_correlate2d_with_indices
+                print bigger.shape, weights.shape, indices
                 res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices)
             else:
                 res = multifeature_correlate2d(bigger, weights.astype(np.float64))

@@ -125,6 +125,9 @@ if gv.parallel.main(__name__):
     feats = pos_feats + neg_feats
     labels = pos_labels + neg_labels
 
+    np.savez('training_data.npz', feats=feats, labels=labels)
+    #import sys; sys.exit(0)
+
     print "Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1))
     detector.train_from_features(feats, labels)
 
