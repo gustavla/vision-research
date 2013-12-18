@@ -641,7 +641,7 @@ def convert_new(np.ndarray[dtype=np.int32_t,ndim=2] theta, np.ndarray[dtype=np.f
 
     return feats
 
-def resample_and_arrange_image(np.ndarray[dtype=np.uint8_t,ndim=2] image, target_size, cmap):
+def resample_and_arrange_image(np.ndarray[dtype=np.uint8_t,ndim=2] image, target_size, np.ndarray[dtype=np.float64_t,ndim=2] lut):
     cdef:
         int dim0 = image.shape[0]
         int dim1 = image.shape[1]
@@ -650,7 +650,7 @@ def resample_and_arrange_image(np.ndarray[dtype=np.uint8_t,ndim=2] image, target
         np.ndarray[np.float64_t,ndim=3] output = np.empty(target_size + (3,), dtype=np.float64)
         np.uint8_t[:,:] image_mv = image
         np.float64_t[:,:,:] output_mv = output
-        np.float64_t[:,:] lut_mv = cmap.lut_ 
+        np.float64_t[:,:] lut_mv = lut 
         double mn = image.min()
         int i, j, c
 
