@@ -13,6 +13,7 @@ from . import custom
 from .beta_mixture import BetaMixture, binary_search # Temporarily exposed
 from . import parallel 
 from . import gradients
+from . import plot
 
 from .core import *
 
