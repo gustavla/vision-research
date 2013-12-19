@@ -119,7 +119,6 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
 
                 totals += 1
 
-
     print('COUNTS', counts)
 
     np.seterr(divide='raise')
@@ -528,97 +527,108 @@ def superimposed_model(settings, threading=True):
         ag.info('Done.')
 
         for m in xrange(detector.num_mixtures):
-            # Train SVM and get negative support vectors
-            if 0:
-                try:
-                    L = np.prod(all_pos_feats[m].shape[1:])
-                    Npos = all_pos_feats[m].shape[0]
-                    from sklearn.svm import SVC
-                    svm = SVC(kernel='linear', C=1)
-                    X = np.concatenate([all_pos_feats[m].reshape((-1, L)), 
-                                        all_neg_feats[m].reshape((-1, L))])
-                    y = np.zeros(X.shape[0])
-                    y[:Npos] = 1
-                    print("Training SVM")
-                    svm.fit(X, y) 
-                    print("Done")
-            
-                    II = svm.support_[svm.support_ >= Npos] - Npos
-                    all_neg_feats[m] = all_neg_feats[m][II]
-                except:
-                    import pdb; pdb.set_trace()
 
-            obj = all_pos_feats[m].mean(axis=0)
-            bkg = all_neg_feats[m].mean(axis=0)
-            size = gv.bb.size(bbs[m])
+            if 1:
+                obj = all_pos_feats[m].mean(axis=0)
+                bkg = all_neg_feats[m].mean(axis=0)
+                size = gv.bb.size(bbs[m])
+            else:
+                # This is experimental code:
 
-            #import pdb; pdb.set_trace()
-
-            sh = obj.shape
-            L = np.prod(sh)
-
-            avg = np.zeros(obj.shape)
-            kern = 0.5 * np.ones(obj.shape) 
-            # Calculate kernel using LDA
-            p1 = all_pos_feats[m].reshape((-1, L))
-            n1 = all_neg_feats[m].reshape((-1, L))
-            p1mean = p1.mean(0)
-            n1mean = n1.mean(0)
-
-            Spos = reduce(np.add, (np.outer(*[xi - p1mean]*2) for xi in p1)) / p1.shape[0]
-            Sneg = reduce(np.add, (np.outer(*[xi - n1mean]*2) for xi in n1)) / n1.shape[0]
-
-            #S = Sneg + Spos
-            S = Sneg
-            #S[:] += np.random.normal(loc=0, scale=0.001, size=S.shape)
-            # Regularization (important!)
-            S[:] += np.eye(S.shape[0]) * 0.01
-            #Sinv = np.linalg.inv(S)
-            #Sinv = np.eye(S.shape[0])
-            #kern[i,j] = np.dot(Sinv, (p1mean - n1mean))
-            #kern[:] = np.dot(Sinv, (p1mean - n1mean)).reshape(sh)
-
-            #kern[:] = np.linalg.solve(S, p1mean - n1mean).reshape(sh)
-            np.save('p1mean.npy', p1mean)
-            np.save('n1mean.npy', n1mean)
-
-            detector.build_clipped_weights(obj, bkg, )
-
-            kern[:] = np.linalg.solve(S, np.ones(p1mean.shape)).reshape(sh)
-
-            w = kern[:]
-            II = np.argsort(np.fabs(w.ravel()))
-            M = np.zeros(w.shape)
-            for rank, ii in enumerate(II):
-                M[tuple(np.unravel_index(ii, w.shape))] = rank
-            np.save('M.npy', M)
-
-            #import IPython
-            #IPython.embed()
-
-            if 0:
-                for i, j in itr.product(xrange(obj.shape[0]), xrange(obj.shape[1])):
-                    p1 = all_pos_feats[m][:,i,j]
-                    n1 = all_neg_feats[m][:,i,j]
-                    p1mean = p1.mean(0)
-                    n1mean = n1.mean(0)
-
-                    Spos = np.mean([np.outer(*[xi - p1mean]*2) for xi in p1], axis=0) 
-                    Sneg = np.mean([np.outer(*[xi - n1mean]*2) for xi in n1], axis=0) 
-
-                    S = Sneg + Spos
+                # Train SVM and get negative support vectors
+                # Figure out covariance matrix here, since we have neg and pos
+                if 0:
                     try:
-                        Sinv = np.linalg.pinv(S)
-                        #Sinv = np.eye(S.shape[0])
-                        kern[i,j] = np.dot(Sinv, (p1mean - n1mean))
+                        L = np.prod(all_pos_feats[m].shape[1:])
+                        Npos = all_pos_feats[m].shape[0]
+                        from sklearn.svm import SVC
+                        svm = SVC(kernel='linear', C=1)
+                        X = np.concatenate([all_pos_feats[m].reshape((-1, L)), 
+                                            all_neg_feats[m].reshape((-1, L))])
+                        y = np.zeros(X.shape[0])
+                        y[:Npos] = 1
+                        print("Training SVM")
+                        svm.fit(X, y) 
+                        print("Done")
+                
+                        II = svm.support_[svm.support_ >= Npos] - Npos
+                        all_neg_feats[m] = all_neg_feats[m][II]
                     except:
-                        print('Skipping', i, j)
-            #bkg[:] = 0.5
+                        import pdb; pdb.set_trace()
 
-            detector.extra['weights'] = kern
-                #avg[:,i,j] = (p1mean + n1mean) / 2
+                obj = all_pos_feats[m].mean(axis=0)
+                bkg = all_neg_feats[m].mean(axis=0)
+                size = gv.bb.size(bbs[m])
 
-            #self.extra['avg'] = avg
+                #import pdb; pdb.set_trace()
+
+                sh = obj.shape
+                L = np.prod(sh)
+
+                avg = np.zeros(obj.shape)
+                kern = 0.5 * np.ones(obj.shape) 
+                # Calculate kernel using LDA
+                p1 = all_pos_feats[m].reshape((-1, L))
+                n1 = all_neg_feats[m].reshape((-1, L))
+                p1mean = p1.mean(0)
+                n1mean = n1.mean(0)
+
+                Spos = reduce(np.add, (np.outer(*[xi - p1mean]*2) for xi in p1)) / p1.shape[0]
+                Sneg = reduce(np.add, (np.outer(*[xi - n1mean]*2) for xi in n1)) / n1.shape[0]
+
+                #S = Sneg + Spos
+                S = Sneg
+                #S[:] += np.random.normal(loc=0, scale=0.001, size=S.shape)
+                # Regularization (important!)
+                np.save('S.npy', S)
+
+                S[:] += np.eye(S.shape[0]) * 0.01
+                #Sinv = np.linalg.inv(S)
+                #Sinv = np.eye(S.shape[0])
+                #kern[i,j] = np.dot(Sinv, (p1mean - n1mean))
+                #kern[:] = np.dot(Sinv, (p1mean - n1mean)).reshape(sh)
+
+                #kern[:] = np.linalg.solve(S, p1mean - n1mean).reshape(sh)
+                np.save('p1mean.npy', p1mean)
+                np.save('n1mean.npy', n1mean)
+
+                #detector.build_clipped_weights(obj, bkg, )
+
+                kern[:] = np.linalg.solve(S, np.ones(p1mean.shape)).reshape(sh)
+
+                w = kern[:]
+                II = np.argsort(np.fabs(w.ravel()))
+                M = np.zeros(w.shape)
+                for rank, ii in enumerate(II):
+                    M[tuple(np.unravel_index(ii, w.shape))] = rank
+                np.save('M.npy', M)
+
+                #import IPython
+                #IPython.embed()
+
+                if 0:
+                    for i, j in itr.product(xrange(obj.shape[0]), xrange(obj.shape[1])):
+                        p1 = all_pos_feats[m][:,i,j]
+                        n1 = all_neg_feats[m][:,i,j]
+                        p1mean = p1.mean(0)
+                        n1mean = n1.mean(0)
+
+                        Spos = np.mean([np.outer(*[xi - p1mean]*2) for xi in p1], axis=0) 
+                        Sneg = np.mean([np.outer(*[xi - n1mean]*2) for xi in n1], axis=0) 
+
+                        S = Sneg + Spos
+                        try:
+                            Sinv = np.linalg.pinv(S)
+                            #Sinv = np.eye(S.shape[0])
+                            kern[i,j] = np.dot(Sinv, (p1mean - n1mean))
+                        except:
+                            print('Skipping', i, j)
+                #bkg[:] = 0.5
+
+                detector.extra['weights'] = kern
+                    #avg[:,i,j] = (p1mean + n1mean) / 2
+
+                #self.extra['avg'] = avg
 
             kernels.append(obj)
             bkgs.append(bkg)

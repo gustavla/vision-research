@@ -30,6 +30,7 @@ def gen_negative_files(excluding_class, contest='train'):
             yield load_file(excluding_class, int(img_id), load_boxes=False)
 
 def load_file(class_name, img_id, load_boxes=True, poses=None):
+    img_id = int(img_id)
     img_path = os.path.join(os.environ['VOC_DIR'], 'JPEGImages', '{0:06}.jpg'.format(img_id))
     bbs = []
     if load_boxes: 

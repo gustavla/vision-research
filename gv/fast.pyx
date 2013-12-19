@@ -641,6 +641,27 @@ def convert_new(np.ndarray[dtype=np.int32_t,ndim=2] theta, np.ndarray[dtype=np.f
 
     return feats
 
+def convert_new_float_TEMP(np.ndarray[dtype=np.int32_t,ndim=2] theta, np.ndarray[dtype=np.float64_t,ndim=2] amplitudes, int num_orientations, double threshold):
+    cdef int dim0 = theta.shape[0]
+    cdef int dim1 = theta.shape[1]
+    cdef double a
+    cdef int i, f, v
+    cdef np.ndarray[dtype=np.float64_t, ndim=3] feats = np.zeros((dim0, dim1, num_orientations), dtype=np.float64)
+    cdef np.float64_t[:,:,:] feats_mv = feats
+
+    cdef np.int32_t[:,:] theta_mv = theta 
+    cdef np.float64_t[:,:] amplitudes_mv = amplitudes
+
+    with nogil:
+        for i in range(dim0):
+            for j in range(dim1):
+                a = amplitudes_mv[i,j]
+                if a >= threshold:
+                    v = theta_mv[i,j] 
+                    feats_mv[i,j,v] = a 
+
+    return feats
+
 def resample_and_arrange_image(np.ndarray[dtype=np.uint8_t,ndim=2] image, target_size, np.ndarray[dtype=np.float64_t,ndim=2] lut):
     cdef:
         int dim0 = image.shape[0]
@@ -662,3 +683,184 @@ def resample_and_arrange_image(np.ndarray[dtype=np.uint8_t,ndim=2] image, target
 
     return output
 
+
+# NEW STUFF: TODO Remove
+
+cdef inline int int_max(int a, int b) nogil: return a if a >= b else b
+cdef inline int int_min(int a, int b) nogil: return a if a <= b else b
+
+def subsample_offset_shape(shape, size):
+    return [int(shape[i]%size[i]/2 + size[i]/2)  for i in xrange(2)]
+
+def code_parts_mmm(np.ndarray[ndim=3,dtype=np.uint8_t] X,
+                   np.ndarray[ndim=3,dtype=np.uint8_t] X_unspread,
+                   np.ndarray[ndim=2,dtype=np.float64_t] amps,
+                   np.ndarray[ndim=4,dtype=np.float64_t] log_parts,
+                   np.ndarray[ndim=4,dtype=np.float64_t] log_invparts,
+                   float threshold, outer_frame=0, int collapse=1):
+    """
+    At each location of `X`, find the log probabilities for each part and location. Outputs these part assignments in the same data dimensions as `X`. Neighborhoods of `X` with edge counts lower than `threshold` are regarded as background and assigned zero.
+
+    Parameters
+    ----------
+    X : ndarray[ndim=3,dtype=np.uint8]
+        The first two dimensions of the array specify locations. The last one specifies a binary edge type. The value ``X[s,t,e]`` is 1 iff there is an edge of type `e` detected at location `(s,t)`.
+    log_parts : ndarray[ndim=4]
+        We have a Bernoulli mixture model defined over patches of the input image. The `log_parts` is a logarithm applied to the array of edge probability maps for each part. Array of shape `(K, S, T, E)`, where `K` is the number of mixture component, `S` and `T` the shape of the data, and `E` the number of edges. The value of ``log_parts[k,s,t,e]`` is the log probability of observing an edge `e` at location `(s,t)`, conditioned on the mixture component being `k`.
+    log_invparts : ndarray[ndim=4]
+        Preprocessed inverse of `log_parts`, i.e. ``log(1-exp(log_parts))``.
+    threshold : int
+        The least number of edges in a patch to reject the null background hypothesis.
+    outer_frame : int
+        Remove a frame of this thickness when checking the threshold. If the parts are 5 x 5, and this is set to 1, then only the center 3 x 3 is used to count edges when compared to the threshold. 
+    
+    Returns
+    -------
+    out_map : ndarray[ndim=3] 
+        Array of shape `(S, T, K+1)`. There are two cases, either the third dimension is `(0, -inf, -inf, ...)`, when there are insufficient edges in the neighborhood of a location. Otherwise, `out_map[s,t,i+1]` is the log likelihood of part `i` at location `(s,t)`. Additionally, `out_map[s,t,0]` is equal to `-inf`.
+    """
+
+    cdef unsigned int num_parts = log_parts.shape[0]
+    cdef unsigned int part_x_dim = log_parts.shape[1]
+    cdef unsigned int part_y_dim = log_parts.shape[2]
+    cdef unsigned int part_z_dim = log_parts.shape[3]
+    cdef unsigned int X_x_dim = X.shape[0]
+    cdef unsigned int X_y_dim = X.shape[1]
+    cdef unsigned int X_z_dim = X.shape[2]
+    cdef unsigned int new_x_dim = X_x_dim - part_x_dim + 1
+    cdef unsigned int new_y_dim = X_y_dim - part_y_dim + 1
+    cdef unsigned int i_start,j_start,i_end,j_end,i,j,z,k, cx0, cx1, cy0, cy1 
+    cdef float count
+    cdef unsigned int i_frame = <unsigned int>outer_frame
+    cdef np.float64_t NINF = np.float64(-np.inf)
+    # we have num_parts + 1 because we are also including some regions as being
+    # thresholded due to there not being enough edges
+    
+    cdef np.ndarray[dtype=np.int32_t, ndim=2] out_map = -np.ones((new_x_dim,
+                                                                 new_y_dim), dtype=np.int32)
+    cdef np.ndarray[dtype=np.float64_t, ndim=1] vs = np.ones(num_parts, dtype=np.float64)
+    cdef np.float64_t[:] vs_mv = vs
+
+    #cdef np.ndarray[dtype=np.float64_t, ndim=1] vs_alt = np.ones(num_parts, dtype=np.float64)
+    #cdef np.float64_t[:] vs_alt_mv = vs_alt
+
+    parts = np.exp(log_parts)
+    #parts_alt = np.tile(np.apply_over_axes(np.mean, parts, [1, 2]), (part_x_dim, part_y_dim, 1))
+    #parts_alt = np.tile(np.apply_over_axes(np.mean, parts, [1, 2, 3]), (part_x_dim, part_y_dim, part_z_dim))
+
+    #cdef np.ndarray[dtype=np.float64_t, ndim=4] part_logits_alt = np.rollaxis((np.log(parts_alt) - np.log(1 - parts_alt)).astype(np.float64), 0, 4).copy()
+    #cdef np.ndarray[dtype=np.float64_t, ndim=1] constant_terms_alt = np.apply_over_axes(np.sum, np.log(1 - parts_alt).astype(np.float64), [1, 2, 3]).ravel()
+
+    #cdef np.float64_t[:,:,:,:] part_logits_alt_mv = part_logits_alt
+    #cdef np.float64_t[:] constant_terms_alt_mv = constant_terms_alt
+
+    cdef np.uint8_t[:,:,:] X_mv = X
+    cdef np.uint8_t[:,:,:] X_unspread_mv = X_unspread
+    cdef np.float64_t[:,:] amps_mv = amps
+
+    cdef np.ndarray[dtype=np.float64_t, ndim=4] part_logits = np.rollaxis((log_parts - log_invparts).astype(np.float64), 0, 4).copy()
+
+    cdef np.ndarray[dtype=np.float64_t, ndim=1] constant_terms = np.apply_over_axes(np.sum, log_invparts.astype(np.float64), [1, 2, 3]).ravel()
+    cdef np.float64_t[:,:,:,:] part_logits_mv = part_logits
+    cdef np.float64_t[:] constant_terms_mv = constant_terms
+
+    cdef np.int32_t[:,:] out_map_mv = out_map
+
+    cdef np.ndarray[dtype=np.float64_t, ndim=2] _integral_counts = np.zeros((X_x_dim+1, X_y_dim+1), dtype=np.float64)
+    cdef np.float64_t[:,:] integral_counts = _integral_counts
+
+    cdef np.float64_t max_value, v
+    cdef int max_index 
+
+    # The first cell along the num_parts+1 axis contains a value that is either 0
+    # if the area is deemed to have too few edges or min_val if there are sufficiently many
+    # edges, min_val is just meant to be less than the value of the other cells
+    # so when we pick the most likely part it won't be chosen
+
+    # Build integral image of edge counts
+    # First, fill it with edge counts and accmulate across
+    # one axis.
+    for i in range(X_x_dim):
+        for j in range(X_y_dim):
+            count = amps_mv[i,j] / <float>(X_x_dim * X_y_dim)
+            integral_counts[1+i,1+j] = integral_counts[1+i,j] + count
+    # Now accumulate the other axis
+    for j in range(X_y_dim):
+        for i in range(X_x_dim):
+            integral_counts[1+i,1+j] += integral_counts[i,1+j]
+
+    # Code parts
+    for i_start in range(X_x_dim-part_x_dim+1):
+        i_end = i_start + part_x_dim
+        for j_start in range(X_y_dim-part_y_dim+1):
+            j_end = j_start + part_y_dim
+
+            # Note, integral_counts is 1-based, to allow for a zero row/column at the zero:th index.
+            cx0 = i_start+i_frame
+            cx1 = i_end-i_frame
+            cy0 = j_start+i_frame
+            cy1 = j_end-i_frame
+            count = integral_counts[cx1, cy1] - \
+                    integral_counts[cx0, cy1] - \
+                    integral_counts[cx1, cy0] + \
+                    integral_counts[cx0, cy0]
+
+            if threshold <= count:
+                vs[:] = constant_terms
+                #vs_alt[:] = constant_terms_alt
+                with nogil:
+                    for i in range(part_x_dim):
+                        for j in range(part_y_dim):
+                            for z in range(X_z_dim):
+                                if X_mv[i_start+i,j_start+j,z]:
+                                    for k in range(num_parts):
+                                        vs_mv[k] += part_logits_mv[i,j,z,k]
+                                        #vs_alt_mv[k] += part_logits_alt_mv[i,j,z,k]
+
+                max_index = vs.argmax()
+                #if vs_mv[max_index] - vs_alt_mv[max_index] >= accept_threshold:
+                out_map_mv[i_start,j_start] = max_index / collapse
+                
+                #out_map_mv[i_start,j_start] = vs.argmax() / collapse
+
+    return out_map
+
+def extract_parts(edges, unspread_edges, amps, log_parts, log_invparts, float threshold, outer_frame=0, spread_radii=(4, 4), subsample_size=(4, 4), int collapse=1):
+    cdef:
+        int num_feats = log_parts.shape[0]//collapse
+        np.ndarray[np.int32_t,ndim=2] parts = code_parts_mmm(edges, unspread_edges, amps, log_parts, log_invparts, threshold, outer_frame=outer_frame, collapse=collapse)
+        np.ndarray[np.uint8_t,ndim=3] feats = np.zeros((parts.shape[0]//subsample_size[0],
+                                                        parts.shape[1]//subsample_size[1],
+                                                        num_feats),
+                                                        dtype=np.uint8)
+
+    offset = subsample_offset_shape((parts.shape[0], parts.shape[1]), subsample_size)
+
+    cdef:
+        np.int32_t[:,:] parts_mv = parts
+        np.uint8_t[:,:,:] feats_mv = feats
+  
+        int spread_radii0 = spread_radii[0]
+        int spread_radii1 = spread_radii[1]
+        int subsample_size0 = subsample_size[0]
+        int subsample_size1 = subsample_size[1]
+        int feats_dim0 = feats.shape[0]
+        int feats_dim1 = feats.shape[1]
+        int parts_dim0 = parts.shape[0]
+        int parts_dim1 = parts.shape[1]
+        int offset0 = offset[0]
+        int offset1 = offset[1]
+        int p, x, y, i, j, i0, j0
+
+    with nogil:
+        for i in range(feats_dim0):
+            for j in range(feats_dim1):
+                x = offset0 + i*subsample_size0 
+                y = offset1 + j*subsample_size1
+                for i0 in range(int_max(x - spread_radii0, 0), int_min(x + spread_radii0+1, parts_dim0)):
+                    for j0 in range(int_max(y - spread_radii1, 0), int_min(y + spread_radii1+1, parts_dim1)):
+                        p = parts_mv[i0,j0]
+                        if p != -1:
+                            feats_mv[i,j,p] = 1
+
+    return feats 

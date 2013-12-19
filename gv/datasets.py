@@ -8,10 +8,11 @@ def contests():
     return ('voc-val', 'voc-train', 'voc-trainval', 'voc-test', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-profile5', 
             'voc-easy', 'voc-fronts', 'voc-fronts-negs', 'voc-sides', 'voc-val-profile', 'voc-test-profile',
             'uiuc', 'uiuc-multiscale', 
+            'inria-test',
             'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks')
 
 def datasets():
-    return ('none', 'voc', 'uiuc', 'uiuc-multiscale', 
+    return ('none', 'voc', 'uiuc', 'uiuc-multiscale', 'inria',
             'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks')
 
 def load_files(contest, obj_class):
@@ -50,6 +51,9 @@ def load_files(contest, obj_class):
         files, tot = gv.uiuc.load_testing_files()
     elif contest == 'uiuc-multiscale':
         files, tot = gv.uiuc.load_testing_files(single_scale=False)
+    elif contest == 'inria-test' or contest == 'inria':
+        assert obj_class == 'person', "INRIA only has person class"
+        files, tot = gv.inria.load_files(obj_class, dataset='test')
     elif contest.startswith('custom'):
         name = contest[len('custom-'):]
         files, tot = gv.custom.load_testing_files(name)
@@ -64,6 +68,8 @@ def load_file(contest, img_id, obj_class=None, path=None):
         return gv.uiuc.load_testing_file(img_id, single_scale=(contest=='uiuc'))
     elif contest.startswith('voc'):
         return gv.voc.load_file(obj_class, img_id) 
+    elif contest == 'inria':
+        return gv.inria.load_file('person', img_id) 
     elif contest.startswith('custom'):
         name = contest[len('custom-'):]
         return gv.custom.load_testing_file(name, img_id)

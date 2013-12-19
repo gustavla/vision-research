@@ -9,6 +9,7 @@ from . import datasets
 # Datasets
 from . import voc
 from . import uiuc
+from . import inria
 from . import custom
 from .beta_mixture import BetaMixture, binary_search # Temporarily exposed
 from . import parallel 
