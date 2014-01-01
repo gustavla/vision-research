@@ -4,6 +4,9 @@ import numpy as np
 def subsample_size(data, size):
     return tuple([data.shape[i]//size[i] for i in xrange(2)])
 
+def subsample_size_new(shape, size):
+    return tuple([shape[i]//size[i] for i in xrange(2)])
+
 def iround(x):
     return int(round(x))
 

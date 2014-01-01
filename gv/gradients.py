@@ -12,7 +12,37 @@ def box_blur(im, S):
     blurred_im = padded[S:S+dim0,S:S+dim1] - padded[0:0+dim0,S:S+dim1] - padded[S:S+dim0,0:0+dim1] + padded[0:0+dim0,0:0+dim1]
     return blurred_im
 
+def orientations(im, orientations=8):
+    kern = np.array([[-1, 0, 1]]) / np.sqrt(2)
+    gr_x = scipy.signal.convolve(im, kern, mode='same')
+    gr_y = scipy.signal.convolve(im, kern.T, mode='same')
+
+    #theta = orientations - orientations * ((np.arctan2(gr_y, gr_x) + 1.5*np.pi) / (2 * np.pi)) % orientations 
+    theta = np.arctan2(gr_y, gr_x)
+    amps = np.sqrt(gr_x**2 + gr_y**2)
+
+    w = np.min(theta.shape) // 4
+    print theta.shape, w
+    theta = theta[theta.shape[0]//2-w:theta.shape[0]//2+w, theta.shape[1]//2-w:theta.shape[1]//2+w]
+    amps = amps[theta.shape[0]//2-w:theta.shape[0]//2+w, theta.shape[1]//2-w:theta.shape[1]//2+w]
+
+    theta = theta.ravel()
+    gr_x = gr_x.ravel()
+    gr_y = gr_y.ravel()
+    amps = amps.ravel()
+
+    #II = amps > 0.025
+    #theta = theta[II]
+    #gr_x = gr_x[II]
+    #gr_y = gr_y[II]
+
+    return theta, gr_x, gr_y
+
 def extract(im, orientations=8, threshold=0.000001, eps=0.01, blur_size=10):
+    #threshold=0.1
+    #eps=0.01
+    #blur_size=30
+
     kern = np.array([[-1, 0, 1]]) / np.sqrt(2)
     gr_x = scipy.signal.convolve(im, kern, mode='same')
     gr_y = scipy.signal.convolve(im, kern.T, mode='same')

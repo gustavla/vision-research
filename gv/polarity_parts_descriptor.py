@@ -541,12 +541,12 @@ class PolarityPartsDescriptor(BinaryDescriptor):
     def _extract_edges(self, image):
         sett = self.bedges_settings().copy()
         sett['radius'] = 0
-        sett['preserve_size'] = True
+        sett['preserve_size'] = False 
     
         #return np.concatenate([gv.gradients.extract(image, orientations=8), ag.features.bedges(image, **sett)], axis=2)
         #return np.concatenate([gv.gradients.extract(image, orientations=8), gv.gradients.extract(image, orientations=8, threshold=1.5)], axis=2)
-        #return ag.features.bedges(image, **sett)
-        if 1:
+        return ag.features.bedges(image, **sett)
+        if 0:
             return gv.gradients.extract(image, 
                                         orientations=8, 
                                         threshold=self.settings.get('threshold2', 0.001),
