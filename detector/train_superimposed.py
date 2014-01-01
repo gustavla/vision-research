@@ -48,6 +48,28 @@ def generate_random_patches(filenames, size, seed=0, per_image=1):
             if failures >= 30:
                 return
 
+def generate_feature_patches_dense(filenames, size, extract_func, subsample_size, seed=0):
+    randgen = np.random.RandomState(seed)
+    failures = 0
+    real_size = extract_func(np.zeros(size)).shape[:2]
+    for fn in itr.cycle(filenames):
+        #img = gv.img.resize_with_factor_new(gv.img.asgray(gv.img.load_image(fn)), randgen.uniform(0.5, 1.0))
+        img = gv.img.asgray(gv.img.load_image(fn))
+        feats = extract_func(img)
+
+        dx, dy = [feats.shape[i]-real_size[i] for i in xrange(2)]
+        if min(dx, dy) == 0:
+            continue
+
+        for x, y in itr.product(xrange(dx), xrange(dy)):
+            xx = x*subsample_size[0]
+            yy = y*subsample_size[1]
+            try:
+                assert xx+size[0] < img.shape[0]
+                assert yy+size[1] < img.shape[1]
+            except:
+                import pdb; pdb.set_trace()
+            yield img[xx:xx+size[0],yy:yy+size[1]], feats[x:x+real_size[0],y:y+real_size[1]], x, y, img
 
 def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files):
     im_size = settings['detector']['image_size']
@@ -287,6 +309,102 @@ def _get_background_model(settings, neg_files):
     bkg = bkg_counts.astype(np.float64) / count
     return bkg
     
+def _process_file_kernel_basis(seed, mixcomp, settings, bb, filename, bkg_stack, bkg_stack_num):
+    ag.info("Processing file ", filename)
+    im_size = settings['detector']['image_size']
+    size = gv.bb.size(bb)
+
+    # Use the same seed for all mixture components! That will make them easier to compare,
+    # without having to sample to infinity.
+
+
+    # HERE: Make it possible to input data directly!
+    descriptor = gv.load_descriptor(settings)
+
+    part_size = descriptor.settings['part_size']
+    radii = settings['detector']['spread_radii']
+    psize = settings['detector']['subsample_size']
+    cb = settings['detector'].get('crop_border')
+
+    #sh = (size[0] // psize[0], size[1] // psize[1])
+    sh = gv.sub.subsample_size_new((size[0]-4, size[1]-4), psize)
+
+    all_pos_feats = []
+
+    F = descriptor.num_features
+
+    # No coding is also included
+    counts = np.zeros(sh + (F + 1, F), dtype=np.int64)
+    empty_counts = np.zeros((F + 1, F), dtype=np.int64)
+    totals = 0
+
+    sett = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+
+
+    alpha_maps = []
+
+    gray_im, alpha = _load_cad_image(filename, im_size, bb)
+
+    pad = (radii[0] + 2, radii[1] + 2)
+
+    padded_gray_im = ag.util.zeropad(gray_im, pad)
+    padded_alpha = ag.util.zeropad(alpha, pad)
+
+    dups = 5
+    X_pad_size = (part_size[0] + pad[0] * 2, part_size[1] + pad[1] * 2)
+
+    bkgs = np.empty(((F + 1) * dups,) + X_pad_size) 
+
+    rs = np.random.RandomState(seed)
+
+    for f in xrange(F + 1):
+    #for f in xrange(1):
+        num = bkg_stack_num[f]
+
+        for d in xrange(dups):
+            bkg_i = rs.randint(num)
+            bkgs[f*dups+d] = bkg_stack[f,bkg_i]
+
+    # Do it with no superimposed image, to see what happens to pure background
+    img_with_bkgs = bkgs
+    #ex = descriptor.extract_features(img_with_bkgs[0], settings=sett)
+    parts = np.asarray([descriptor.extract_features(im, settings=sett)[0,0] for im in img_with_bkgs])
+
+    for f in xrange(F + 1):
+        hist = parts[f*dups:(f+1)*dups].sum(0)
+        empty_counts[f] += hist
+
+    if 1:
+        for i, j in itr.product(xrange(sh[0]), xrange(sh[1])):
+            selection = [slice(i * psize[0], i * psize[0] + X_pad_size[0]), slice(j * psize[1], j * psize[1] + X_pad_size[1])]
+
+            patch = padded_gray_im[selection]
+            alpha_patch = padded_alpha[selection]
+
+            patch = patch[np.newaxis]
+            alpha_patch = alpha_patch[np.newaxis]
+
+            img_with_bkgs = patch * alpha_patch + bkgs * (1 - alpha_patch)
+            
+            #ex = descriptor.extract_features(img_with_bkgs[0], settings=sett)
+            parts = np.asarray([descriptor.extract_features(im, settings=sett)[0,0] for im in img_with_bkgs])
+
+            #counts[i,j] += parts
+            for f in xrange(F + 1):
+            #for f in xrange(1):
+                #hist = np.bincount(parts[f*dups:(f+1)*dups].ravel(), minlength=F + 1)
+                hist = parts[f*dups:(f+1)*dups].sum(0)
+                counts[i,j,f] += hist
+
+    totals += dups 
+
+    #support = alpha_maps.mean(axis=0)
+
+    return counts, empty_counts, totals
+
+def _process_file_kernel_basis_star(args):
+    return _process_file_kernel_basis(*args)
+
 
 def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicates_mult=1):
     im_size = settings['detector']['image_size']
@@ -297,7 +415,6 @@ def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicate
 
 
     # HERE: Make it possible to input data directly!
-    gen = generate_random_patches(neg_files, size, seed=0)
     descriptor = gv.load_descriptor(settings)
 
     radii = settings['detector']['spread_radii']
@@ -310,18 +427,66 @@ def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicate
 
     sett = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
 
+
     alpha_maps = []
+
+    # TODO {{{
+    if 0:
+        gen = generate_feature_patches_dense(neg_files, size, lambda im: descriptor.extract_features(im, settings=sett), psize, seed=0)
+        dd = gv.Detector.load('uiuc3.npy')
+        kern = dd.kernel_templates[mixcomp]
+        obj = np.apply_over_axes(np.mean, kern, [0, 1]).squeeze()
+        obj_clipped = np.clip(obj, 0.01, 1-0.01)
+        obj_std = np.sqrt(obj_clipped * (1 - obj_clipped))
+        #obj_std = np.ones(obj.size)
+        from scipy.stats import norm
+        running_avg = None
+        C = 0
+    else:
+        gen = generate_random_patches(neg_files, size, seed=0)
+    # }}}
 
     for index in indices: 
         ag.info("Fetching positives from image of index {0} and mixture component {1}".format(index, mixcomp))
         gray_im, alpha = _load_cad_image(files[index], im_size, bb)
-        alpha_maps.append(alpha)
         for dup in xrange(duplicates):
-            neg_im = gen.next()
+            alpha_maps.append(alpha) # Alpha map for each duplicate
+            neg_feats = None
+
+            if 0:
+                best = (np.inf,)
+                for i in xrange(2500):
+                    neg_im, neg_feats, x, y, im = gen.next()
+
+                    avg = np.apply_over_axes(np.mean, neg_feats, [0, 1]).squeeze()
+
+                    if C == 0:
+                        mean_avg = avg
+                    else:
+                        mean_avg = running_avg * (C - 1) / C + avg * 1 / C
+
+                    #dist = np.sum(np.fabs(avg - obj))
+                    dist = -norm.logpdf(mean_avg, loc=obj, scale=obj_std).sum()
+                    #if neg_feats.mean() > 0.02:
+                        #break
+
+
+                    if dist < best[0]:
+                        best = (dist, neg_im, neg_feats, mean_avg)
+
+                running_avg = best[3] 
+
+                C += 1
+
+                print('dist', best[0])
+                neg_im, neg_feats = best[1:3]
+            else:
+                neg_im = gen.next()
+                neg_feats = descriptor.extract_features(neg_im, settings=sett)
+                
             # Check which component this one is
             superimposed_im = neg_im * (1 - alpha) + gray_im * alpha
 
-            neg_feats = descriptor.extract_features(neg_im, settings=sett)
             pos_feats = descriptor.extract_features(superimposed_im, settings=sett)
 
             all_pos_feats.append(pos_feats)
@@ -329,9 +494,10 @@ def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicate
 
     all_neg_feats = np.asarray(all_neg_feats)
     all_pos_feats = np.asarray(all_pos_feats)
-    support = np.asarray(alpha_maps).mean(axis=0)
+    alpha_maps = np.asarray(alpha_maps)
+    #support = alpha_maps.mean(axis=0)
 
-    return all_neg_feats, all_pos_feats, support 
+    return all_neg_feats, all_pos_feats, alpha_maps 
 
 def _get_pos_and_neg_star(args):
     return _get_pos_and_neg(*args)
@@ -352,7 +518,8 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf):
     absw_neg = -np.minimum(0, weights)
 
     import scipy.stats
-    almost_zero = scipy.stats.scoreatpercentile(np.fabs(weights.ravel()), 20)
+    #almost_zero = scipy.stats.scoreatpercentile(np.fabs(weights.ravel()), 20)
+    almost_zero = 1e-5
 
     #supp = detector.settings.get('indices_suppress_radius', 4)
     for absw in [absw_pos, absw_neg]:
@@ -516,10 +683,63 @@ def superimposed_model(settings, threading=True):
     all_pos_feats = []
     all_neg_feats = []
     alphas = []
+    all_alphas = []
+    all_binarized_alphas = []
+
+
+    # Get basis
+    if 0:
+        data = np.load('bkg-stack.npz')
+        bkg_stack = data['bkg_stack']
+        bkg_stack_num = data['bkg_stack_num']
+        for m in xrange(detector.num_mixtures):
+            files_m = [files[ii] for ii in np.where(comps == m)[0]]
+
+            all_counts = None
+            all_empty_counts = None
+            all_totals = None
+
+            argses = [(seed, m, settings, bbs[m], fn, bkg_stack, bkg_stack_num) for seed, fn in enumerate(files_m)]
+            for counts, empty_counts, totals in gv.parallel.imap_unordered(_process_file_kernel_basis_star, argses):
+                if all_counts is None:
+                    all_counts = counts
+                    all_empty_counts = empty_counts
+                    all_totals = totals
+                else:
+                    all_counts += counts
+                    all_empty_counts += empty_counts
+                    all_totals += totals
+
+            ag.info('Done.')
+
+            #np.save('theta2.npy', all_counts.astype(np.float64) / all_totals)
+            np.save('empty_theta.npy', all_empty_counts.astype(np.float64) / all_totals)
+            #np.savez('theta2.npy', counts=all_counts.astype(np.float64) / all_totals, empty_counts=all_empty_counts.astype(np.float64) / all_totals)
+            import sys; sys.exit(1)
+
+        #argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1), bkg_stack) for m in range(detector.num_mixtures)]        
+        #for counts, totals in gv.parallel.imap(_get_kernel_basis_star, argses):
+            #alpha = alpha_maps.mean(0)
+            #all_alphas.append(alpha_maps)
+            #all_binarized_alphas.append(alpha_maps > 0.05)
+#
+            #alphas.append(alpha)
+            #all_neg_feats.append(neg_feats)
+            #all_pos_feats.append(pos_feats)
+#
+        ag.info('Done.')
+
+        np.save('theta.npy', theta)
+        import sys; sys.exit(0)
+
 
     if settings['detector'].get('superimpose'):
         argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in range(detector.num_mixtures)]        
-        for neg_feats, pos_feats, alpha in gv.parallel.imap(_get_pos_and_neg_star, argses):
+        for neg_feats, pos_feats, alpha_maps in gv.parallel.imap(_get_pos_and_neg_star, argses):
+            alpha = alpha_maps.mean(0)
+            all_alphas.append(alpha_maps)
+            all_binarized_alphas.append(alpha_maps > 0.05)
+
             alphas.append(alpha)
             all_neg_feats.append(neg_feats)
             all_pos_feats.append(pos_feats)
@@ -528,10 +748,60 @@ def superimposed_model(settings, threading=True):
 
         for m in xrange(detector.num_mixtures):
 
+            #feats = np.concatenate([all_pos_feats[m], all_neg_feats[m]], axis=0)
+            #labels = np.zeros(len(all_pos_feats[m]) + len(all_neg_feats[m]))
+            #labels[:len(all_pos_feats)] = 1
+            #np.savez('feats.npz', feats=feats, labels=labels)
+
+            # Find key points
+
+
             if 1:
                 obj = all_pos_feats[m].mean(axis=0)
                 bkg = all_neg_feats[m].mean(axis=0)
                 size = gv.bb.size(bbs[m])
+
+                avg_frames = np.apply_over_axes(np.mean, all_pos_feats[m], [1, 2]).squeeze()
+                means = avg_frames.mean(0)
+                stds = avg_frames.std(0)
+
+                #small_alpha_maps = (gv.sub.subsample(all_alphas[m][:,2:-2,3:-3], (4, 4), skip_first_axis=True) > 0.05)[...,np.newaxis].astype(np.uint8)
+
+                #for i in xrange(small_alpha_maps.shape[0]):
+                    #small_alpha_maps[i] = ag.util.blur_image(small_alpha_maps[i], 2.0)
+                    #small_alpha_maps[i,...,0] = ag.features.bspread(small_alpha
+
+                # SET WEIGHTS
+                #avg = np.apply_over_axes(np.mean, all_pos_feats[m], [0, 1, 2])[0]
+                #bkg = avg
+                avg = bkg
+                #avg = np.apply_over_axes(np.mean, all_pos_feats[m][:,2:-2,2:-2], [0, 1, 2])[0]
+                #avg = np.apply_over_axes(np.sum, small_alpha_maps * all_pos_feats[m], [0, 1, 2])[0] / np.sum(small_alpha_maps)
+                #import pdb; pdb.set_trace()
+
+                #small_alpha_maps[...,0] = ag.features.bspread(small_alpha_maps[...,0], spread='box', radius=1)
+
+                #obj = small_alpha_maps * obj + ~small_alpha_maps * avg
+                #obj = (all_pos_feats[m] * small_alpha_maps).mean(0) + (avg * (1 - small_alpha_maps)).mean(0)
+
+                eps = 0.025
+                obj = np.clip(obj, eps, 1 - eps)
+                avg = np.clip(avg, eps, 1 - eps)
+                #lmb = obj / avg
+                #w = np.clip(np.log(obj / avg), -1, 1)
+                w = np.log(obj / (1 - obj) * ((1 - avg) / avg))
+                #w = np.log(
+
+                if 'weights' not in detector.extra:
+                    detector.extra['weights'] = []
+                detector.extra['weights'].append(w)
+
+                if 'sturf' not in detector.extra:
+                    detector.extra['sturf'] = []
+
+                detector.extra['sturf'].append(dict(means=means, stds=stds, lmb=obj / avg))
+
+                    
             else:
                 # This is experimental code:
 
@@ -708,7 +978,282 @@ def superimposed_model(settings, threading=True):
             #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
             weights = detector.build_clipped_weights(kern, bkg, detector.eps)
 
-            indices = get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
+            if 1:
+                # Set weights! 
+                theta = np.load('theta3.npy')[1:-1,1:-1]
+                eth = np.load('empty_theta.npy')
+
+                #rest = 0.5
+
+                bkg = 0.002 * np.ones(detector.num_features)
+                #rest = 1 - bkg.sum()
+                rest = 0
+                plus_bkg = np.concatenate([[rest], bkg])
+                plus_bkg /= plus_bkg.sum()
+
+                obj = np.zeros(weights.shape)
+
+                import scipy.optimize as opt
+        
+                global it
+                it = 0
+                def tick(plus_bkg):
+                    global it
+                    #plus_bkg = np.clip(plus_bkg, 0, np.inf)
+                    #plus_bkg /= plus_bkg.sum()
+
+                    for i, j in itr.product(xrange(weights.shape[0]), xrange(weights.shape[1])):
+                        obj[i,j] = np.dot(theta[i,j].T, plus_bkg)
+                    new_bkg = np.apply_over_axes(np.mean, obj, [0, 1]).squeeze()
+                    corner_bkg = np.dot(eth.T, plus_bkg)#[0,0]
+                    #corner_bkg = theta[i,j,0]
+                    
+                    it += 1
+                    diff = np.sum(np.fabs(corner_bkg - new_bkg))
+                    print('iteration', it, 'diff', diff, 'x sum', plus_bkg.sum(), 'x min', plus_bkg.min())
+
+                def const_f(plus_bkg):
+                    return plus_bkg.sum() - 1.0
+
+                #def const_g(plus_bkg):
+                    #return plus_bkg.min()
+
+                def fun(plus_bkg):
+                    plus_bkg /= plus_bkg.sum()
+                    for i, j in itr.product(xrange(weights.shape[0]), xrange(weights.shape[1])):
+                        obj[i,j] = np.dot(theta[i,j].T, plus_bkg)
+                    new_bkg = np.apply_over_axes(np.mean, obj, [0, 1]).squeeze()
+                    #corner_bkg = obj[0,0]
+                    #corner_bkg = obj[0,0]
+                    corner_bkg = np.dot(eth.T, plus_bkg)#[0,0]
+                    #corner_bkg = theta[i,j,0]
+
+                    eps = 0.005
+                    
+                    objc = np.clip(obj, eps, 1 - eps)
+                    avgc = np.clip(corner_bkg, eps, 1 - eps)
+                    w = np.log(objc / (1 - objc) * (1 - avgc) / avgc)
+                    #return np.sum(np.fabs(corner_bkg - new_bkg)**2)
+                    return (w.mean(0).mean(0)**2).sum()
+
+                const = [dict(type='eq', fun=const_f)#, dict(type='ineq', fun=const_g)]
+                        ]
+
+                def iv(n, i):
+                    x = np.zeros(n)
+                    x[i] = 1
+                    return x
+
+                if 0:
+
+                    res = opt.minimize(fun, plus_bkg, method='SLSQP', options=dict(maxiter=250), constraints=const, bounds=[(0, 1)] * plus_bkg.size)
+                    plus_bkg = res['x']
+                    #plus_bkg /= plus_bkg.sum()
+
+                elif 0:
+                    N = 10000
+                    #res = opt.minimize(f, plus_bkg, method='SLSQP', options=dict(maxiter=250), constraints=const, bounds=[(0, 1)] * plus_bkg.size)
+                    min_score = np.inf
+                    for i in xrange(N):
+                        #f = i % (plus_bkg.size)
+
+                        #delta = iv(plus_bkg.size, rs.randint(plus_bkg.size)) * rs.normal(scale=scale)
+                        #x = plus_bkg + rs.normal(loc=0, scale=0.0001, size=plus_bkg.size)
+                        #x /= x.sum()
+
+                        rs = np.random.RandomState(i)
+                        if 0:
+                            #x = rs.uniform(0, 1, size=plus_bkg.size)
+                            if 0:
+                                scale = 0.01
+                                if i > 10000:
+                                    scale = 0.001
+                                elif i > 30000:
+                                    scale = 0.0001
+
+                            d = iv(plus_bkg.size, f)
+                            @np.vectorize
+                            def evaluate(c):
+                                xx = plus_bkg + d * c
+                                xx /= xx.sum()
+                                return fun(xx)
+
+                            # Do a bisection
+                            if 0:
+                                c = np.linspace(-0.1, 0.1, 11)
+                                scores = evaluate(c)
+                                mi = np.argmin(scores)
+
+                            plus_bkg[:] = plus_bkg + d * c[mi]
+                            plus_bkg /= plus_bkg.sum()
+                            min_score = scores[mi]
+                            print(i, min_score)
+                        elif 1: 
+                            #delta = iv(plus_bkg.size, rs.randint(plus_bkg.size)) * rs.normal(scale=scale)
+                            #x = plus_bkg + delta 
+                            x = plus_bkg + rs.normal(loc=0, scale=0.001, size=plus_bkg.size)
+                            x = np.clip(x, 0, 1)
+                            x /= x.sum()
+                            s0, s1 = fun(x), 10000 * np.sum((x - 1/plus_bkg.size)**2)
+                            s = s0 + s1
+                            if i % 50 == 0:
+                                print(i, min_score, s, s0, s1, plus_bkg[[0,50,197,198]])
+                            if s < min_score:
+                                plus_bkg[:] = x 
+                                min_score = s
+
+                #plus_bkg = scores[np.argmin(scores)]
+
+                #print(res)
+                #plus_bkg = res['x']
+                #plus_bkg /= plus_bkg.sum()
+                for i, j in itr.product(xrange(weights.shape[0]), xrange(weights.shape[1])):
+                    obj[i,j] = np.dot(theta[i,j].T, plus_bkg)
+
+                #corner_bkg = obj[0,0]
+                corner_bkg = np.dot(eth.T, plus_bkg)#[0,0]
+
+                if 0:
+                    for i in xrange(10000):
+                        for i, j in itr.product(xrange(weights.shape[0]), xrange(weights.shape[1])):
+                            obj[i,j] = np.dot(theta[i,j].T, plus_bkg)
+
+                        #avg = bkg
+                        new_bkg = np.apply_over_axes(np.mean, obj, [0, 1]).squeeze()
+                        corner_bkg = obj[0,0]
+
+                        diff = (corner_bkg - new_bkg)
+
+                        d = np.fabs(diff).sum()
+                        print('total abs diff', d)
+
+                        new_plus_bkg = np.concatenate([[0], new_bkg])
+
+                        step = (diff > 0) * 2 - 1
+                        #plus_bkg = 
+                        plus_bkg[1:] -= 0.000001 * step
+                        plus_bkg[0] += (0.000001 * step).sum()
+
+                        plus_bkg /= plus_bkg.sum() 
+
+                        plus_bkg = np.clip(plus_bkg, 0.0000001, 1.0)
+
+                        #new_bkg /= new_bkg.sum()
+                        #new_plus_bkg = np.concatenate([[0], new_bkg])
+                        #print('diff', np.fabs(plus_bkg - new_plus_bkg).sum())
+                        #plus_bkg = new_plus_bkg
+
+                eps = 0.005
+                
+                obj = np.clip(obj, eps, 1 - eps)
+                #avg = np.clip(avg, eps, 1 - eps)
+                avg = np.clip(corner_bkg, eps, 1 - eps)
+
+                weights = np.log(obj / (1 - obj) * (1 - avg) / avg)
+
+
+                print('Indices:', np.prod(weights.shape))
+                indices = get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
+                print('After local suppression:', indices.shape[0])
+                    
+                #if 'weights' not in detector.extra:
+                    #detector.extra['weights'] = []
+                detector.extra['weights'][m] = weights
+
+                print('corner', detector.extra['weights'][0][0,0,:5])
+
+                if 0:
+                    pos = all_pos_feats[m].reshape((all_pos_feats[m].shape[0], -1))
+                    neg = all_neg_feats[m].reshape((all_neg_feats[m].shape[0], -1))
+
+                    IG = np.zeros(len(indices))
+                    for i, index in enumerate(indices):
+                        px1 = (all_pos_feats[m][:,index[0], index[1], index[2]].mean() + all_neg_feats[m][:,index[0], index[1], index[2]].mean()) / 2
+
+                        neg_f0 = (all_neg_feats[m][:,index[0], index[1], index[2]] == 0)
+                        pos_f0 = (all_pos_feats[m][:,index[0], index[1], index[2]] == 0)
+
+                        neg_f1 = (all_neg_feats[m][:,index[0], index[1], index[2]] == 1)
+                        pos_f1 = (all_pos_feats[m][:,index[0], index[1], index[2]] == 1)
+
+                        eps = 1e-5
+                        neg_f0mean = np.clip(neg_f0.mean(), eps, 1 - eps)
+                        neg_f1mean = np.clip(neg_f1.mean(), eps, 1 - eps)
+                        pos_f0mean = np.clip(pos_f0.mean(), eps, 1 - eps)
+                        pos_f1mean = np.clip(pos_f1.mean(), eps, 1 - eps)
+
+                        h_xf0 = -(neg_f0mean * np.log2(neg_f0mean) + pos_f0mean * np.log2(pos_f0mean))
+                        h_xf1 = -(neg_f1mean * np.log2(neg_f1mean) + pos_f1mean * np.log2(pos_f1mean))
+
+                        IG[i] = h_xf0 * (1 - px1) + h_xf1 * px1 
+
+                    from scipy.stats import scoreatpercentile
+                    th = scoreatpercentile(IG, 50)
+
+                    ok = (IG >= th)
+
+                    indices = indices[ok]
+
+                    print('After IG suppression:', indices.shape[0])
+
+            else:
+                
+                print('Indices:', np.prod(weights.shape))
+
+                indices = get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
+
+                print('After local suppression:', indices.shape[0])
+
+                raveled_indices = np.asarray([np.ravel_multi_index(index, weights.shape) for index in indices])
+
+
+                
+                #raveled_indices = np.arange(np.prod(weights.shape))
+
+                pos = all_pos_feats[m].reshape((all_pos_feats[m].shape[0], -1))
+                neg = all_neg_feats[m].reshape((all_neg_feats[m].shape[0], -1))
+
+                feats = np.concatenate([pos[:,raveled_indices], neg[:,raveled_indices]])
+                #feats = np.concatenate([all_pos_feats[m], all_neg_feats[m]])
+                labels = np.zeros(feats.shape[0])
+                labels[:len(all_pos_feats[m])] = 1
+
+                # Train a sparse SVM
+                from sklearn.svm import LinearSVC
+                from sklearn.linear_model import LogisticRegression
+                ag.info("Training L1 classifier for keypointing")
+                #cl = LinearSVC(C=10000000.0, penalty='l1', dual=False)
+                if 1:
+                    cl = LogisticRegression(C=100000.0, penalty='l1', dual=False, tol=0.00001)
+                else:
+                    cl = LinearSVC(C=1.0)
+                ag.info("Done")
+                cl.fit(feats.reshape((feats.shape[0], -1)), labels)
+
+                II = np.where(np.fabs(cl.coef_.ravel()) >= 0.001)[0]
+
+
+                if 0:
+                    w = cl.coef_.reshape(weights.shape)
+                    if 'weights' not in detector.extra:
+                        detector.extra['weights'] = []
+                    detector.extra['weights'].append(w)
+
+                indices = indices[II]
+
+                print('Final indices:', indices.shape[0])
+                #new_indices = []
+                #for i, j, k in itr.product(xrange(feats.shape[1]), xrange(feats.shape[2]), xrange(feats.shape[3])):
+
+                    #if np.fabs(coef[i,j,k]) > 0.001:
+                        #new_indices.append((i,j,k))        
+
+                indices = np.asarray(indices)
+
+
+                #raw_input('Press...')
+
+            assert len(indices) > 0, "No indices were extracted when keypointing"
 
             detector.indices.append(indices)
     else:
@@ -857,15 +1402,20 @@ def superimposed_model(settings, threading=True):
     print(detector.extra.keys())
     print('eps', detector.eps)
 
-    print("THIS IS SO TEMPORARY!!!!!")
-    detector.indices = None
-    detector.standardization_info[0]['std'] = 1.0
+    #print("THIS IS SO TEMPORARY!!!!!")
+    if 'weights' in detector.extra:
+        #detector.indices = None
+
+        try:
+            detector.standardization_info[0]['std'] = 1.0
+        except TypeError:
+            detector.standardization_info = [dict(std=1.0, mean=0.0)]
+        print('corner2', detector.extra['weights'][0][0,0,:5])
 
     return detector 
 
 
 ag.set_verbose(True)
-
 if gv.parallel.main(__name__): 
     import argparse
     from settings import load_settings
