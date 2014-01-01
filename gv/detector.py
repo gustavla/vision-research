@@ -66,7 +66,6 @@ class BernoulliDetector(Detector):
 
         self.use_alpha = None
 
-        self.settings['min_probability'] = 0.05
         self.settings['subsample_size'] = (8, 8)
         self.settings['train_unspread'] = True
         self.settings.update(settings)
@@ -282,6 +281,9 @@ class BernoulliDetector(Detector):
 
         #fixed_bkg_file = self.settings.get('fixed_bkg_file')
 
+        # TODO: This is all very broken
+        self.prepare_eps(None)
+
         radii = self.settings['spread_radii']
         if testing_type == 'fixed':
             psize = self.settings['subsample_size']
@@ -312,6 +314,7 @@ class BernoulliDetector(Detector):
             #import pylab as plt
             #plt.imshow(kernels[0].sum(axis=-1), interpolation='nearest')
             #plt.show()
+            print np.asarray(output).shape, shape
             X = np.asarray(output).reshape((-1,) + shape) #sub_output.reshape((sub_output.shape[0], -1))
             llhs = [[] for i in xrange(self.num_mixtures)] 
 
@@ -1075,7 +1078,7 @@ class BernoulliDetector(Detector):
         if resmap.size == 0:
             return [], resmap, bkgcomp
 
-        th = scoreatpercentile(resmap.ravel(), 80)
+        th = scoreatpercentile(resmap.ravel(), 60)
         #th = -0.1
         #th = -np.inf
     
@@ -1104,6 +1107,14 @@ class BernoulliDetector(Detector):
 
         
         fs = []
+
+        if 1:
+            # TODO: Temporary stuff
+            feats = np.load('uiuc-feats.npy')
+            frames = np.apply_over_axes(np.mean, feats, [1, 2]).squeeze() 
+            means = frames.mean(0)
+            stds = frames.std(0)
+
 
         if 1:
             #import scipy.signal 
@@ -1148,6 +1159,41 @@ class BernoulliDetector(Detector):
                             #score -= 10
                         #if score >= 15:
                             #print X.mean()
+
+                        # TODO: Rel model attempts
+                        if 0 and cascade and 'sturf' in self.extra:
+                            avg = np.apply_over_axes(np.mean, X, [0, 1]) 
+                            #sturf = self.extra['sturf'][mixcomp]
+                            #stds = np.clip(sturf['stds'], 0.01, np.inf)
+                            #means = sturf['means']
+
+                            # Average priors
+                            import scipy.stats as st
+
+                    
+                            stds = np.clip(stds, 0.005, np.inf)
+
+                            #prior = st.norm.logpdf(avg, loc=sturf['means'], scale=stds).sum() * 0.5
+                            prior = st.norm.logpdf((avg - means) / stds).sum() * 0.5 
+                            #import pdb; pdb.set_trace()
+                            
+                            #print(prior, score)
+                
+
+                            if 0:
+                                obj = sturf['lmb'] * avg
+                                eps = 0.025
+                                obj = np.clip(obj, eps, 1 - eps)
+                                avg = np.clip(avg, eps, 1 - eps)
+                                kern = np.log(obj / (1 - obj) * ((1 - avg) / avg))
+
+                            #score = (kern * X).sum() + prior
+
+                            # New weights 
+                            #score = 100000 + prior
+                            score += 100000 + prior
+
+                            
 
                         if cascade and do_cascade and 'svms' in self.extra and score >= cascade_score:
                             # Take the maximum of a neighborhood
@@ -1477,7 +1523,10 @@ class BernoulliDetector(Detector):
         spread_bkg = np.clip(spread_bkg, self.eps, 1 - self.eps)
         kern = np.clip(kern, self.eps, 1 - self.eps) 
 
-        weights = self.build_weights(kern, spread_bkg)
+        if 'weights' in self.extra:
+            weights = self.extra['weights'][mixcomp]
+        else:
+            weights = self.build_weights(kern, spread_bkg)
     
         from .fast import multifeature_correlate2d
 
@@ -1497,7 +1546,7 @@ class BernoulliDetector(Detector):
             if self.indices is not None and len(self.indices[mixcomp]) > 0:
                 indices = self.indices[mixcomp].astype(np.int32)
                 from .fast import multifeature_correlate2d_with_indices
-                print bigger.shape, weights.shape, indices
+                #print bigger.shape, weights.shape, indices
                 res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices)
             else:
                 res = multifeature_correlate2d(bigger, weights.astype(np.float64))
