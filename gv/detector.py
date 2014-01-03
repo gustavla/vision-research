@@ -1078,7 +1078,7 @@ class BernoulliDetector(Detector):
         if resmap.size == 0:
             return [], resmap, bkgcomp
 
-        th = scoreatpercentile(resmap.ravel(), 60)
+        th = scoreatpercentile(resmap.ravel(), 80)
         #th = -0.1
         #th = -np.inf
     
@@ -1160,24 +1160,58 @@ class BernoulliDetector(Detector):
                         #if score >= 15:
                             #print X.mean()
 
+                        if 1 and cascade and 'sturf' in self.extra:
+                            sturf = self.extra['sturf'][mixcomp]
+                            rew = sturf['reweighted']
+                            support = sturf['support']
+                            avg = np.apply_over_axes(np.sum, X * support[...,np.newaxis], [0, 1]) / support.sum()
+
+
+
+                            w = self.extra['weights'][mixcomp] + rew
+
+                            old_score = np.sum(X * w)
+
+                            # new score
+                            alpha = 0.70
+
+                            score = 10000+ alpha * score + (1 - alpha) * old_score
+
                         # TODO: Rel model attempts
                         if 0 and cascade and 'sturf' in self.extra:
-                            avg = np.apply_over_axes(np.mean, X, [0, 1]) 
-                            #sturf = self.extra['sturf'][mixcomp]
-                            #stds = np.clip(sturf['stds'], 0.01, np.inf)
-                            #means = sturf['means']
+                            #avg = np.apply_over_axes(np.mean, X[2:-2,2:-2], [0, 1]) 
+                            sturf = self.extra['sturf'][mixcomp]
+
+
+                            support = sturf['support']
+                            #stds = sturf['stds']
+                            #means = sturf['means2']
+
+                            avg = np.apply_over_axes(np.sum, X * support[...,np.newaxis], [0, 1]) / support.sum()
+
+                            diff = sturf['means2'] - sturf['bkg']
+
+                            prior_factor = 50.0
+
+                            prior = np.sum(avg * diff) * prior_factor
 
                             # Average priors
                             import scipy.stats as st
 
                     
-                            stds = np.clip(stds, 0.005, np.inf)
+                            #stds = np.clip(stds, 0.02, np.inf)
+                            #stds[:] = 0.05
+
 
                             #prior = st.norm.logpdf(avg, loc=sturf['means'], scale=stds).sum() * 0.5
-                            prior = st.norm.logpdf((avg - means) / stds).sum() * 0.5 
+                            #prior = st.norm.logpdf((avg - means) / stds).sum() * 0.1
+                            
+
                             #import pdb; pdb.set_trace()
                             
                             #print(prior, score)
+
+                            #print 'sp', score, prior
                 
 
                             if 0:
