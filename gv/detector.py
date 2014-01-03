@@ -1163,17 +1163,31 @@ class BernoulliDetector(Detector):
                         if 1 and cascade and 'sturf' in self.extra:
                             sturf = self.extra['sturf'][mixcomp]
                             rew = sturf['reweighted']
-                            support = sturf['support']
-                            avg = np.apply_over_axes(np.sum, X * support[...,np.newaxis], [0, 1]) / support.sum()
+                            kp = self.keypoint_mask(mixcomp)
+                            support = sturf['support'][...,np.newaxis] * kp
+                            avg = np.apply_over_axes(np.sum, X * support, [0, 1]) / support.sum()
+
+                            avg_rew = np.apply_over_axes(np.mean, rew, [0, 1])
+
+                            lmb = avg_rew * support.sum()
 
 
+                            beta = sturf['wavg'] * support.sum()
 
                             w = self.extra['weights'][mixcomp] + rew
 
-                            old_score = np.sum(X * w)
+
+                            old_score = np.sum(X * w * kp)
 
                             # new score
-                            alpha = 0.70
+                            alpha = 0.0
+
+                            #bkg = np.load('uiuc-bkg.npy')
+                            #diff = avg - sturf['bkg']
+                            #diff = avg - bkg
+                            
+
+                            #score1 = old_score - np.sum(avg * beta)
 
                             score = 10000+ alpha * score + (1 - alpha) * old_score
 
@@ -1492,6 +1506,9 @@ class BernoulliDetector(Detector):
         clipped_obj = np.clip(obj, eps, 1 - eps)
         return cls.build_weights(clipped_obj, clipped_bkg)
 
+    def weights_shape(self, mixcomp):
+        return self.kernel_templates[mixcomp].shape
+
     def weights(self, mixcomp):
         bkg = np.clip(self.fixed_spread_bkg[mixcomp], self.eps, 1 - self.eps)
         kern = np.clip(self.kernel_templates[mixcomp], self.eps, 1 - self.eps)
@@ -1525,6 +1542,12 @@ class BernoulliDetector(Detector):
         kp_only_weights = np.zeros(base_weights.shape)
         for i, index in enumerate(self.indices[mixcomp]):
             kp_only_weights[tuple(index)] = base_weights[tuple(index)]
+        return kp_only_weights
+
+    def keypoint_mask(self, mixcomp):
+        kp_only_weights = np.zeros(self.weights_shape(mixcomp))
+        for i, index in enumerate(self.indices[mixcomp]):
+            kp_only_weights[tuple(index)] = 1 
         return kp_only_weights
 
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True, use_padding=True):
