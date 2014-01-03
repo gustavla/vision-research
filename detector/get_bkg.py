@@ -17,8 +17,8 @@ import amitgroup as ag
 
 parts_descriptor = gv.BinaryDescriptor.getclass('parts').load(parts_file)
 
-path = os.path.join(os.environ['UIUC_DIR'], 'TestImages/test-*.pgm')
-#path = os.path.join(os.environ['VOC_DIR'], 'JPEGImages/*.jpg')  
+#path = os.path.join(os.environ['UIUC_DIR'], 'TestImages/test-*.pgm')
+path = os.path.join(os.environ['VOC_DIR'], 'JPEGImages/*.jpg')  
 files = sorted(glob.glob(path))[:40]
 
 pi = np.zeros(parts_descriptor.num_parts)
@@ -52,7 +52,7 @@ for f in files:
     e_count += edges.sum()
     e_tot += np.prod(edges.shape)  
 
-if 1:
+if 0:
     import pylab as plt
     plt.hist(np.log(np.clip(intensities, 1e-4, 1-1e-4))/np.log(10), 50)
     plt.show()

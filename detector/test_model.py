@@ -53,6 +53,7 @@ if __name__ == '__main__' and gv.parallel.main():
     parser.add_argument('--contest', type=str, choices=gv.datasets.contests(), default='voc-val', help='Contest to try on')
     parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
     parser.add_argument('--log', type=str, default=None, help='Log to this directory name')
+    parser.add_argument('--size', type=int, default=None, help='Use fixed size')
 
     args = parser.parse_args()
     model_file = args.model
@@ -93,6 +94,9 @@ if __name__ == '__main__' and gv.parallel.main():
     detector = gv.Detector.load(model_file)
     # TODO: New
     detector.TEMP_second = True
+
+    if args.size is not None:
+        detector.settings['min_size'] = detector.settings['max_size'] = args.size
 
     #dataset = ['val', 'train'][mini]
     #dataset = ['val', 'train'][mini]
