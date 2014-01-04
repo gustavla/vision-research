@@ -1133,8 +1133,7 @@ class BernoulliDetector(Detector):
             r = 3
 
             for i0 in xrange(0, resmap.shape[0], s):
-                for j0 in xrange(0, resmap.shape[1], s): 
-                     
+                for j0 in xrange(0, resmap.shape[1], s):
                     win = resmap[i0:i0+s, j0:j0+s]
                     #local_max = resmap[max(0, i-3):i+4, max(0, j-3):j+4].argmax()
                     di, dj = np.unravel_index(win.argmax(), win.shape) 
@@ -1181,6 +1180,9 @@ class BernoulliDetector(Detector):
 
                             w = self.extra['weights'][mixcomp] + rew
 
+                            pavg = sturf['pavg']
+                            S = sturf['S']
+
 
                             old_score = np.sum(X * w * kp)
 
@@ -1197,13 +1199,18 @@ class BernoulliDetector(Detector):
                             #score1 = old_score - np.sum(avg * beta)
                             score2 = old_score - np.sum(avgf * beta)
 
-                            d = (avgf * beta).ravel()
+                            obj_avg = np.apply_over_axes(np.sum, (self.kernel_templates[0] * support0), [0, 1]) / support0.sum()
 
-                            md_factor = 10.0 ** (-1) 
-                            #md = np.sqrt(np.dot(d, np.linalg.solve(C, d)))
-                            md = np.sqrt(np.dot(d, np.dot(invC, d)))
+                            #d = (avgf * beta).ravel()
+                            d = (avgf - pavg).ravel()
 
-                            score = 100000 + old_score - md * md_factor
+                            md_factor = 0.5 
+                            md = np.sqrt(np.dot(d, np.linalg.solve(S, d)))
+                            #md = np.sqrt(np.dot(d, np.dot(invC, d)))
+                            #print score, md
+                            
+                            score = 100000 + score - md * md_factor
+                            #score = 100000 + old_score
 
                             #print np.sum(avgf * beta), md, 'factor', np.sum(avgf * beta)/md
                             
