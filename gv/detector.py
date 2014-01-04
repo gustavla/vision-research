@@ -1105,6 +1105,10 @@ class BernoulliDetector(Detector):
                 return X.ravel()
             #return X.ravel()
 
+        # TODO: Remove
+        #C = np.load('cov.npy')
+        invC = np.load('invcov.npy')
+
         
         fs = []
 
@@ -1164,15 +1168,16 @@ class BernoulliDetector(Detector):
                             sturf = self.extra['sturf'][mixcomp]
                             rew = sturf['reweighted']
                             kp = self.keypoint_mask(mixcomp)
+                            support0 = sturf['support'][...,np.newaxis]
                             support = sturf['support'][...,np.newaxis] * kp
-                            avg = np.apply_over_axes(np.sum, X * support, [0, 1]) / support.sum()
+                            avg = np.apply_over_axes(np.sum, X * support, [0, 1]) / np.apply_over_axes(np.sum, support, [0, 1])
+                            avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
 
-                            avg_rew = np.apply_over_axes(np.mean, rew, [0, 1])
+                            #avg_rew = np.apply_over_axes(np.mean, rew, [0, 1])
+                            #lmb = avg_rew * support.sum()
 
-                            lmb = avg_rew * support.sum()
-
-
-                            beta = sturf['wavg'] * support.sum()
+                            beta = sturf['wavg'] * np.apply_over_axes(np.sum, support, [0, 1])
+                            betaf = sturf['wavg'] * support0.sum()
 
                             w = self.extra['weights'][mixcomp] + rew
 
@@ -1187,9 +1192,24 @@ class BernoulliDetector(Detector):
                             #diff = avg - bkg
                             
 
-                            #score1 = old_score - np.sum(avg * beta)
+                            #factor = support.sum() / support0.sum()
 
-                            score = 10000+ alpha * score + (1 - alpha) * old_score
+                            #score1 = old_score - np.sum(avg * beta)
+                            score2 = old_score - np.sum(avgf * beta)
+
+                            d = (avgf * beta).ravel()
+
+                            md_factor = 10.0 ** (-1) 
+                            #md = np.sqrt(np.dot(d, np.linalg.solve(C, d)))
+                            md = np.sqrt(np.dot(d, np.dot(invC, d)))
+
+                            score = 100000 + old_score - md * md_factor
+
+                            #print np.sum(avgf * beta), md, 'factor', np.sum(avgf * beta)/md
+                            
+                            #import pdb; pdb.set_trace()
+
+                            #score = 10000 + alpha * score + (1 - alpha) * old_score
 
                         # TODO: Rel model attempts
                         if 0 and cascade and 'sturf' in self.extra:
