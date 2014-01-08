@@ -1477,14 +1477,14 @@ class BernoulliDetector(Detector):
         spread_bkg = np.clip(spread_bkg, self.eps, 1 - self.eps)
         kern = np.clip(kern, self.eps, 1 - self.eps) 
 
-        weights = self.build_weights(kern, spread_bkg)
+        #weights = self.build_weights(kern, spread_bkg)
         # TODO: VERY TEMPORARY
         #weights *= np.fabs(self.extra['weights'])
-        #weights = self.extra['weights']
+        weights = self.extra['weights']
 
-        M = np.load('M.npy')
+        #M = np.load('M.npy')
 
-        weights *= (M > 2300)
+        #weights *= (M > 2300)
     
         from .fast import multifeature_correlate2d
 
