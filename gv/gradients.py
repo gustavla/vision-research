@@ -44,8 +44,14 @@ def extract(im, orientations=8, threshold=0.000001, eps=0.01, blur_size=10):
     #blur_size=30
 
     kern = np.array([[-1, 0, 1]]) / np.sqrt(2)
-    gr_x = scipy.signal.convolve(im, kern, mode='same')
-    gr_y = scipy.signal.convolve(im, kern.T, mode='same')
+
+    # This is slow, below is equivalent
+    #gr_x = scipy.signal.convolve(im, kern, mode='same')
+    #gr_y = scipy.signal.convolve(im, kern.T, mode='same')
+
+    im_padded = ag.util.zeropad(im, 1)
+    gr_x = (im_padded[1:-1,:-2] - im_padded[1:-1,2:]) / np.sqrt(2)
+    gr_y = (im_padded[:-2,1:-1] - im_padded[2:,1:-1]) / np.sqrt(2)
 
     theta = (orientations - np.round(orientations * (np.arctan2(gr_y, gr_x) + 1.5*np.pi) / (2 * np.pi)).astype(np.int32)) % orientations 
     amps = np.sqrt(gr_x**2 + gr_y**2)
