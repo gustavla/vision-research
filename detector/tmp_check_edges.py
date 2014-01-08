@@ -1,4 +1,4 @@
-
+from __future__ import division
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('settings', metavar='<settings file>', type=argparse.FileType('r'), help='Filename of settings file')
@@ -24,21 +24,62 @@ parts_file = settings[settings['detector']['descriptor']]['file']
 descriptor = gv.BinaryDescriptor.getclass('polarity-parts').load(parts_file)
 esett = descriptor.bedges_settings()
 
-files = sorted(glob.glob(os.path.expandvars('$UIUC_DIR/TestImages/*.pgm')))
+#files = sorted(glob.glob(os.path.expandvars('$UIUC_DIR/TestImages/*.pgm')))
+files = sorted(glob.glob(os.path.expandvars('$VOC_DIR/JPEGImages/*.jpg')))
 
 #files = [np.random.uniform(size=(200, 200))]
 
 #esett['minimum_contrast'] = 0.2
 
-for count, f in enumerate(files[:10]):
+all_ors = []
+
+for count, f in enumerate(files[:25]):
     if isinstance(f, np.ndarray):
         im = f
+    elif 0:
+        # Random noise, for testing
+        im = np.random.uniform(0, 1, size=(400, 400))
     else:
-        im = gv.img.load_image(f)
+        #im = gv.img.asgray(gv.img.load_image(f))
+        from PIL import Image
+        im = Image.open(f)
+        im = im.rotate(np.random.randint(360))
+        im = gv.img.asgray(np.array(im).astype(np.float64)/255.0)
 
-    gv.img.save_image('edges/{}-aimage.png'.format(count), im)
+        c = np.min(im.shape)
 
-    edges = ag.features.bedges(im, **esett)
+        c1 = c / np.sqrt(2)
+
+    # TODO:
+
+    if 0:
+        from gv.gradients import orientations
+        ors, gr_x, gr_y = orientations(im, orientations=8)
+
+        if ors.size == 0:
+            continue
+
+        all_ors.append(ors.ravel())
+
+        hh, xedges, yedges = np.histogram2d(gr_y.ravel(), gr_x.ravel(), bins=50)
+        plt.figure()
+        #plt.hist(ors.ravel(), 36*2)
+        plt.imshow(hh, interpolation='nearest', origin='low',
+                extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]])
+        plt.savefig('edges2/{}-hist2d.png'.format(count))
+        plt.close()
+
+        plt.figure()
+        plt.hist(ors.ravel(), 36*2)
+        plt.savefig('edges2/{}-hist.png'.format(count))
+        plt.close()
+
+    gv.img.save_image('edges2/{}-aimage.png'.format(count), im)
+
+    #edges = ag.features.bedges(im, **esett)
+    edges = descriptor._extract_edges(im)
+
+    edges = ag.features.bspread(edges, radius=settings['edges']['radius'], spread=settings['edges']['spread'])
 
     plt.clf()
     fig, axarr = plt.subplots(2, 2)#, figsize=(23, 15))
@@ -52,27 +93,28 @@ for count, f in enumerate(files[:10]):
         ax.imshow(edges[...,i] + 2*edges[...,i+4], cmap=cmap, vmin=0, vmax=3, interpolation='nearest')
         ax.set_title(EDGE_TITLES[i])
 
-    fig.savefig('edges/{}-edges.png'.format(count))
+    fig.savefig('edges2/{}-edges.png'.format(count))
     plt.close()
 
     # Now, extract parts
 
-    #partprobs = descriptor.extract_partprobs(im)
-    feats = descriptor.extract_features(im, settings=dict(spread_radii=(0, 0), subsample_size=(1, 1)))
-    
-    import scipy
-    #mus = np.concatenate(([0], scipy.ndimage.zoom(descriptor.extra['means_emp'], 2, order=0)))
-    #sigmas = np.concatenate(([1], scipy.ndimage.zoom(descriptor.extra['stds_emp'], 2, order=0)))
-    mus = np.concatenate(([0], descriptor.extra['means_emp']))
-    sigmas = np.concatenate(([1], descriptor.extra['stds_emp']))
+    if 0:
+        #partprobs = descriptor.extract_partprobs(im)
+        feats = descriptor.extract_features(im, settings=dict(spread_radii=(0, 0), subsample_size=(1, 1)))
+        
+        import scipy
+        #mus = np.concatenate(([0], scipy.ndimage.zoom(descriptor.extra['means_emp'], 2, order=0)))
+        #sigmas = np.concatenate(([1], scipy.ndimage.zoom(descriptor.extra['stds_emp'], 2, order=0)))
+        mus = np.concatenate(([0], descriptor.extra['means_emp']))
+        sigmas = np.concatenate(([1], descriptor.extra['stds_emp']))
 
-    #argmax_partprobs = partprobs.argmax(axis=-1)
-    #import pdb; pdb.set_trace()
-    #partprobs = (partprobs - mus) / sigmas
+        #argmax_partprobs = partprobs.argmax(axis=-1)
+        #import pdb; pdb.set_trace()
+        #partprobs = (partprobs - mus) / sigmas
 
-    max_partprobs = np.zeros(feats.shape[:2])
+        max_partprobs = np.zeros(feats.shape[:2])
 
-    if 1:
+    if 0:
         sh = descriptor.parts.shape[1:3]
         for i, j in itr.product(xrange(feats.shape[0]), xrange(feats.shape[1])):
             #max_partprobs[i,j] = partprobs[i,j,argmax_partprobs[i,j]]
@@ -117,25 +159,46 @@ for count, f in enumerate(files[:10]):
 
     #max_partprobs[max_partprobs == 0] = np.nan
 
-    fig = plt.figure()
-    plt.subplot(111)
-    mm = max(max_partprobs.max(), -max_partprobs.min())
-    print mm
-    plt.imshow(max_partprobs, interpolation='nearest')#, vmin=-mm, vmax=mm, cmap=plt.cm.RdBu_r)
-    plt.colorbar()
-    plt.savefig('edges/{}-partprobs.png'.format(count))
+    if 0:
+        fig = plt.figure()
+        plt.subplot(111)
+        mm = max(max_partprobs.max(), -max_partprobs.min())
+        print mm
+        plt.imshow(max_partprobs, interpolation='nearest')#, vmin=-mm, vmax=mm, cmap=plt.cm.RdBu_r)
+        plt.colorbar()
+        plt.savefig('edges2/{}-partprobs.png'.format(count))
+        plt.close()
+
+
+        #fig = plt.figure()
+        #plt.subplot(111)
+        #plt.imshow(max2, interpolation='nearest')
+        #plt.colorbar()
+        #plt.savefig('edges/{}-max2.png'.format(count))
+        #plt.close()
+
+        
+        feats = descriptor.extract_features(im)
+        # Feature density
+        print 'Feature density:', feats.mean()
+
+if 0:
+    plt.figure()
+    plt.hist(np.concatenate(all_ors, axis=0), 36*4)
+    plt.savefig('edges2/aaaall-hist.png'.format(count))
     plt.close()
 
+    plt.figure()
+    plt.hist(np.concatenate(all_ors, axis=0), 360)
+    plt.savefig('edges2/aaaall-hist360.png'.format(count))
+    plt.close()
 
-    #fig = plt.figure()
-    #plt.subplot(111)
-    #plt.imshow(max2, interpolation='nearest')
-    #plt.colorbar()
-    #plt.savefig('edges/{}-max2.png'.format(count))
-    #plt.close()
+    plt.figure()
+    plt.hist(np.concatenate(all_ors, axis=0), 8)
+    plt.savefig('edges2/aaaall-hist8.png'.format(count))
+    plt.close()
 
-    
-    feats = descriptor.extract_features(im)
-    # Feature density
-    print 'Feature density:', feats.mean()
-
+    plt.figure()
+    plt.hist(np.concatenate(all_ors, axis=0), 18)
+    plt.savefig('edges2/aaaall-hist18.png'.format(count))
+    plt.close()

@@ -15,30 +15,38 @@ def get_bkg_stack(settings, X_pad_size, M=20):
     radius = bsettings['radius']
     bsettings['radius'] = 0
 
+    descriptor_name = settings['detector']['descriptor']
+
     #neg_filenames= sorted(glob.glob(os.path.join(os.environ['UIUC_DIR'], 'TrainImages', 'neg-*.pgm')))
-    neg_filenames = sorted(glob.glob(settings['parts']['image_dir_new'])) * 100 
+    neg_filenames = sorted(glob.glob(os.path.expandvars(settings[descriptor_name]['image_dir']))) * 100 
 
     gen_raw = generate_random_patches(neg_filenames, X_pad_size, 0, per_image=25) 
 
+    print descriptor.num_parts
     bkg_stack_num = np.zeros(descriptor.num_parts + 1)
     bkg_stack = np.zeros((descriptor.num_parts + 1, M,) + X_pad_size)
+
+    psize = settings['detector']['subsample_size']
+    radii = settings['detector']['spread_radii'] 
+    sett = dict(subsample_size=psize, spread_radii=radii)
 
     i = 0
     import matplotlib.pylab as plt
     N = 1000000
     for patch in gen_raw:
-        edges = ag.features.bedges(patch, **bsettings)
+        #edges = ag.features.bedges(patch, **bsettings)
 
         #plt.imshow(patch, interpolation='nearest', cmap=plt.cm.gray)
         #plt.show()
 
-        X_pad_spread = ag.features.bspread(edges, spread=bsettings['spread'], radius=radius)
+        #X_pad_spread = ag.features.bspread(edges, spread=bsettings['spread'], radius=radius)
 
         padding = pad - 2
-        X_spread = X_pad_spread[padding:-padding,padding:-padding]
+        #X_spread = X_pad_spread[padding:-padding,padding:-padding]
 
         # Code parts 
-        parts = descriptor.extract_parts(X_spread.astype(np.uint8))
+        #parts = descriptor.extract_parts(X_spread.astype(np.uint8), edges, settings=sett)
+        parts = descriptor.extract_features(patch, settings=sett)
 
         # Accumulate and return
         if parts[0,0].sum() == 0:
@@ -90,7 +98,8 @@ if __name__ == '__main__':
     settings = load_settings(settings_file)
 
     pad = 5 
-    size = settings['parts']['part_size'] 
+    descriptor_name = settings['detector']['descriptor']
+    size = settings[descriptor_name]['part_size'] 
     X_pad_size = (size[0]+pad*2, size[1]+pad*2)
 
     bkg_stack, bkg_stack_num = get_bkg_stack(settings, X_pad_size, M=20)

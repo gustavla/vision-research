@@ -8,7 +8,7 @@ import amitgroup as ag
 import gv
 import os
 import sys
-from itertools import product
+import itertools as itr
 from superimpose_experiment import generate_random_patches
 
 
@@ -45,11 +45,15 @@ def _process_file_star(args):
 def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
     ag.info("Processing file", fn)
     seed = np.abs(hash(fn)%123124)
+    descriptor_name = settings['detector']['descriptor']
     img_size = settings['detector']['image_size']
-    part_size = settings['parts']['part_size']
+    part_size = settings[descriptor_name]['part_size']
+    psize = settings['detector']['subsample_size']
     
     # The 4 is for the edge border that falls off
-    sh = (img_size[0] - part_size[0] - 4 + 1, img_size[1] - part_size[1] - 4 + 1)
+    #orig_sh = (img_size[0] - part_size[0] - 4 + 1, img_size[1] - part_size[1] - 4 + 1)
+    orig_sh = img_size
+    sh = gv.sub.subsample_size(np.ones(orig_sh), psize)
 
     # We need the descriptor to generate and manipulate images
     descriptor = gv.load_descriptor(settings)
@@ -79,8 +83,6 @@ def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
 
     assert img.shape == settings['detector']['image_size'], "Target size not achieved: {0} != {1}".format(img.shape, settings['detector']['image_size'])
 
-    psize = settings['detector']['subsample_size']
-
     # Settings
     bsettings = settings['edges'].copy()
     radius = bsettings['radius']
@@ -102,7 +104,7 @@ def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
 
     #pad = 10
     pad = 5 
-    size = settings['parts']['part_size'] 
+    size = settings[descriptor_name]['part_size'] 
     X_pad_size = (size[0]+pad*2, size[1]+pad*2)
 
     img_pad = ag.util.zeropad(img, pad)
@@ -117,6 +119,11 @@ def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
     #cads = np.empty((descriptor.num_parts,) + X_pad_size)
     #alphas = np.empty((descriptor.num_parts,) + X_pad_size, dtype=np.bool)
 
+    radii = settings['detector']['spread_radii']
+    psize = settings['detector']['subsample_size']
+    cb = settings['detector'].get('crop_border')
+    sett = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+
     plt.clf()
     plt.imshow(img)
     plt.savefig('output/img.png')
@@ -130,12 +137,15 @@ def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
             for d in xrange(dups):
                 feats = np.zeros(sh + (descriptor.num_parts,), dtype=np.uint8)
 
-                for i, j in product(locations0, locations1):
+                for i, j in itr.product(locations0, locations1):
+                    x = i * psize[0]
+                    y = i * psize[1]
+
                     bkg_i = prnds[4].randint(num) 
                     bkg = bkg_stack[f,bkg_i]
 
-                    selection = [slice(i, i+X_pad_size[0]), 
-                                 slice(j, j+X_pad_size[1])]
+                    selection = [slice(x, x+X_pad_size[0]), 
+                                 slice(y, y+X_pad_size[1])]
                     #X_pad = edges_pad[selection].copy()
                     patch = img_pad[selection]
                     alpha_patch = alpha_pad[selection]
@@ -178,9 +188,13 @@ def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
 
     #ag.info("Iteration {0}/{1}".format(loop+1, num_duplicates)) 
     #ag.info("Iteration")
-    for i, j in product(locations0, locations1):
-        selection = [slice(i, i+X_pad_size[0]), 
-                     slice(j, j+X_pad_size[1])]
+    for i, j in itr.product(locations0, locations1):
+        x = i * psize[0]
+        y = i * psize[1]
+        
+        print 'processing', i, j
+        selection = [slice(x, x+X_pad_size[0]), 
+                     slice(y, y+X_pad_size[1])]
         #X_pad = edges_pad[selection].copy()
         patch = img_pad[selection]
         alpha_patch = alpha_pad[selection]
@@ -198,16 +212,19 @@ def _process_file(settings, bkg_stack, bkg_stack_num, fn, mixcomp):
         
         img_with_bkgs = patch * alpha_patch + bkgs * (1 - alpha_patch)
 
-        edges_pads = ag.features.bedges(img_with_bkgs, **bsettings)
-        X_pad_spreads = ag.features.bspread(edges_pads, spread=bsettings['spread'], radius=radius)
+        if 0:
+            edges_pads = ag.features.bedges(img_with_bkgs, **bsettings)
+            X_pad_spreads = ag.features.bspread(edges_pads, spread=bsettings['spread'], radius=radius)
 
-        padding = pad - 2
-        X_spreads = X_pad_spreads[:,padding:-padding:,padding:-padding]
+            padding = pad - 2
+            X_spreads = X_pad_spreads[:,padding:-padding:,padding:-padding]
 
-        partprobs = ag.features.code_parts_many(X_spreads, descriptor._log_parts, descriptor._log_invparts, 
-                                                descriptor.settings['threshold'], descriptor.settings['patch_frame'])
+        #partprobs = ag.features.code_parts_many(X_spreads, descriptor._log_parts, descriptor._log_invparts, 
+                                                #descriptor.settings['threshold'], descriptor.settings['patch_frame'])
 
-        parts = partprobs.argmax(axis=-1)
+        #parts = partprobs.argmax(axis=-1)
+
+        parts = np.asarray([descriptor.extract_features(im, settings=sett)[0,0] for im in img_with_bkgs])
 
         for f in xrange(descriptor.num_parts + 1):
             hist = np.bincount(parts[f*dups:(f+1)*dups].ravel(), minlength=descriptor.num_parts + 1)
@@ -336,29 +353,24 @@ def background_adjust_model(settings, bkg_stack, bkg_stack_num, seed=0, threadin
     # Train a mixture model to get a clustering of the angles of the object
       
     descriptor = gv.load_descriptor(settings)
-    detector = gv.Detector(num_mixtures, descriptor, settings['detector'])
-    detector.train_from_images(files)
 
-    plt.clf()
-    ag.plot.images(detector.support)
-    plt.savefig('output/components.png')
+    if 0:
+        detector = gv.BernoulliDetector(num_mixtures, descriptor, settings['detector'])
+        detector.train_from_images(files)
 
-    comps = detector.mixture.mixture_components()
-    each_mix_N = np.bincount(comps, minlength=num_mixtures)
-    
-    if threading:
-        from multiprocessing import Pool
-        p = Pool(7)
-        # Important to run imap, since otherwise we will accumulate too
-        # much memory, since the count structure is quite big.
-        imapf = p.imap_unordered
-    else:
-        from itertools import imap as imapf
+        plt.clf()
+        ag.plot.images(detector.support)
+        plt.savefig('output/components.png')
+
+        comps = detector.mixture.mixture_components()
+        each_mix_N = np.bincount(comps, minlength=num_mixtures)
+
+    comps = np.zeros(len(files))
 
     argses = [(settings, bkg_stack, bkg_stack_num, files[i], comps[i]) for i in xrange(len(files))] 
 
     # Iterate images
-    all_counts = imapf(_process_file_star, argses)
+    all_counts = gv.parallel.imap(_process_file_star, argses)
 
     # Can dot this instead:
     counts = sum(all_counts)
@@ -378,7 +390,7 @@ def background_adjust_model(settings, bkg_stack, bkg_stack_num, seed=0, threadin
     return counts, each_mix_N * duplicates, detector.support, detector.mixture
 
 
-if __name__ == '__main__':
+if gv.parallel.main(__name__): 
     import argparse
     from settings import load_settings
    
@@ -406,7 +418,7 @@ if __name__ == '__main__':
     descriptor = gv.load_descriptor(settings)
 
     # Create the model file 
-    detector = gv.Detector(settings['detector']['num_mixtures'], descriptor, settings['detector'])
+    detector = gv.BernoulliDetector(settings['detector']['num_mixtures'], descriptor, settings['detector'])
     detector.kernel_basis = counts
     detector.kernel_basis_samples = totals
     detector.use_alpha = False

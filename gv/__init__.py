@@ -9,6 +9,7 @@ from . import datasets
 # Datasets
 from . import voc
 from . import uiuc
+from . import inria
 from . import custom
 from .beta_mixture import BetaMixture, binary_search # Temporarily exposed
 from . import parallel 
@@ -51,16 +52,3 @@ def load_binary_descriptor(settings):
 
 def load_real_descriptor(settings):
     return load_descriptor(gv.RealDescriptor, settings)
-
-import time
-
-class Timer(object):
-    def __init__(self, name):
-        self.name = name
-
-    def __enter__(self):
-        self.start = time.time()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.end = time.time()
-        print "TIMER {0}: {1} s".format(self.name, self.end - self.start)

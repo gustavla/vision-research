@@ -59,6 +59,7 @@ def load_testing_files(single_scale=True):
     return files, tot
 
 def load_testing_file(img_id, single_scale=True):
+    img_id = int(img_id)
     files, tot = load_testing_files(single_scale)
     f = filter(lambda x: x.img_id==img_id, files)[0]
     return f

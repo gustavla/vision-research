@@ -66,7 +66,6 @@ class BernoulliDetector(Detector):
 
         self.use_alpha = None
 
-        self.settings['min_probability'] = 0.05
         self.settings['subsample_size'] = (8, 8)
         self.settings['train_unspread'] = True
         self.settings.update(settings)
@@ -282,6 +281,9 @@ class BernoulliDetector(Detector):
 
         #fixed_bkg_file = self.settings.get('fixed_bkg_file')
 
+        # TODO: This is all very broken
+        self.prepare_eps(None)
+
         radii = self.settings['spread_radii']
         if testing_type == 'fixed':
             psize = self.settings['subsample_size']
@@ -312,6 +314,7 @@ class BernoulliDetector(Detector):
             #import pylab as plt
             #plt.imshow(kernels[0].sum(axis=-1), interpolation='nearest')
             #plt.show()
+            print np.asarray(output).shape, shape
             X = np.asarray(output).reshape((-1,) + shape) #sub_output.reshape((sub_output.shape[0], -1))
             llhs = [[] for i in xrange(self.num_mixtures)] 
 
@@ -1102,8 +1105,20 @@ class BernoulliDetector(Detector):
                 return X.ravel()
             #return X.ravel()
 
+        # TODO: Remove
+        #C = np.load('cov.npy')
+        invC = np.load('invcov.npy')
+
         
         fs = []
+
+        if 1:
+            # TODO: Temporary stuff
+            feats = np.load('uiuc-feats.npy')
+            frames = np.apply_over_axes(np.mean, feats, [1, 2]).squeeze() 
+            means = frames.mean(0)
+            stds = frames.std(0)
+
 
         if 1:
             #import scipy.signal 
@@ -1118,8 +1133,7 @@ class BernoulliDetector(Detector):
             r = 3
 
             for i0 in xrange(0, resmap.shape[0], s):
-                for j0 in xrange(0, resmap.shape[1], s): 
-                     
+                for j0 in xrange(0, resmap.shape[1], s):
                     win = resmap[i0:i0+s, j0:j0+s]
                     #local_max = resmap[max(0, i-3):i+4, max(0, j-3):j+4].argmax()
                     di, dj = np.unravel_index(win.argmax(), win.shape) 
@@ -1148,6 +1162,113 @@ class BernoulliDetector(Detector):
                             #score -= 10
                         #if score >= 15:
                             #print X.mean()
+
+                        if 1 and cascade and 'sturf' in self.extra:
+                            sturf = self.extra['sturf'][mixcomp]
+                            rew = sturf['reweighted']
+                            kp = self.keypoint_mask(mixcomp)
+                            support0 = sturf['support'][...,np.newaxis]
+                            support = sturf['support'][...,np.newaxis] * kp
+                            avg = np.apply_over_axes(np.sum, X * support, [0, 1]) / np.apply_over_axes(np.sum, support, [0, 1])
+                            avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
+
+                            #avg_rew = np.apply_over_axes(np.mean, rew, [0, 1])
+                            #lmb = avg_rew * support.sum()
+
+                            beta = sturf['wavg'] * np.apply_over_axes(np.sum, support, [0, 1])
+                            betaf = sturf['wavg'] * support0.sum()
+
+                            w = self.extra['weights'][mixcomp] + rew
+
+                            pavg = sturf['pavg']
+                            S = sturf['S']
+
+
+                            old_score = np.sum(X * w * kp)
+
+                            # new score
+                            alpha = 0.0
+
+                            #bkg = np.load('uiuc-bkg.npy')
+                            #diff = avg - sturf['bkg']
+                            #diff = avg - bkg
+                            
+
+                            #factor = support.sum() / support0.sum()
+
+                            #score1 = old_score - np.sum(avg * beta)
+                            score2 = old_score - np.sum(avgf * beta)
+
+                            obj_avg = np.apply_over_axes(np.sum, (self.kernel_templates[0] * support0), [0, 1]) / support0.sum()
+
+                            #d = (avgf * beta).ravel()
+                            d = (avgf - pavg).ravel()
+
+                            md_factor = 0.5 
+                            md = np.sqrt(np.dot(d, np.linalg.solve(S, d)))
+                            #md = np.sqrt(np.dot(d, np.dot(invC, d)))
+                            #print score, md
+                            
+                            score = 100000 + score - md * md_factor
+                            #score = 100000 + old_score
+
+                            #print np.sum(avgf * beta), md, 'factor', np.sum(avgf * beta)/md
+                            
+                            #import pdb; pdb.set_trace()
+
+                            #score = 10000 + alpha * score + (1 - alpha) * old_score
+
+                        # TODO: Rel model attempts
+                        if 0 and cascade and 'sturf' in self.extra:
+                            #avg = np.apply_over_axes(np.mean, X[2:-2,2:-2], [0, 1]) 
+                            sturf = self.extra['sturf'][mixcomp]
+
+
+                            support = sturf['support']
+                            #stds = sturf['stds']
+                            #means = sturf['means2']
+
+                            avg = np.apply_over_axes(np.sum, X * support[...,np.newaxis], [0, 1]) / support.sum()
+
+                            diff = sturf['means2'] - sturf['bkg']
+
+                            prior_factor = 50.0
+
+                            prior = np.sum(avg * diff) * prior_factor
+
+                            # Average priors
+                            import scipy.stats as st
+
+                    
+                            #stds = np.clip(stds, 0.02, np.inf)
+                            #stds[:] = 0.05
+
+
+                            #prior = st.norm.logpdf(avg, loc=sturf['means'], scale=stds).sum() * 0.5
+                            #prior = st.norm.logpdf((avg - means) / stds).sum() * 0.1
+                            
+
+                            #import pdb; pdb.set_trace()
+                            
+                            #print(prior, score)
+
+                            #print 'sp', score, prior
+                
+
+                            if 0:
+                                obj = sturf['lmb'] * avg
+                                eps = 0.025
+                                obj = np.clip(obj, eps, 1 - eps)
+                                avg = np.clip(avg, eps, 1 - eps)
+                                kern = np.log(obj / (1 - obj) * ((1 - avg) / avg))
+
+                            #score = (kern * X).sum() + prior
+
+                            # New weights 
+                            #score = 100000 + prior
+                            score += 100000 + prior
+
+                            
 
                         if cascade and do_cascade and 'svms' in self.extra and score >= cascade_score:
                             # Take the maximum of a neighborhood
@@ -1412,6 +1533,9 @@ class BernoulliDetector(Detector):
         clipped_obj = np.clip(obj, eps, 1 - eps)
         return cls.build_weights(clipped_obj, clipped_bkg)
 
+    def weights_shape(self, mixcomp):
+        return self.kernel_templates[mixcomp].shape
+
     def weights(self, mixcomp):
         bkg = np.clip(self.fixed_spread_bkg[mixcomp], self.eps, 1 - self.eps)
         kern = np.clip(self.kernel_templates[mixcomp], self.eps, 1 - self.eps)
@@ -1447,6 +1571,12 @@ class BernoulliDetector(Detector):
             kp_only_weights[tuple(index)] = base_weights[tuple(index)]
         return kp_only_weights
 
+    def keypoint_mask(self, mixcomp):
+        kp_only_weights = np.zeros(self.weights_shape(mixcomp))
+        for i, index in enumerate(self.indices[mixcomp]):
+            kp_only_weights[tuple(index)] = 1 
+        return kp_only_weights
+
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True, use_padding=True):
         if np.min(sub_feats.shape) <= 1:
             return np.zeros((0, 0, 0)), None, None
@@ -1477,14 +1607,10 @@ class BernoulliDetector(Detector):
         spread_bkg = np.clip(spread_bkg, self.eps, 1 - self.eps)
         kern = np.clip(kern, self.eps, 1 - self.eps) 
 
-        #weights = self.build_weights(kern, spread_bkg)
-        # TODO: VERY TEMPORARY
-        #weights *= np.fabs(self.extra['weights'])
-        weights = self.extra['weights']
-
-        #M = np.load('M.npy')
-
-        #weights *= (M > 2300)
+        if 'weights' in self.extra:
+            weights = self.extra['weights'][mixcomp]
+        else:
+            weights = self.build_weights(kern, spread_bkg)
     
         from .fast import multifeature_correlate2d
 
@@ -1504,7 +1630,7 @@ class BernoulliDetector(Detector):
             if self.indices is not None and len(self.indices[mixcomp]) > 0:
                 indices = self.indices[mixcomp].astype(np.int32)
                 from .fast import multifeature_correlate2d_with_indices
-                print bigger.shape, weights.shape, indices
+                #print bigger.shape, weights.shape, indices
                 res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices)
             else:
                 res = multifeature_correlate2d(bigger, weights.astype(np.float64))

@@ -10,6 +10,8 @@ parts_file = args.parts
 
 
 import numpy as np
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pylab as plt
 import amitgroup as ag
 import amitgroup.features

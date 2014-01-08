@@ -10,6 +10,10 @@ import scipy
 import scipy.stats
 from .binary_descriptor import BinaryDescriptor
 
+#def ok(amp, patch_frame, threshold):
+    #amp_inner = amp[patch_frame:-patch_frame,patch_frame:-patch_frame]
+    #return amp_inner.mean() > threshold 
+
 def convert_partprobs_to_feature_vector(partprobs, tau=0.0):
     X_dim_0 = partprobs.shape[0]
     X_dim_1 = partprobs.shape[1]
@@ -132,6 +136,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                 # Return grayscale patch and edges patch
                 edgepatch = edges[selection]
                 inv_edgepatch = inv_edges[selection]
+
+                #amppatch = amps[selection]
                 #edgepatch2 = edges2[selection]
                 #inv_edgepatch2 = inv_edges2[selection]
                 #edgepatch_nospread = edges_nospread[selection]
@@ -143,6 +149,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                     avg = edgepatch[fr:-fr,fr:-fr].mean()
 
                 if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
+                #if ok(amppatch, fr, self.settings['amp_threshold']): 
                     #the_patches.append(np.asarray([edgepatch, inv_edgepatch, edgepatch2, inv_edgepatch2]))
                     the_patches.append(np.asarray([edgepatch, inv_edgepatch]))
                     #the_patches.append(edgepatch_nospread)
@@ -534,12 +541,12 @@ class PolarityPartsDescriptor(BinaryDescriptor):
     def _extract_edges(self, image):
         sett = self.bedges_settings().copy()
         sett['radius'] = 0
-        sett['preserve_size'] = True
+        sett['preserve_size'] = False 
     
         #return np.concatenate([gv.gradients.extract(image, orientations=8), ag.features.bedges(image, **sett)], axis=2)
         #return np.concatenate([gv.gradients.extract(image, orientations=8), gv.gradients.extract(image, orientations=8, threshold=1.5)], axis=2)
-        #return ag.features.bedges(image, **sett)
-        if 1:
+        return ag.features.bedges(image, **sett)
+        if 0:
             return gv.gradients.extract(image, 
                                         orientations=8, 
                                         threshold=self.settings.get('threshold2', 0.001),
@@ -582,7 +589,11 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                                                   collapse=2,
                                                   accept_threshold=15)
             elif 1:
-                feats = ag.features.extract_parts(edges, unspread_edges, 
+                # These are experiments with the new edge type
+                #import gv.fast
+                #th = self.settings['amp_threshold']
+                #feats = gv.fast.extract_parts(edges, unspread_edges, amps,
+                feats = ag.features.extract_parts(edges, unspread_edges,
                                                   self._log_parts,
                                                   self._log_invparts,
                                                   th,
@@ -594,7 +605,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             else:
                 all_feats = []
                 for i in xrange(10):
-                    feats = ag.features.extract_parts(edges, unspread_edges, 
+                    feats = ag.features.extract_parts(edges, unspread_edges,
                                                       self._log_parts,
                                                       self._log_invparts,
                                                       th,
@@ -632,11 +643,14 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         # TODO: Experiment
         if 0:
-            U = np.load('U.npy')
-            new_feats = np.empty(feats.shape, dtype=np.uint8)
+            Q = np.load('Q.npy')
+            new_feats_shape = feats.shape
+            new_feats = np.empty(new_feats_shape, dtype=np.uint8)
+            #import pdb; pdb.set_trace()
             for i, j in itr.product(xrange(feats.shape[0]), xrange(feats.shape[1])):
                 # Transform the basis 0.572
-                new_feats[i,j] = (np.fabs(np.dot(feats[i,j], U)) >= 0.5).astype(np.uint8)
+                #new_feats[i,j] = np.dot(Q[:,-ARTS:].T, feats[i,j])
+                new_feats[i,j] = (np.fabs(np.dot(Q.T, feats[i,j].astype(float))) > 15)
             feats = new_feats
 
         return gv.ndfeature(feats, lower=lower, upper=upper)
