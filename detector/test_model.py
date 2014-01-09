@@ -54,6 +54,7 @@ if __name__ == '__main__' and gv.parallel.main():
     parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
     parser.add_argument('--log', type=str, default=None, help='Log to this directory name')
     parser.add_argument('--size', type=int, default=None, help='Use fixed size')
+    parser.add_argument('--param', type=float, default=None)
 
     args = parser.parse_args()
     model_file = args.model
@@ -94,6 +95,7 @@ if __name__ == '__main__' and gv.parallel.main():
     detector = gv.Detector.load(model_file)
     # TODO: New
     detector.TEMP_second = True
+    detector._param = args.param
 
     if args.size is not None:
         detector.settings['min_size'] = detector.settings['max_size'] = args.size

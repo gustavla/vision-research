@@ -57,6 +57,7 @@ class BernoulliDetector(Detector):
         self.standardization_info2 = None # TODO: New
         self.indices = None # TODO: Recently added, keeper?
         self._eps = None
+        self._param = None
 
         self.indices2 = None
         self.clfs = None
@@ -883,6 +884,12 @@ class BernoulliDetector(Detector):
         else:
             return final_bbs
 
+    def param(self, default):
+        if self._param is None:
+            return default
+        else:
+            return self._param
+
     def _detect_coarse_at_factor(self, 
                                  sub_feats, 
                                  sub_kernels, 
@@ -1168,15 +1175,15 @@ class BernoulliDetector(Detector):
                             rew = sturf['reweighted']
                             kp = self.keypoint_mask(mixcomp)
                             support0 = sturf['support'][...,np.newaxis]
-                            support = sturf['support'][...,np.newaxis] * kp
-                            avg = np.apply_over_axes(np.sum, X * support, [0, 1]) / np.apply_over_axes(np.sum, support, [0, 1])
+                            #support = sturf['support'][...,np.newaxis] * kp
+                            #avg = np.apply_over_axes(np.sum, X * support, [0, 1]) / np.apply_over_axes(np.sum, support, [0, 1])
                             avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
 
                             #avg_rew = np.apply_over_axes(np.mean, rew, [0, 1])
                             #lmb = avg_rew * support.sum()
 
-                            beta = sturf['wavg'] * np.apply_over_axes(np.sum, support, [0, 1])
-                            betaf = sturf['wavg'] * support0.sum()
+                            #beta = sturf['wavg'] * np.apply_over_axes(np.sum, support, [0, 1])
+                            #betaf = sturf['wavg'] * support0.sum()
 
                             w = self.extra['weights'][mixcomp] + rew
 
@@ -1187,7 +1194,7 @@ class BernoulliDetector(Detector):
                             old_score = np.sum(X * w * kp)
 
                             # new score
-                            alpha = 0.0
+                            #alpha = 0.0
 
                             #bkg = np.load('uiuc-bkg.npy')
                             #diff = avg - sturf['bkg']
@@ -1197,19 +1204,22 @@ class BernoulliDetector(Detector):
                             #factor = support.sum() / support0.sum()
 
                             #score1 = old_score - np.sum(avg * beta)
-                            score2 = old_score - np.sum(avgf * beta)
+                            #score2 = old_score - np.sum(avgf * beta)
 
-                            obj_avg = np.apply_over_axes(np.sum, (self.kernel_templates[0] * support0), [0, 1]) / support0.sum()
+                            #obj_avg = np.apply_over_axes(np.sum, (self.kernel_templates[0] * support0), [0, 1]) / support0.sum()
 
                             #d = (avgf * beta).ravel()
                             d = (avgf - pavg).ravel()
 
-                            md_factor = 6.0 
-                            md = np.sqrt(np.dot(d, np.linalg.solve(S, d)))
-                            #md = np.sqrt(np.dot(d, np.dot(invC, d)))
-                            #print score, md
-                            
-                            score = 100000 + score - md * md_factor
+                            if 1:
+                                md_factor = self.param(0.0)
+                                md = np.sqrt(np.dot(d, np.linalg.solve(S, d)))
+                                #md = np.sqrt(np.dot(d, np.dot(invC, d)))
+                                #print score, md
+                                
+                                score = 100000 + score - md * md_factor
+                            else:
+                                score = 100000 + old_score        
                             #score = 100000 + old_score
 
                             #if score > 97500:
