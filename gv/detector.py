@@ -1172,7 +1172,7 @@ class BernoulliDetector(Detector):
 
                         if 1 and cascade and 'sturf' in self.extra:
                             sturf = self.extra['sturf'][mixcomp]
-                            rew = sturf['reweighted']
+                            #rew = sturf['reweighted']
                             kp = self.keypoint_mask(mixcomp)
                             support0 = sturf['support'][...,np.newaxis]
                             #support = sturf['support'][...,np.newaxis] * kp
@@ -1185,13 +1185,13 @@ class BernoulliDetector(Detector):
                             #beta = sturf['wavg'] * np.apply_over_axes(np.sum, support, [0, 1])
                             #betaf = sturf['wavg'] * support0.sum()
 
-                            w = self.extra['weights'][mixcomp] + rew
+                            #w = self.extra['weights'][mixcomp] + rew
 
                             pavg = sturf['pavg']
                             S = sturf['S']
 
 
-                            old_score = np.sum(X * w * kp)
+                            #old_score = np.sum(X * w * kp)
 
                             # new score
                             #alpha = 0.0
@@ -1213,13 +1213,15 @@ class BernoulliDetector(Detector):
 
                             if 1:
                                 md_factor = self.param(0.0)
-                                md = np.sqrt(np.dot(d, np.linalg.solve(S, d)))
+                                Sreg = S + np.eye(S.shape[0]) * 0.001
+                                md = np.sqrt(np.dot(d, np.linalg.solve(Sreg, d)))
                                 #md = np.sqrt(np.dot(d, np.dot(invC, d)))
                                 #print score, md
                                 
                                 score = 100000 + score - md * md_factor
                             else:
                                 score = 100000 + old_score        
+
                             #score = 100000 + old_score
 
                             #if score > 97500:

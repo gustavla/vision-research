@@ -1015,7 +1015,9 @@ def superimposed_model(settings, threading=True):
 
                 avg = xx.mean(0)
                 ss = support[...,np.newaxis]
-                weights = ss*(avg - (avg * ss).mean()/ss.mean())
+                weights = ss*(weights - np.apply_over_axes(np.mean, weights * ss, [0, 1])/ss.mean())
+
+                print('sum', np.fabs(np.apply_over_axes(np.sum, weights, [0, 1])).sum())
 
                 detector.extra['sturf'][m]['support'] = support
 
