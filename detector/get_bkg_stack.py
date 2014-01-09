@@ -32,7 +32,7 @@ def get_bkg_stack(settings, X_pad_size, M=20):
 
     i = 0
     import matplotlib.pylab as plt
-    N = 1000000
+    N = 100000
     for patch in gen_raw:
         #edges = ag.features.bedges(patch, **bsettings)
 

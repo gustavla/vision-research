@@ -127,6 +127,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         random.shuffle(indices)
         i_iter = iter(indices)
 
+        th = self.threshold_in_counts(self.settings['threshold'], edges.shape[-1])
+
         for sample in xrange(samples_per_image):
             for tries in xrange(20):
                 #x, y = random.randint(0, w-1), random.randint(0, h-1)
@@ -144,11 +146,12 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
                 # The inv edges could be incorproated here, but it shouldn't be that different.
                 if fr == 0:
-                    avg = edgepatch.mean()
+                    tot = edgepatch.sum()
                 else:
-                    avg = edgepatch[fr:-fr,fr:-fr].mean()
+                    tot = edgepatch[fr:-fr,fr:-fr].sum()
 
-                if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
+                #if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
+                if th <= tot:
                 #if ok(amppatch, fr, self.settings['amp_threshold']): 
                     #the_patches.append(np.asarray([edgepatch, inv_edgepatch, edgepatch2, inv_edgepatch2]))
                     the_patches.append(np.asarray([edgepatch, inv_edgepatch]))
@@ -195,6 +198,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             else:
                 mapfunc = map
 
+        #mapfunc = gv.parallel.imap_unordered 
         mapfunc = map
 
         ret = mapfunc(self._get_patches, filenames)
@@ -545,8 +549,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
     
         #return np.concatenate([gv.gradients.extract(image, orientations=8), ag.features.bedges(image, **sett)], axis=2)
         #return np.concatenate([gv.gradients.extract(image, orientations=8), gv.gradients.extract(image, orientations=8, threshold=1.5)], axis=2)
-        return ag.features.bedges(image, **sett)
-        if 0:
+        #return ag.features.bedges(image, **sett)
+        if 1:
             return gv.gradients.extract(image, 
                                         orientations=8, 
                                         threshold=self.settings.get('threshold2', 0.001),
@@ -659,7 +663,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
     def threshold_in_counts(self, threshold, num_edges):
         size = self.settings['part_size']
         frame = self.settings['patch_frame']
-        return int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges)
+        return max(1, int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges))
 
     def extract_partprobs_from_edges(self, edges, edges_unspread):
         partprobs = ag.features.code_parts(edges, 

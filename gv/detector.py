@@ -1204,13 +1204,16 @@ class BernoulliDetector(Detector):
                             #d = (avgf * beta).ravel()
                             d = (avgf - pavg).ravel()
 
-                            md_factor = 0.5 
+                            md_factor = 6.0 
                             md = np.sqrt(np.dot(d, np.linalg.solve(S, d)))
                             #md = np.sqrt(np.dot(d, np.dot(invC, d)))
                             #print score, md
                             
                             score = 100000 + score - md * md_factor
                             #score = 100000 + old_score
+
+                            #if score > 97500:
+                                #print 'md', md, orig_score
 
                             #print np.sum(avgf * beta), md, 'factor', np.sum(avgf * beta)/md
                             

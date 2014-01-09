@@ -38,9 +38,17 @@ def logit(x):
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
+def multirange(*args):
+    import itertools
+    return itertools.product(*map(xrange, args))
+
+
+class SlicesClass(object):
+    def __getitem__(self, *args):
+        return args
+slices = SlicesClass() 
 
 import time
-
 class Timer(object):
     def __init__(self, name):
         self.name = name
