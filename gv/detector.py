@@ -1185,7 +1185,7 @@ class BernoulliDetector(Detector):
                             #beta = sturf['wavg'] * np.apply_over_axes(np.sum, support, [0, 1])
                             #betaf = sturf['wavg'] * support0.sum()
 
-                            #w = self.extra['weights'][mixcomp] + rew
+                            w = self.extra['weights'][mixcomp]
 
                             pavg = sturf['pavg']
                             S = sturf['S']
@@ -1211,14 +1211,36 @@ class BernoulliDetector(Detector):
                             #d = (avgf * beta).ravel()
                             d = (avgf - pavg).ravel()
 
+                            def clogit(x):
+                                return gv.logit(gv.bclip(x, 0.001))
+
                             if 1:
                                 md_factor = self.param(0.0)
                                 Sreg = S + np.eye(S.shape[0]) * 0.001
                                 md = np.sqrt(np.dot(d, np.linalg.solve(Sreg, d)))
                                 #md = np.sqrt(np.dot(d, np.dot(invC, d)))
                                 #print score, md
+
+                                bkg = self.fixed_spread_bkg[mixcomp].mean(0).mean(0)
+
+                                # constant factor
+                                M = self.keypoint_mask(mixcomp)
+                                #C = np.log((1 - gv.sigmoid((w * M) + clogit(avgf))) / (1 - avgf)).sum()
+
+                                c_bkg = gv.bclip(bkg, 0.001)
+                                c_avgf = gv.bclip(avgf, 0.001)
+
+                                def clog(x):
+                                    return np.log(x.clip(min=0.0001))
+
+                                C = clog((1 - gv.sigmoid((w * M) + gv.logit(c_avgf))) / (1 - c_avgf)).sum() - \
+                                    clog((1 - gv.sigmoid((w * M) + gv.logit(c_bkg))) / (1 - c_bkg)).sum()
                                 
-                                score = 100000 + score - md * md_factor
+                                #score = 100000 + score - md * md_factor# + C
+                                std = self.standardization_info[mixcomp]['std']
+
+                                new_score = score - md * md_factor + C / std
+                                score = 100000 + new_score
                             else:
                                 score = 100000 + old_score        
 
