@@ -47,5 +47,9 @@ class ImageGrid(object):
         self._data[anchor[0] : anchor[0] + rgb.shape[0],
                    anchor[1] : anchor[1] + rgb.shape[1]] = rgb
 
-    def save(self, path):
-        gv.img.save_image(path, self._data)
+    def save(self, path, scale=1):
+        data = self._data
+        if scale != 1:
+            from skimage.transform import resize
+            data = resize(self._data, tuple([self._data.shape[i] * scale for i in xrange(2)]), order=0)
+        gv.img.save_image(path, data)
