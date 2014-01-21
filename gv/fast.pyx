@@ -17,6 +17,12 @@ ctypedef np.float64_t real
 ctypedef np.uint8_t mybool
 #ctypedef cython.floating real
 
+cdef real sigmoid(real x) nogil:
+    return 1.0 / (1.0 + exp(-x))
+
+cdef real logit(real x) nogil:
+    return log(x / (1 - x))
+
 def multifeature_correlate2d_with_mask(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=3] kernel_, np.ndarray[mybool,ndim=2] mask_):
     assert data_.shape[0] > kernel_.shape[0]
     assert data_.shape[1] > kernel_.shape[1]
@@ -864,3 +870,56 @@ def extract_parts(edges, unspread_edges, amps, log_parts, log_invparts, float th
                             feats_mv[i,j,p] = 1
 
     return feats 
+
+def find_zeros_when_mcmc_training(np.ndarray[ndim=3,dtype=np.float64_t] Xbar,
+                                  np.ndarray[ndim=2,dtype=np.float64_t] LZ_counts,
+                                  np.ndarray[ndim=2,dtype=np.float64_t] LZ_values,
+                                  lower=-10,
+                                  upper=10):
+
+
+    cdef:
+        int BINS = LZ_counts.shape[1] 
+        int total_counts = LZ_counts[0].sum()
+
+        np.float64_t[:,:,:] Xbar_mv = Xbar
+        #np.float64_t[:,:] logit_Zs_mv = logit_Zs
+        np.float64_t v, lo, up, mi, lower_real, upper_real
+
+        np.float64_t[:,:] LZ_counts_mv = LZ_counts
+        np.float64_t[:,:] LZ_values_mv = LZ_values 
+        
+
+        int dim0 = Xbar.shape[0]
+        int dim1 = Xbar.shape[1]
+        #int num_Z = logit_Zs.shape[0]
+        int F = Xbar.shape[2]
+        int f, l0, l1, i, k
+
+        np.ndarray[ndim=3,dtype=np.float64_t] w = np.zeros((dim0, dim1, F), dtype=np.float64)
+        np.float64_t[:,:,:] w_mv = w
+
+    lower_real = <real>lower
+    upper_real = <real>upper
+        
+    with nogil:
+        for f in xrange(F): 
+            for l0 in xrange(dim0):
+                for l1 in xrange(dim1):
+                    lo = lower_real
+                    up = upper_real 
+
+                    for i in xrange(10): 
+                        mi = (lo + up) / 2.0 
+                        v = 0.0
+                        for k in xrange(BINS):
+                            v += LZ_counts_mv[f,k] * sigmoid(mi + LZ_values_mv[f,k])
+                        v /= total_counts
+                        v -= Xbar[l0,l1,f]
+                        if v > 0:
+                            up = mi 
+                        else:
+                            lo = mi
+
+                    w_mv[l0,l1,f] = mi 
+    return w

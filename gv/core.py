@@ -9,10 +9,12 @@ def imshow(*args, **kwargs):
 
 def imshow_even(x, *args, **kwargs):
     import matplotlib.pylab as plt
+    kwargs = kwargs.copy()
 
     mm = np.fabs(x).max()
     if 'vminmax' in kwargs:
         mm = kwargs['vminmax']
+        del kwargs['vminmax']
     if 'interpolation' not in kwargs:
         kwargs['interpolation'] = 'nearest'
     if 'vmin' not in kwargs:

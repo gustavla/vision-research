@@ -17,11 +17,12 @@ def _init():
     _g_available_workers = set(range(1, MPI.COMM_WORLD.Get_size()))
     atexit.register(kill_workers)
 
-def imap_unordered(f, workloads):
+def imap_unordered(f, workloads, star=False):
     from mpi4py import MPI
     N = MPI.COMM_WORLD.Get_size() - 1
     if N == 0:
-        for res in itr.imap(f, workloads):
+        mapf = [itr.imap, itr.starmap][star]
+        for res in mapf(f, workloads):
             yield res
         return
      
@@ -45,14 +46,15 @@ def imap_unordered(f, workloads):
             dest_rank = _g_available_workers.pop()
 
             # Send off job
-            task = dict(func=f, input_data=workload, job_index=job_index)
+            task = dict(func=f, input_data=workload, job_index=job_index, unpack=star)
             MPI.COMM_WORLD.send(task, dest=dest_rank, tag=10)
 
-def imap(f, workloads):
+def imap(f, workloads, star=False):
     from mpi4py import MPI
     N = MPI.COMM_WORLD.Get_size() - 1
     if N == 0:
-        for res in itr.imap(f, workloads):
+        mapf = [itr.imap, itr.starmap][star]
+        for res in mapf(f, workloads):
             yield res
         return
     global _g_available_workers
@@ -79,11 +81,17 @@ def imap(f, workloads):
             dest_rank = _g_available_workers.pop()
 
             # Send off job
-            task = dict(func=f, input_data=workload, job_index=job_index)
+            task = dict(func=f, input_data=workload, job_index=job_index, unpack=star)
             MPI.COMM_WORLD.send(task, dest=dest_rank, tag=10)
 
     for i in indices:
         yield results[i]
+
+def starmap(f, workloads):
+    return imap(f, workloads, star=True)
+
+def starmap_unordered(f, workloads):
+    return imap_unordered(f, workloads, star=True)
 
 def worker():
     from mpi4py import MPI
@@ -92,13 +100,14 @@ def worker():
         ret = MPI.COMM_WORLD.recv(source=0, tag=MPI.ANY_TAG, status=status) 
 
         if status.tag == 10:
-            #print 'R{0}: RECV:d'.format(rank)
             # Workload received
             func = ret['func']
-            res = func(ret['input_data'])
+            if ret.get('unpack'):
+                res = func(*ret['input_data'])
+            else:
+                res = func(ret['input_data'])
 
             # Done, let's send it back
-            #print 'R{0}: SENDING'.format(rank)
             MPI.COMM_WORLD.send(dict(job_index=ret['job_index'], output_data=res), dest=0, tag=2)
 
         elif status.tag == 666:
@@ -111,8 +120,9 @@ def main(name=None):
 
     Example use:
 
-    if gv.parallel.main():
-        gv.parallel.map_unordered 
+    if gv.parallel.main(__name__):
+        res = gv.parallel.map_unordered(fun, workload)
+
     """
     if name is not None and name != '__main__':
         return False
