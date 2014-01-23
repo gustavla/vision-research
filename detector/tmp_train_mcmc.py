@@ -23,7 +23,7 @@ EPS = 0.01
 def clog(x):
     return np.log(x.clip(EPS, 1-EPS))
 
-def logtildegamma(G, Z, X, supp, w, G_mu, G_Sigma):
+def logtildegamma(G, Z, X, supp, w, G_mu, G_Sigma, eta):
     prob = gv.sigmoid(w + gv.logit(Z))
     llh = np.sum(supp * X * clog(prob)) + np.sum(supp * (1 - X) * clog(1 - prob))
     prior = logpdf(G, G_mu, G_Sigma)
@@ -71,14 +71,14 @@ def find_zero(fun, l=-5, u=5, depth=15):
     #l, u = find_valid(fun)
     return find_zero_inner(fun, l, u, depth)
 
-def _do_sample(n, X, supp, Z, T, w, G_mu, G_Sigma, var, seed):
+def _do_sample(n, X, supp, Z, T, w, G_mu, G_Sigma, var, eta, seed):
     rs = np.random.RandomState(seed)
     F = Z.shape[0]
     G = np.log(Z)
 
     Gs_n = np.zeros((T, F))
 
-    f_cur = logtildegamma(G, Z, X, supp, w, G_mu, G_Sigma)
+    f_cur = logtildegamma(G, Z, X, supp, w, G_mu, G_Sigma, eta)
     acceptances = np.zeros(T)
     for t in xrange(T):
         G = np.log(Z)
@@ -89,7 +89,7 @@ def _do_sample(n, X, supp, Z, T, w, G_mu, G_Sigma, var, seed):
         new_Z = np.exp(new_G)
 
         #f_old = logtildegamma(Z, X, w, mu, Sigma)
-        f_new = logtildegamma(new_G, new_Z, X, supp, w, G_mu, G_Sigma)
+        f_new = logtildegamma(new_G, new_Z, X, supp, w, G_mu, G_Sigma, eta)
 
         #mu[0]
         #Z[0]
@@ -108,7 +108,8 @@ def _do_sample(n, X, supp, Z, T, w, G_mu, G_Sigma, var, seed):
     return n, Gs_n, acceptances.mean()
 
 if gv.parallel.main(__name__):
-    plot_dir = os.path.join(os.path.expandvars('$HOME'), 'html', 'plots')
+    #plot_dir = os.path.join(os.path.expandvars('$HOME'), 'html', 'plots')
+    plot_dir = os.path.join(os.path.expandvars('$HOME'), 'plots')
     # Clear plotting directory
     for f in glob.glob(os.path.join(plot_dir, '*.png')):
         os.remove(f)
@@ -123,18 +124,21 @@ if gv.parallel.main(__name__):
 
     Xbar = pos.mean(0).clip(EPS, 1-EPS)
     supp = d.extra['sturf'][0]['support'][...,np.newaxis]
+    supp = np.tile(supp, (1, 1, F))
 
     # Initial parameters
     w = np.zeros(d.weights(0).shape[:2] + (F,))
     Z_mu = 0.1 * np.ones(F)
     G_mu = np.log(Z_mu)
-    G_Sigma = 0.1 * np.eye(F)
+    G_Sigma = 1.0 * np.eye(F)
     import time
 
-    T = 5000
+    T = 8000
     burnin = 3000
 
     N = pos.shape[0]
+    indices = None 
+    indices_mask = None
 
     for loop in xrange(40):
 
@@ -146,17 +150,16 @@ if gv.parallel.main(__name__):
         #G_mu = np.zeros((N, F))
         #G_Sigma = np.zeros((N, F, F))
 
-        if 0:
-            if loop <= 2:
-                var = 0.1
-            elif loop == 3:
-                var = 0.05
-            else:
-                var = 0.025
+        if loop <= 2:
+            var = 0.05
+        elif loop <= 5:
+            var = 0.025
+        else:
+            var = 0.005
 
-        var = 0.1
+        eta = min(1, 0.0 + 0.2 * loop)
             
-        args = [(n, pos[n], supp, Z_mu.copy(), T, w, G_mu, G_Sigma, var, loop*1234567+n) for n in xrange(N)]
+        args = [(n, pos[n], supp, Z_mu.copy(), T, w, G_mu, G_Sigma, var, eta, loop*1234567+n) for n in xrange(N)]
         for n, Gs_n, acc_rate in gv.parallel.starmap_unordered(_do_sample, args):
             print 'Processed sample {} (acceptance rate: {})'.format(n, acc_rate)
             Gs[n] = Gs_n
@@ -229,17 +232,20 @@ if gv.parallel.main(__name__):
         #    import IPython
         #    IPython.embed()
 
-        if 0:
+        if 1:
             # Print these to file
             from matplotlib.pylab import cm
             grid = gv.plot.ImageGrid(F, 1, w.shape[:2], border_color=(0.5, 0.5, 0.5))
             mm = 4#np.fabs(w).max()
             for f in xrange(F):
-                grid.set_image(w[...,f], f, 0, vmin=-mm, vmax=mm, cmap=cm.RdBu_r)
+                grid.set_image(supp[...,f] * w[...,f], f, 0, vmin=-mm, vmax=mm, cmap=cm.RdBu_r)
+
+            if loop == 0:
+                np.save('w.npy', w)
             fn = os.path.join(plot_dir, 'plot{}.png'.format(loop))
             grid.save(fn, scale=4)
             os.chmod(fn, 0644)
-        if 0:
+        if 1:
             # Print these to file
             plt.figure()
             #plt.plot(np.exp(G_mu))
@@ -260,8 +266,25 @@ if gv.parallel.main(__name__):
         #end = time.time()
         #print end - start
 
-    #w = np.zeros(d.weights(0).shape[:2] + (F,))
-    #Z_mu = 0.1 * np.ones(F)
-    #G_mu = np.log(Z_mu)
-    #G_Sigma = 0.1 * np.eye(F)
-    np.savez('data.npz', w=w, G_mu=G_mu, G_Sigma=G_Sigma)
+        # Set indices
+        if indices is None:
+            from train_superimposed import get_key_points
+            indices = get_key_points(w)
+
+            indices_mask = np.zeros(w.shape, dtype=bool)
+            for i, index in enumerate(indices):
+                indices_mask[tuple(index)] = True
+                #new_w[i] = w[tuple(index)]
+
+            print 'supp shape', supp.shape
+            print 'indices_mask shape', indices_mask.shape
+            print 'indices shape', indices.shape
+            print 'w shape', w.shape
+
+            supp *= indices_mask
+            
+        w[~indices_mask] = 0
+
+        # Update every iteration, so we can easily cancel
+        np.savez('data.npz', w=w, G_mu=G_mu, G_Sigma=G_Sigma, indices=indices)
+
