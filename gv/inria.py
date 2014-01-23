@@ -41,7 +41,6 @@ def parse_annotation_file(path):
 
         if line.startswith('Bounding box for object'):
             s = line.split(':')[1].strip()
-            print s 
             match = rx.match(s)
             if match is None:
                 raise Exception("HELLO")
@@ -51,7 +50,6 @@ def parse_annotation_file(path):
 
             bbs.append(bbobj)
         
-    print bbs
     return bbs
 
 def load_file(class_name, img_id, load_boxes=True, poses=None):

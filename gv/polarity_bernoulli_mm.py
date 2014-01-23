@@ -83,7 +83,7 @@ class PolarityBernoulliMM(object):
             pi[:] = np.clip(pi, 0.0001, 1 - 0.0001)
 
             # TODO: KEEP THIS?
-            pi[:] = np.ones(pi.shape) / pi.shape
+            #pi[:] = np.ones(pi.shape) / pi.shape
 
             theta[:] = np.clip(theta, eps, 1 - eps)
             #pi = np.clip(pi, eps, 1 - eps)

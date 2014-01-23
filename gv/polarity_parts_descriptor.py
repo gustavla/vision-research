@@ -226,7 +226,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         llhs = []
         from gv.polarity_bernoulli_mm import PolarityBernoulliMM
 
-        mixture = PolarityBernoulliMM(n_components=self._num_parts, n_iter=6, random_state=0, min_probability=self.settings['min_probability'])
+        mixture = PolarityBernoulliMM(n_components=self._num_parts, n_iter=10, random_state=0, min_probability=self.settings['min_probability'])
         mixture.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
 
         ag.info("Done.")
@@ -549,13 +549,17 @@ class PolarityPartsDescriptor(BinaryDescriptor):
     
         #return np.concatenate([gv.gradients.extract(image, orientations=8), ag.features.bedges(image, **sett)], axis=2)
         #return np.concatenate([gv.gradients.extract(image, orientations=8), gv.gradients.extract(image, orientations=8, threshold=1.5)], axis=2)
-        #return ag.features.bedges(image, **sett)
-        if 1:
+        edge_type = self.settings.get('edge_type', 'new')
+        if edge_type == 'yali':
+            return ag.features.bedges(image, **sett)
+        elif edge_type == 'new':
             return gv.gradients.extract(image, 
                                         orientations=8, 
                                         threshold=self.settings.get('threshold2', 0.001),
                                         eps=self.settings.get('eps', 0.001), 
                                         blur_size=self.settings.get('blur_size', 10))
+        else:
+            raise RuntimeError("No such edge type")
 
     def extract_features(self, image, settings={}, dropout=None):
         sett = self.bedges_settings().copy()
