@@ -1184,7 +1184,7 @@ class BernoulliDetector(Detector):
                         #if score >= 15:
                             #print X.mean()
 
-                        if 0 and cascade and 'sturf' in self.extra:
+                        if 1 and cascade and 'sturf' in self.extra:
                             sturf = self.extra['sturf'][mixcomp]
                             #rew = sturf['reweighted']
                             kp = self.keypoint_mask(mixcomp)
@@ -1247,13 +1247,15 @@ class BernoulliDetector(Detector):
                                 def ev2(Z):
                                     return ev(Z) + ev(bb)
 
-                                import scipy.optimize as opt
-                                F = avgf.size
-                                print("Optimizing...")
-                                ret = opt.minimize(ev2, gv.bclip(avgf.ravel(), 0.01), method='L-BFGS-B', bounds=[(0.01, 1-0.01)]*F)
+                                #import scipy.optimize as opt
+                                #F = avgf.size
+                                #print("Optimizing...")
+                                ##ret = opt.minimize(ev2, gv.bclip(avgf.ravel(), 0.01), method='L-BFGS-B', bounds=[(0.01, 1-0.01)]*F)
 
-                                import pdb; pdb.set_trace()
-                                score = 100000 - ev(Z)
+                                #import pdb; pdb.set_trace()
+                                std = np.sqrt(np.sum(Z * (1 - Z) * w))
+                                score = 100000 + np.sum(w * (X - Z)) / std 
+                                #score = 100000 - ev(Z)
 
                             elif 1:
                                 md_factor = self.param(0.0)

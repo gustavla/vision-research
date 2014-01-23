@@ -13,6 +13,9 @@ captions = args.captions
 if captions:
     assert len(captions) == len(results_files), "Must supply caption for all"
 
+if args.output is not None:
+    import matplotlib
+    matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pylab as plt
 import gv
