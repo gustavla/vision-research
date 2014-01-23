@@ -4,11 +4,10 @@ import argparse
 import gv.datasets
 import sys
 
-def detect_raw(args):
+def detect_raw(detector, fileobj):
     #logger.info('Entering')
     import os
     #print("entering detect_raw", os.getpid())
-    detector, fileobj = args
     import textwrap
     import gv
     import amitgroup as ag
@@ -42,7 +41,7 @@ def detect_raw(args):
     #logger.info('Exiting')
     return (tp, tp_fp, tp_fn, bbs, fileobj.img_id)
 
-if __name__ == '__main__' and gv.parallel.main():
+if gv.parallel.main(__name__):
     parser = argparse.ArgumentParser(description='Test response of model')
     parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
     parser.add_argument('obj_class', metavar='<object class>', type=str, help='Object class')
@@ -88,9 +87,6 @@ if __name__ == '__main__' and gv.parallel.main():
         except OSError:
             print("Could not create folder {0}. Probably already exists.".format(logdir))
             sys.exit(1)
-
-    def detect(fileobj):
-        return detect_raw((detector, fileobj))
 
     detector = gv.Detector.load(model_file)
     # TODO: New
@@ -314,7 +310,7 @@ if __name__ == '__main__' and gv.parallel.main():
 
 
     
-    res = gv.parallel.imap_unordered(detect_raw, itr.izip(itr.cycle([detector]), files))
+    res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.repeat(detector), files))
 
 
     tp_fn_dict = {}
@@ -347,7 +343,7 @@ if __name__ == '__main__' and gv.parallel.main():
         tot_tp_fn += tp_fn
         tp_fn_dict[img_id] = tp_fn
         for bbobj in bbs:
-            detections.append((bbobj.confidence, bbobj.scale, bbobj.score0, bbobj.score1, bbobj.plusscore, bbobj.correct, bbobj.mixcomp, bbobj.bkgcomp, img_id, int(bbobj.box[1]), int(bbobj.box[0]), int(bbobj.box[3]), int(bbobj.box[2]), bbobj.index_pos[0], bbobj.index_pos[1]))
+            detections.append((bbobj.confidence, bbobj.scale, bbobj.score0, bbobj.score1, bbobj.plusscore, bbobj.correct, bbobj.mixcomp, bbobj.bkgcomp, str(img_id), int(bbobj.box[1]), int(bbobj.box[0]), int(bbobj.box[3]), int(bbobj.box[2]), bbobj.index_pos[0], bbobj.index_pos[1]))
         #detections.extend(dets)
 
         # Log all positives
@@ -495,7 +491,7 @@ if __name__ == '__main__' and gv.parallel.main():
 
                  
         # Get a snapshot of the current precision recall
-        detarr = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
+        detarr = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', '|S32'), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
         detarr.sort(order='confidence')
         p, r = gv.rescalc.calc_precision_recall(detarr, tot_tp_fn)
         ap = gv.rescalc.calc_ap(p, r) 
@@ -519,7 +515,7 @@ if __name__ == '__main__' and gv.parallel.main():
         plt.savefig('detvis.png')
 
 
-    detections = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', int), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
+    detections = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', '|S32'), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
     detections.sort(order='confidence')
 
 

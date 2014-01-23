@@ -1,5 +1,4 @@
-
-
+from __future__ import division, print_function, absolute_import
 from settings import argparse_settings
 sett = argparse_settings("Train real-valued detector")
 dsettings = sett['detector']
@@ -16,6 +15,7 @@ import gv
 import glob
 import os
 import os.path
+import sys
 import numpy as np
 import amitgroup as ag
 import random
@@ -26,6 +26,25 @@ from train_superimposed import generate_random_patches
 ag.set_verbose(True)
 
 PER_IMAGE = 5
+
+def get_positives(detector, fns):
+    print("Processing {} files".format(len(fns)))
+    image_size = detector.settings['image_size']
+    pos_feats = []
+    for fn in fns:
+        try:
+            im = gv.img.asgray(gv.img.load_image(fn))
+        except IOError:
+            print("Error loading file: ", fn, file=sys.stderr)
+            sys.exit(1)
+        #pos_images.append(im)
+
+        if detector.settings.get('crop_image'):
+            im = gv.img.crop(im, image_size)
+
+        feat = detector.descriptor.extract_features(im)
+        pos_feats.append(feat)
+    return pos_feats 
 
 def get_fps(detector, i, fileobj):
     ag.info('{0} Initial processing {1}'.format(i, fileobj.img_id))
@@ -38,9 +57,6 @@ def get_fps(detector, i, fileobj):
         neg_feats.append(feat)
 
     return neg_feats
-
-def get_fps_star(args):
-    return get_fps(*args)
 
 def get_strong_fps(detector, i, fileobj, threshold):
     topsy = [[] for k in xrange(detector.num_mixtures)]
@@ -67,9 +83,6 @@ def get_strong_fps(detector, i, fileobj, threshold):
 
     return topsy
 
-def get_strong_fps_star(args):
-    return get_strong_fps(*args)
-
 
 if gv.parallel.main(__name__):
     #descriptor = gv.load_descriptor(gv.RealDetector.DESCRIPTOR, sett)
@@ -77,23 +90,33 @@ if gv.parallel.main(__name__):
     detector = gv.RealDetector(descriptor, dsettings)
 
     all_files = sorted(glob.glob(os.path.expandvars(dsettings['train_dir'])))
+    assert len(all_files) > 0, 'No files'
     random.seed(0)
     random.shuffle(all_files)
     files = all_files[:dsettings.get('train_limit')]
     pos_labels = [1] * len(files)
-    pos_images = []
+    #pos_images = []
     pos_feats = []
+    image_size = detector.settings['image_size']
 
-    for fn in files:
-        im = gv.img.asgray(gv.img.load_image(fn))
-        pos_images.append(im)
+    # Avoids sending the detector once for each image. This could be
+    # optimized away with a more clever slution in gv.parallel. Think:
+    #
+    # gv.parallel.smartmap_unordered(get_positives, detector, batches)
+    #
+    # It detects detector is not iterable (or wrapped in something),
+    # and sends it only once to each worker.
+    BATCH_SIZE = 5
+    print('Starting')
+    batches = np.array_split(files, len(files)//BATCH_SIZE)
+    args = itr.izip(itr.repeat(detector), batches)
+    for new_pos_feats in gv.parallel.starmap_unordered(get_positives, args):
+        pos_feats += new_pos_feats 
 
-        feat = detector.descriptor.extract_features(im)
-        pos_feats.append(feat)
-
+    print('Finished')
     feats = []
 
-    images = pos_images[:]
+    #images = pos_images[:]
 
     neg_feats = []
     neg_labels = []
@@ -109,7 +132,7 @@ if gv.parallel.main(__name__):
         count = 0
 
         argses = [(detector, i, fileobj) for i, fileobj in enumerate(itr.islice(gen, dsettings['neg_limit']//PER_IMAGE))]
-        for new_neg_feats in gv.parallel.imap_unordered(get_fps_star, argses):
+        for new_neg_feats in gv.parallel.starmap_unordered(get_fps, argses):
             neg_feats += new_neg_feats 
             neg_labels += [0] * len(new_neg_feats)
 
@@ -118,6 +141,7 @@ if gv.parallel.main(__name__):
     else:
         # Add negatives
         neg_files = sorted(glob.glob(os.path.expandvars(dsettings['neg_dir'])))[:dsettings.get('neg_limit')]
+        assert len(neg_files) > 0, 'No negative files'
         files += neg_files
         labels += [0] * len(neg_files)
 
@@ -128,13 +152,13 @@ if gv.parallel.main(__name__):
     np.savez('training_data.npz', feats=feats, labels=labels)
     #import sys; sys.exit(0)
 
-    print "Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1))
+    print("Training with {total} (pos = {pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1)))
     detector.train_from_features(feats, labels)
 
-    N_FARMING_ITER = 0
+    N_FARMING_ITER = 1
 
     #neg_files_loop = itr.cycle(neg_files)
-    print "Farming loop..."
+    print("Farming loop...")
 
     detectors = []
     detectors.append(detector)
@@ -157,7 +181,7 @@ if gv.parallel.main(__name__):
         argses = [(cur_detector, index+i, fileobj, th) for i, fileobj in enumerate(neg_files_segment)] 
         index += N 
 
-        topsies = list(gv.parallel.imap_unordered(get_strong_fps_star, argses))
+        topsies = list(gv.parallel.starmap_unordered(get_strong_fps, argses))
         confs = np.asarray([bbobj.confidence for topsy in topsies for topsy_m in topsy for bbobj in topsy_m])
         from scipy.stats.mstats import scoreatpercentile
 
@@ -172,7 +196,7 @@ if gv.parallel.main(__name__):
             th0 = confs[0]
 
         negs = []
-        print "Starting..."
+        print("Starting...")
         #for topsy in gv.parallel.imap_unordered(get_strong_fps_star, argses):
         for topsy in topsies:
             for m in xrange(cur_detector.num_mixtures):
@@ -183,7 +207,7 @@ if gv.parallel.main(__name__):
 
         #detector0 = deepcopy(cur_detector)
         detector0 = cur_detector
-        print "Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1))
+        print("Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1)))
         svms, kernel_sizes = detector0.train_from_features(feats, labels, save=False)
 
         count = np.sum(np.asarray(labels)==0)
@@ -214,7 +238,7 @@ if gv.parallel.main(__name__):
     #files = files[:10]
 
     detector.save(dsettings['file'])
-    print 'Counts', [x['count'] for x in detector.extra['cascades']]
-    print 'Th', [x['th'] for x in detector.extra['cascades']]
-    print "Saved, exiting"
+    print('Counts', [x['count'] for x in detector.extra['cascades']])
+    print('Th', [x['th'] for x in detector.extra['cascades']])
+    print("Saved, exiting")
 

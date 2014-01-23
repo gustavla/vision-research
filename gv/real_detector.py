@@ -115,7 +115,7 @@ class RealDetector(BernoulliDetector):
 
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
-        cb = self.settings.get('crop_border')
+        #cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
         spread_feats = self.descriptor.extract_features(img_resized)
@@ -128,12 +128,11 @@ class RealDetector(BernoulliDetector):
 
     def _response_map(self, feats, mixcomp):
         sh = self.svms[mixcomp]['weights'].shape
-        #padding = (sh[0]//2, sh[1]//2, 0)
-        #padding = (sh[0], sh[1], 0)
-        padding = (int(sh[0]*0.75), int(sh[1]*0.75), 0)
+        pmult = self.settings.get('padding_multiple_of_object', 0.5)
+        padding = (int(sh[0]*pmult), int(sh[1]*pmult), 0)
 
         if min(feats.shape[:2]) < 2:
-            return np.array([]), None 
+            return np.array([]), None, padding
 
         bigger = gv.ndfeature.zeropad(feats, padding)
 
@@ -141,13 +140,17 @@ class RealDetector(BernoulliDetector):
         #index = 26 
         #res = multifeature_correlate2d(bigger[...,index:index+1], weights[...,index:index+1].astype(np.float64)) 
 
+        weights = self.svms[mixcomp]['weights']
+        if bigger.shape[0] <= weights.shape[0] or bigger.shape[1] <= weights.shape[1]:
+            return np.zeros((0, 0, 0)), None, padding 
+
         res = self.svms[mixcomp]['intercept'] + \
-              multifeature_real_correlate2d(bigger.astype(np.float64), self.svms[mixcomp]['weights'])
+              multifeature_real_correlate2d(bigger.astype(np.float64), weights)
 
         lower, upper = gv.ndfeature.inner_frame(bigger, (sh[0]/2, sh[1]/2))
         res = gv.ndfeature(res, lower=lower, upper=upper)
 
-        return res, bigger
+        return res, bigger, padding
 
     @property
     def subsample_size(self):
@@ -155,7 +158,7 @@ class RealDetector(BernoulliDetector):
 
     def _detect_coarse_at_factor(self, feats, factor, mixcomp, bb_bigger, cascade=True, farming=False, discard_weak=False):
         # Get background level
-        resmap, bigger = self._response_map(feats, mixcomp)
+        resmap, bigger, padding = self._response_map(feats, mixcomp)
 
         if resmap.size == 0:
             return [], resmap
@@ -166,7 +169,6 @@ class RealDetector(BernoulliDetector):
         # TODO: Decide this in a way common to response_map
         sh = kern.shape
         sh0 = kern.shape
-        padding = (sh[0]//2, sh[1]//2, 0)
 
         # Get size of original kernel (but downsampled)
         full_sh = self.kernel_sizes[mixcomp]

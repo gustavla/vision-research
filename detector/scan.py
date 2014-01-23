@@ -11,6 +11,7 @@ parser.add_argument('--kernel-size', dest='side', nargs=1, default=[None], metav
 parser.add_argument('--contest', type=str, choices=gv.datasets.datasets(), default='voc-val', help='Contest to try on')
 parser.add_argument('--image-file', type=str, nargs=1, default=[None])
 parser.add_argument('--limit', nargs=1, default=[None], type=int, help='Limit bounding boxes')
+parser.add_argument('--param', type=float, default=None)
 
 # TODO: Make into an option 
 parser.add_argument('mixcomp', metavar='<mixture component>', nargs='?', type=int, help='mix comp')
@@ -34,6 +35,7 @@ from plotting import plot_results
 
 detector = gv.Detector.load(model_file)
 #detector.TEMP_second = True
+detector._param = args.param
 
 fileobj = gv.datasets.load_file(contest, img_id, obj_class=obj_class, path=img_file)
 
@@ -86,7 +88,6 @@ else:
         bbs = detector.detect_coarse(grayscale_img, fileobj=fileobj)
         print('score', bbs[0].score)
         print("Elapsed:", (time.time() - start))
-        #sys.exit(0)
     else:
         bbs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp]) 
         

@@ -914,7 +914,7 @@ class BernoulliDetector(Detector):
             sub_kernels = [[self.extra['bkg_mixtures'][i][j]['kern'] for j in xrange(1)] for i in xrange(self.num_mixtures)]
             spread_bkg = [[self.extra['bkg_mixtures'][i][j]['bkg'] for j in xrange(1)] for i in xrange(self.num_mixtures)]
 
-        resmap, bigger, weights = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1, use_padding=use_padding)
+        resmap, bigger, weights, padding = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1, use_padding=use_padding)
 
         orig_resmap = resmap.copy()
 
@@ -1069,10 +1069,6 @@ class BernoulliDetector(Detector):
         # TODO: Decide this in a way common to response_map
         sh = kern.shape
         sh0 = kern.shape
-        if use_padding:
-            padding = (int(sh[0]*0.75), int(sh[1]*0.75), 0)
-        else:
-            padding = (0, 0, 0)
 
         image_padding = (padding[0] * psize[0], padding[1] * psize[1])
 
@@ -1127,25 +1123,43 @@ class BernoulliDetector(Detector):
             stds = frames.std(0)
 
 
+        # TODO: Temporary stuff
+        G_Sigma = self.extra['sturf'][mixcomp]['G_Sigma']
+        G_mu1 = self.extra['sturf'][mixcomp]['G_mu']
+        G_mu0 = np.log(self.fixed_spread_bkg[0].mean(0).mean(0))
+        B = np.linalg.solve(G_Sigma, G_mu1 - G_mu0)
+
         if 1:
             #import scipy.signal 
             #local_maxes = scipy.signal.convolve2d(resmap, np.ones((5, 5))
             
             # TODO: This could be too big for a lot of subsampling
-            if more_detections:
-                s = 3
-            else:
-                s = 5 
+            #if more_detections:
+            #    s = 3
+            ##else:
+            #    s = 5 
+            s = self.settings.get('scan_step_size', 3)
+            find_best_in_scan_window = self.settings.get('find_best_in_scan_window', True)  
 
+            # Scan radius for when cascading
             r = 3
+
+            FULL = False 
+            if FULL:
+                s = 1
+                th = -np.inf
 
             for i0 in xrange(0, resmap.shape[0], s):
                 for j0 in xrange(0, resmap.shape[1], s):
                     win = resmap[i0:i0+s, j0:j0+s]
                     #local_max = resmap[max(0, i-3):i+4, max(0, j-3):j+4].argmax()
-                    di, dj = np.unravel_index(win.argmax(), win.shape) 
-                    i = i0 + di
-                    j = j0 + dj
+                    if find_best_in_scan_window:
+                        di, dj = np.unravel_index(win.argmax(), win.shape) 
+                        i = i0 + di
+                        j = j0 + dj
+                    else:
+                        i = i0
+                        j = j0
     
                     score = resmap[i,j]
                     orig_score = orig_resmap[i,j]
@@ -1170,7 +1184,7 @@ class BernoulliDetector(Detector):
                         #if score >= 15:
                             #print X.mean()
 
-                        if 1 and cascade and 'sturf' in self.extra:
+                        if 0 and cascade and 'sturf' in self.extra:
                             sturf = self.extra['sturf'][mixcomp]
                             #rew = sturf['reweighted']
                             kp = self.keypoint_mask(mixcomp)
@@ -1211,12 +1225,39 @@ class BernoulliDetector(Detector):
                             #d = (avgf * beta).ravel()
                             d = (avgf - pavg).ravel()
 
+                            bb = gv.bclip(avgf.ravel(), 0.01)
+
                             def clogit(x):
                                 return gv.logit(gv.bclip(x, 0.001))
 
                             if 1:
+                                M = self.keypoint_mask(mixcomp)
                                 md_factor = self.param(0.0)
-                                Sreg = S + np.eye(S.shape[0]) * 0.001
+                                Z = gv.bclip(avgf.ravel(), 0.01)
+                                    
+
+                                def ev(Z):
+                                    #prior = np.dot(B, np.log(Z))*md_factor
+                                    zd = np.log(Z) - G_mu1
+                                    md = np.sqrt(np.dot(zd, np.linalg.solve(G_Sigma, zd)))
+                                    prior = -md * md_factor
+                                    #Z = gv.bclip(Z, 0.01)
+                                    #   # Not dependent on Z
+                                    return -(prior + (X * M * w).sum() + np.log((1 - gv.sigmoid(w * M + gv.logit(Z))) / (1 - Z)).sum())
+                                def ev2(Z):
+                                    return ev(Z) + ev(bb)
+
+                                import scipy.optimize as opt
+                                F = avgf.size
+                                print("Optimizing...")
+                                ret = opt.minimize(ev2, gv.bclip(avgf.ravel(), 0.01), method='L-BFGS-B', bounds=[(0.01, 1-0.01)]*F)
+
+                                import pdb; pdb.set_trace()
+                                score = 100000 - ev(Z)
+
+                            elif 1:
+                                md_factor = self.param(0.0)
+                                Sreg = S + np.eye(S.shape[0]) * 0.002
                                 md = np.sqrt(np.dot(d, np.linalg.solve(Sreg, d)))
                                 #md = np.sqrt(np.dot(d, np.dot(invC, d)))
                                 #print score, md
@@ -1227,22 +1268,40 @@ class BernoulliDetector(Detector):
                                 M = self.keypoint_mask(mixcomp)
                                 #C = np.log((1 - gv.sigmoid((w * M) + clogit(avgf))) / (1 - avgf)).sum()
 
-                                c_bkg = gv.bclip(bkg, 0.001)
-                                c_avgf = gv.bclip(avgf, 0.001)
+                                c_bkg = gv.bclip(bkg, 0.1)
+                                c_avgf = gv.bclip(avgf, 0.1)
 
                                 def clog(x):
                                     return np.log(x.clip(min=0.0001))
 
-                                C = clog((1 - gv.sigmoid((w * M) + gv.logit(c_avgf))) / (1 - c_avgf)).sum() - \
-                                    clog((1 - gv.sigmoid((w * M) + gv.logit(c_bkg))) / (1 - c_bkg)).sum()
+                                
+                                #def C(z):
+                                #    return np.log(1 - 
+
+
+                                C = clog((1 - gv.sigmoid((w * M) + gv.logit(c_avgf))) / (1 - c_avgf))# / 
+                                        #((1 - gv.sigmoid((w * M) + gv.logit(c_bkg))) / (1 - c_bkg)))
+
+                                #C1 = clog((1 - gv.sigmoid((w * M) + gv.logit(c_avgf))) / (1 - c_avgf))
+                                #C2 = clog((1 - gv.sigmoid((w * M) + gv.logit(c_bkg))) / (1 - c_bkg))
+                                #import pdb; pdb.set_trace()
+                                C = C.sum()
                                 
                                 #score = 100000 + score - md * md_factor# + C
                                 std = self.standardization_info[mixcomp]['std']
 
                                 new_score = score - md * md_factor + C / std
+                                #new_score = score - md * md_factor
+                                #new_score = score + C / std
+                                #new_score = C / std
+                                #print score, md*md_factor, C/std
                                 score = 100000 + new_score
                             else:
                                 score = 100000 + old_score        
+
+                            if FULL:
+                                score -= 100000
+                                resmap[i,j] = score
 
                             #score = 100000 + old_score
 
@@ -1307,7 +1366,7 @@ class BernoulliDetector(Detector):
 
                             
 
-                        if cascade and do_cascade and 'svms' in self.extra and score >= cascade_score:
+                        if 0 and cascade and do_cascade and 'svms' in self.extra and score >= cascade_score:
                             # Take the maximum of a neighborhood
                             scores = []
                             Xes = []
@@ -1625,10 +1684,10 @@ class BernoulliDetector(Detector):
 
 
         sh = kern.shape
-        if use_padding:
-            padding = (sh[0]//2, sh[1]//2, 0)
-        else:
-            padding = (0, 0, 0)
+        pmult = self.settings.get('padding_multiple_of_object', 0.5)
+        if not use_padding:
+            pmult = 0
+        padding = (int(sh[0]*pmult), int(sh[1]*pmult), 0)
 
         bigger = gv.ndfeature.zeropad(sub_feats, padding)
 
@@ -1653,7 +1712,7 @@ class BernoulliDetector(Detector):
 
         # Make sure the feature vector is big enough
         if bigger.shape[0] <= weights.shape[0] or bigger.shape[1] <= weights.shape[1]:
-            return np.zeros((0, 0, 0)), None, None
+            return np.zeros((0, 0, 0)), None, None, padding
 
         if 0:
             res = multifeature_correlate2d(bigger, weights.astype(np.float64))
@@ -1752,7 +1811,7 @@ class BernoulliDetector(Detector):
             # We need to add the constant term that isn't included in weights
             res += np.log((1 - kern) / (1 - spread_bkg)).sum() 
 
-        return res, bigger, weights
+        return res, bigger, weights, padding
 
     def nonmaximal_suppression(self, bbs):
         # This one will respect scales a bit more
@@ -1841,7 +1900,7 @@ class BernoulliDetector(Detector):
             size = (self.orig_kernel_size[0]/psize[0], self.orig_kernel_size[1]/psize[1])
             ret = (-size[0]/2, -size[1]/2, size[0]/2, size[1]/2)
 
-        ret = gv.bb.inflate2(ret, np.divide(self.settings.get('inflate_bounding_box', 0), psize))
+        ret = gv.bb.inflate2(ret, np.true_divide(self.settings.get('inflate_bounding_box', 0), psize))
         return ret
 
     @property
