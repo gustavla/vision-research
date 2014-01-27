@@ -1136,8 +1136,13 @@ def superimposed_model(settings, threading=True):
                 detector.extra['sturf'][m]['Sneg'] = Sneg
                 detector.extra['sturf'][m]['navg'] = avg_neg
 
+                Spos = S
                 rs = np.random.RandomState(0)
-                detector.extra['sturf'][m]['Zs'] = rs.multivariate_normal(avg_neg, Sneg, size=10000).clip(min=0.005, max=0.995)
+                detector.extra['sturf'][m]['Zs'] = rs.multivariate_normal(avg_neg, Sneg, size=1000).clip(min=0.005, max=0.995)
+                detector.extra['sturf'][m]['Zs_pos'] = rs.multivariate_normal(avg_pos, Spos, size=1000).clip(min=0.005, max=0.995)
+                detector.extra['sturf'][m]['Zs_pos2'] = rs.multivariate_normal(avg_pos, Spos * 2, size=1000).clip(min=0.005, max=0.995)
+                detector.extra['sturf'][m]['Zs_pos10'] = rs.multivariate_normal(avg_pos, Spos * 10, size=1000).clip(min=0.005, max=0.995)
+                detector.extra['sturf'][m]['Zs_pos50'] = rs.multivariate_normal(avg_pos, Spos * 50, size=1000).clip(min=0.005, max=0.995)
 
             if 0:
                 #{{{c

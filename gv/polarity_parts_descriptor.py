@@ -608,7 +608,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
                                                   self.settings['patch_frame'],
                                                   spread_radii=sett.get('spread_radii', (0, 0)),
                                                   subsample_size=psize,
-                                                  collapse=2)
+                                                  collapse=2,
+                                                  stride=self.settings.get('part_coding_stride', 1))
 
             else:
                 all_feats = []

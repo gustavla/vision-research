@@ -1164,8 +1164,10 @@ class BernoulliDetector(Detector):
             sturf = self.extra['sturf'][mixcomp]
             if 1:
                 Zs = sturf['Zs'][:50]#.clip(min=0.015, max=1-0.015)
-                term0 = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs[:,np.newaxis]))), [1, 2]).squeeze()
-                term0b = avgL * np.log(1 - Zs).sum(1)
+                Zs_pos = sturf['Zs_pos'][:50]#.clip(min=0.015, max=1-0.015)
+                #term0_neg = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs[:,np.newaxis]))), [1, 2]).squeeze()
+                term0_pos = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs_pos[:,np.newaxis]))), [1, 2]).squeeze()
+                term0_neg = avgL * np.log(1 - Zs).sum(1)
 
             mn, mx = np.inf, -np.inf
 
@@ -1289,22 +1291,23 @@ class BernoulliDetector(Detector):
                                 if 1:
                                     #L = np.prod(X.shape[:2])
                                     Xsum = np.apply_over_axes(np.sum, X_kp, [0])
-                                    term1 = (Xsum * gv.logit(Zs)).sum(1)
+                                    term1_neg = (Xsum * gv.logit(Zs)).sum(1)
+                                    term1_pos = (Xsum * gv.logit(Zs_pos)).sum(1)
 
-                                    term2a = multivariate_normal.logpdf(Zs, mean=pavg, cov=Spos)
-                                    term2b = multivariate_normal.logpdf(Zs, mean=navg, cov=Sneg)
+                                    #term2a = multivariate_normal.logpdf(Zs, mean=pavg, cov=Spos)
+                                    #term2b = multivariate_normal.logpdf(Zs, mean=navg, cov=Sneg)
 
                                     #import pdb; pdb.set_trace()
                                     PP = logsumexp(
-                                            term0 + 
-                                            term1
-                                            + term2a
+                                            term0_pos + 
+                                            term1_pos
+                                            #+ term2a
                                             )
 
                                     NN = logsumexp(
-                                            term0b + 
-                                            term1
-                                            + term2b
+                                            term0_neg + 
+                                            term1_neg
+                                            #+ term2b
                                             )
 
                                     #import pdb; pdb.set_trace()
