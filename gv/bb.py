@@ -26,14 +26,17 @@ class DetectionBB(object):
         self.overlap = overlap
 
     def __repr__(self):
-        return "DetectionBB(score={score:.2f}, box={box}, correct={correct}, confidence={confidence:.2f}, mixcomp={mixcomp}, bkgcomp={bkgcomp}, scale={scale})".format(
-            score=self.score, 
-            box=_repr(self.box), 
-            correct=self.correct, 
-            confidence=self.confidence, 
-            mixcomp=self.mixcomp, 
-            bkgcomp=self.bkgcomp,
-            scale=self.scale)
+        try:
+            return "DetectionBB(score={score:.2f}, box={box}, correct={correct}, confidence={confidence:.2f}, mixcomp={mixcomp}, bkgcomp={bkgcomp}, scale={scale})".format(
+                score=self.score, 
+                box=_repr(self.box), 
+                correct=self.correct, 
+                confidence=self.confidence, 
+                mixcomp=self.mixcomp, 
+                bkgcomp=self.bkgcomp,
+                scale=self.scale)
+        except:
+            import pdb; pdb.set_trace()
 
     def __cmp__(self, b):
         return cmp(self.score, b.score)

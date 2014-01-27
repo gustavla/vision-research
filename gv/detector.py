@@ -1124,10 +1124,11 @@ class BernoulliDetector(Detector):
 
 
         # TODO: Temporary stuff
-        G_Sigma = self.extra['sturf'][mixcomp]['G_Sigma']
-        G_mu1 = self.extra['sturf'][mixcomp]['G_mu']
-        G_mu0 = np.log(self.fixed_spread_bkg[0].mean(0).mean(0))
-        B = np.linalg.solve(G_Sigma, G_mu1 - G_mu0)
+        if 0:
+            G_Sigma = self.extra['sturf'][mixcomp]['G_Sigma']
+            G_mu1 = self.extra['sturf'][mixcomp]['G_mu']
+            G_mu0 = np.log(self.fixed_spread_bkg[0].mean(0).mean(0))
+            B = np.linalg.solve(G_Sigma, G_mu1 - G_mu0)
 
         if 1:
             #import scipy.signal 
@@ -1149,8 +1150,32 @@ class BernoulliDetector(Detector):
                 s = 1
                 th = -np.inf
 
+
+            # TEMP [
+            F = self.num_features
+            w = self.extra['weights'][mixcomp]
+            II = self.indices[mixcomp]
+            w_kp = w[tuple(II.T)].reshape((-1, F))
+            Ls = np.bincount(II[:,2], minlength=F)
+            avgL = np.mean(Ls)
+
+            L = np.prod(w.shape[:2])
+            #Xsum = np.apply_over_axes(np.sum, X, [0, 1])
+            sturf = self.extra['sturf'][mixcomp]
+            if 1:
+                Zs = sturf['Zs'][:50]#.clip(min=0.015, max=1-0.015)
+                term0 = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs[:,np.newaxis]))), [1, 2]).squeeze()
+                term0b = avgL * np.log(1 - Zs).sum(1)
+
+            mn, mx = np.inf, -np.inf
+
+            # ]
+
             for i0 in xrange(0, resmap.shape[0], s):
                 for j0 in xrange(0, resmap.shape[1], s):
+            #resmap[:] = -1000 
+            #for i0 in [19, 30, 5, 30, 25, 10, 14]:
+                #for j0 in [23, 5, 14, 10, 20, 40, 30]:
                     win = resmap[i0:i0+s, j0:j0+s]
                     #local_max = resmap[max(0, i-3):i+4, max(0, j-3):j+4].argmax()
                     if find_best_in_scan_window:
@@ -1199,11 +1224,20 @@ class BernoulliDetector(Detector):
                             #beta = sturf['wavg'] * np.apply_over_axes(np.sum, support, [0, 1])
                             #betaf = sturf['wavg'] * support0.sum()
 
-                            w = self.extra['weights'][mixcomp]
+                            X_kp = X[tuple(II.T)].reshape((-1, F))
+
+                            #import pdb; pdb.set_trace()
 
                             pavg = sturf['pavg']
-                            S = sturf['S']
+                            #S = sturf['S']
 
+                            F = self.num_features
+                            navg = sturf['navg']
+                            par = self.param(1.0)
+                            Spos = par * sturf['S']# + np.eye(F) * 0.001
+                            Sneg = 1.0 * sturf['Sneg']# + np.eye(F) * 0.001
+
+                            
 
                             #old_score = np.sum(X * w * kp)
 
@@ -1231,9 +1265,70 @@ class BernoulliDetector(Detector):
                                 return gv.logit(gv.bclip(x, 0.001))
 
                             if 1:
+                                #Eprior = norm.logpdf(
+                                #Eprior = 
+                                from scipy.misc import logsumexp
+                                try:
+                                    from scipy.stats import multivariate_normal 
+                                except ImportError:
+                                    # File copied from scipy 0.14
+                                    from mvn import multivariate_normal
+                                #top = logsumexp(np.sum(w * X) + np.sum(X * gv.logit(Zs)
+                                #bot = 
+
+                                #with gv.Timer('stand'):
+                                #term1 = (X[np.newaxis] * gv.logit(Zs[:,np.newaxis,np.newaxis])).sum(1).sum(1).sum(1)
+                                SI = self.standardization_info[mixcomp]
+                                #unstand_score = (X * w).sum()# * SI['std'] + SI['mean']
+                                unstand_score = (X_kp * w_kp).sum()
+
+                                #Zs = Zs.clip(min=0.025)
+
+                                #H = np.log(1 - gv.sigmoid(w[np.newaxis] + gv.logit(Zs[:,np.newaxis,np.newaxis])))
+
+                                if 1:
+                                    #L = np.prod(X.shape[:2])
+                                    Xsum = np.apply_over_axes(np.sum, X_kp, [0])
+                                    term1 = (Xsum * gv.logit(Zs)).sum(1)
+
+                                    term2a = multivariate_normal.logpdf(Zs, mean=pavg, cov=Spos)
+                                    term2b = multivariate_normal.logpdf(Zs, mean=navg, cov=Sneg)
+
+                                    #import pdb; pdb.set_trace()
+                                    PP = logsumexp(
+                                            term0 + 
+                                            term1
+                                            + term2a
+                                            )
+
+                                    NN = logsumexp(
+                                            term0b + 
+                                            term1
+                                            + term2b
+                                            )
+
+                                    #import pdb; pdb.set_trace()
+                                else:
+                                    PP = NN = 0
+
+                                #if i >= 20 and j >= 20:
+                                    #import pdb; pdb.set_trace()
+                                score = 100000 + unstand_score + PP - NN
+
+                                mn = min(mn, PP - NN)
+                                mx = max(mx, PP - NN)
+                                #score = 100000 + PP - NN
+                                #score = 100000 + unstand_score
+
+                                #if unstand_score > 150:
+                                    #import pdb; pdb.set_trace()
+                                #score = 100000 + multivariate_normal.logpdf(Zs, mean=pavg, cov=Spos).sum() - np.log(Zs.size)
+                                #score += 
+                                #E = 
+                            elif 1:
                                 M = self.keypoint_mask(mixcomp)
                                 md_factor = self.param(0.0)
-                                Z = gv.bclip(avgf.ravel(), 0.01)
+                                Z = gv.bclip(avgf.ravel(), 0.0000001)
                                     
 
                                 def ev(Z):
@@ -1253,8 +1348,8 @@ class BernoulliDetector(Detector):
                                 ##ret = opt.minimize(ev2, gv.bclip(avgf.ravel(), 0.01), method='L-BFGS-B', bounds=[(0.01, 1-0.01)]*F)
 
                                 #import pdb; pdb.set_trace()
-                                std = np.sqrt(np.sum(Z * (1 - Z) * w))
-                                score = 100000 + np.sum(w * (X - Z)) / std 
+                                std = np.sqrt(np.sum(Z * (1 - Z) * w_kp**2))
+                                score = 100000 + np.sum(w_kp * (X_kp - Z)) / std 
                                 #score = 100000 - ev(Z)
 
                             elif 1:
@@ -1576,11 +1671,11 @@ class BernoulliDetector(Detector):
                         else:
                             save_X = None
 
-                        dbb = gv.bb.DetectionBB(score=score, 
+                        dbb = gv.bb.DetectionBB(score=float(score), 
                                                 box=bb, 
                                                 index_pos=index_pos, 
-                                                confidence=conf, 
-                                                score0=orig_score, 
+                                                confidence=float(conf), 
+                                                score0=float(orig_score), 
                                                 scale=factor, 
                                                 mixcomp=mixcomp, 
                                                 bkgcomp=bk, 
@@ -1594,6 +1689,9 @@ class BernoulliDetector(Detector):
 
         # Let's limit to five per level
         bbs_sorted = self.nonmaximal_suppression(bbs)
+
+        # Temporary
+        #print mn, mx
 
         if more_detections:
             bbs_sorted = bbs_sorted[:100]

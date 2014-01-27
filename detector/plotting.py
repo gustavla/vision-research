@@ -58,7 +58,7 @@ def plot_results(detector, img, x, small, mixcomp=None, bounding_boxes=[], img_r
 
     if x is not None:
         plt.subplot(122)
-        plt.title('Response map')
+        plt.title('Response map ({:.2f}, {:.2f})'.format(float(x.min()), float(x.max())))
         plt.imshow(x, interpolation='nearest')#, vmin=-40000, vmax=-36000)
         #plt.colorbar()
 

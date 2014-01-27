@@ -9,6 +9,7 @@ import itertools as itr
 from collections import namedtuple
 from copy import copy
 from superimpose_experiment import generate_random_patches
+from gv.keypoints import get_key_points_even
 
 #KMEANS = False 
 #LOGRATIO = True 
@@ -416,7 +417,7 @@ def __process_one(args):
     size = gv.bb.size(bb)
     psize = sett['subsample_size']
 
-    ADAPTIVE = True
+    ADAPTIVE = False 
     if ADAPTIVE:
         gen = generate_feature_patches_dense(neg_files, size, lambda im: descriptor.extract_features(im, settings=sett), psize, seed=index)
         dd = gv.Detector.load('uiuc-np3b.npy')
@@ -542,37 +543,6 @@ def _get_pos_and_neg_star(args):
 
 
 
-def get_key_points(weights, suppress_radius=2, max_indices=np.inf): 
-    indices = []
-    #kern = detector.kernel_templates[k][m]
-    #bkg = detector.fixed_spread_bkg[k][m]
-    #eps = detector.settings['min_probability']
-    #kern = np.clip(kern, eps, 1 - eps)
-    #bkg = np.clip(bkg, eps, 1 - eps)
-    #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
-
-    #absw = np.fabs(weights)
-    absw_pos = np.maximum(0, weights)
-    absw_neg = -np.minimum(0, weights)
-
-    import scipy.stats
-    #almost_zero = scipy.stats.scoreatpercentile(np.fabs(weights.ravel()), 20)
-    almost_zero = 1e-5
-
-    #supp = detector.settings.get('indices_suppress_radius', 4)
-    for absw in [absw_pos, absw_neg]:
-        for i in xrange(10000):
-            if absw.max() <= almost_zero:
-                break
-            ii = np.unravel_index(np.argmax(absw), absw.shape)
-            indices.append(ii) 
-            absw[max(0, ii[0]-suppress_radius):ii[0]+suppress_radius+1, max(0, ii[1]-suppress_radius):ii[1]+suppress_radius+1,ii[2]] = 0.0
-
-            if len(indices) >= max_indices:
-                break
-
-    return np.asarray(indices, dtype=np.int32)
-        
 def get_strong_fps(detector, i, fileobj):
     topsy = [[] for k in xrange(detector.num_mixtures)]
     #for i, fileobj in enumerate(itr.islice(gen, COUNT)):
@@ -1075,12 +1045,13 @@ def superimposed_model(settings, threading=True):
                         return find_zero(fun, m, u, depth-1)
 
 
-                deltas = np.zeros(F)
-                for f in xrange(F):
-                    def fun(x):
-                        #return ((clogit(ss[...,0] * x + A[...,f]) - clogit(B[...,f]))).mean(0).mean(0)
-                        return (ss[...,0] * (clogit(x + pos[...,f].mean(0)) - clogit(neg[...,f].mean(0)))).mean(0).mean(0)
-                    deltas[f] = find_zero(fun, -5, 5)
+                if 0:
+                    deltas = np.zeros(F)
+                    for f in xrange(F):
+                        def fun(x):
+                            #return ((clogit(ss[...,0] * x + A[...,f]) - clogit(B[...,f]))).mean(0).mean(0)
+                            return (ss[...,0] * (clogit(x + pos[...,f].mean(0)) - clogit(neg[...,f].mean(0)))).mean(0).mean(0)
+                        deltas[f] = find_zero(fun, -5, 5)
 
                 # Now construct weights from these deltas
                 #weights = ((clogit(ss * deltas + A) - clogit(B)))
@@ -1153,13 +1124,20 @@ def superimposed_model(settings, threading=True):
                 # Averags of all positives
                 ff = all_pos_feats[m]
                 posavg = np.apply_over_axes(np.sum, all_pos_feats[m] * support[...,np.newaxis], [1, 2]).squeeze() / support.sum() 
+                negavg = np.apply_over_axes(np.sum, all_neg_feats[m] * support[...,np.newaxis], [1, 2]).squeeze() / support.sum() 
 
                 S = np.cov(posavg.T)
+                Sneg = np.cov(negavg.T)
                 #import pdb; pdb.set_trace()
 
-                detector.extra['sturf'][m]['pavg'] = posavg.mean(0)
-                detector.extra['sturf'][m]['pos-samples'] = posavg
+                detector.extra['sturf'][m]['pavg'] = avg_pos
+                detector.extra['sturf'][m]['pos-samples'] = posavg 
                 detector.extra['sturf'][m]['S'] = S
+                detector.extra['sturf'][m]['Sneg'] = Sneg
+                detector.extra['sturf'][m]['navg'] = avg_neg
+
+                rs = np.random.RandomState(0)
+                detector.extra['sturf'][m]['Zs'] = rs.multivariate_normal(avg_neg, Sneg, size=10000).clip(min=0.005, max=0.995)
 
             if 0:
                 #{{{c
@@ -1407,7 +1385,7 @@ def superimposed_model(settings, threading=True):
 
 
                     print('Indices:', np.prod(weights.shape))
-                    indices = get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
+                    indices = get_key_points_even(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
                     print('After local suppression:', indices.shape[0])
                         
                     #if 'weights' not in detector.extra:
@@ -1457,14 +1435,14 @@ def superimposed_model(settings, threading=True):
                 
                 print('Indices:', np.prod(weights.shape))
 
-                indices = get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
+                indices = get_key_points_even(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
 
                 detector.extra['weights'][m] = weights
             else:
                 #{{{
                 print('Indices:', np.prod(weights.shape))
 
-                indices = get_key_points(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
+                indices = get_key_points_even(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
 
                 print('After local suppression:', indices.shape[0])
 
