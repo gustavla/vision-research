@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division
+from gv import vz # TODO: remove when done
 import random
 import copy
 import amitgroup as ag
@@ -9,6 +10,183 @@ import itertools as itr
 import scipy
 import scipy.stats
 from .binary_descriptor import BinaryDescriptor
+
+def _threshold_in_counts(settings, num_edges):
+    threshold = settings['threshold']
+    size = settings['part_size']
+    frame = settings['patch_frame']
+    return max(1, int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges))
+
+def _extract_many_edges(bedges_settings, settings, images):
+    """Extract edges of many images (must be the same size)"""
+    sett = bedges_settings.copy()
+    sett['radius'] = 0
+    sett['preserve_size'] = False 
+
+    edge_type = settings.get('edge_type', 'new')
+    if edge_type == 'yali':
+        return ag.features.bedges(images, **sett)
+    elif edge_type == 'new':
+        return np.asarray([gv.gradients.extract(image, 
+                                    orientations=8, 
+                                    threshold=settings.get('threshold2', 0.001),
+                                    eps=settings.get('eps', 0.001), 
+                                    blur_size=settings.get('blur_size', 10)) for image in images])
+    else:
+        raise RuntimeError("No such edge type")
+
+def _extract_edges(bedges_settings, settings, image):
+    return _extract_many_edges(bedges_settings, settings, [image])[0]
+
+def _get_patches(bedges_settings, settings, filename):
+    samples_per_image = settings['samples_per_image']
+    fr = settings['patch_frame']
+    the_patches = []
+    the_originals = []
+    ag.info("Extracting patches from", filename)
+    #edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=False, return_original=True, lastaxis=True)
+    setts = settings['bedges'].copy()
+    radius = setts['radius']
+    setts2 = setts.copy()
+    setts['radius'] = 0
+    ps = settings['part_size']
+
+
+    ORI = settings.get('orientations', 8)
+    assert ORI%2 == 0, "Orientations must be even, so that opposite can be collapsed"
+
+    # LEAVE-BEHIND
+
+    # Fetch all rotations of this image
+    img = gv.img.load_image(filename)
+    img = gv.img.asgray(img)
+
+    from skimage import transform
+
+    size = img.shape[:2]
+    # Make it square, to accommodate all types of rotations
+    new_size = int(np.max(size) * np.sqrt(2))
+    img_padded = ag.util.zeropad_to_shape(img, (new_size, new_size))
+    pad = [(new_size-size[i])//2 for i in xrange(2)]
+
+    angles = np.arange(0, 360, 360/ORI)
+    radians = angles*np.pi/180
+    all_img = np.asarray([transform.rotate(img_padded, angle) for angle in angles])
+
+    # Set up matrices that will translate a position in the canonical image to
+    # the rotated iamges. This way, we're not rotating each patch on demand, which
+    # will end up slower.
+    matrices = [_translation_matrix(new_size/2, new_size/2) * _rotation_matrix(a) * _translation_matrix(-new_size/2, -new_size/2) for a in radians]
+
+    #vz.imshow_raw(img_rotations[0])
+    #import sys; sys.exit(0)
+
+    #inv_img = 1 - img
+    all_unspread_edges = _extract_many_edges(bedges_settings, settings, all_img)
+
+    #unspread_edges_padded = ag.util.zeropad(unspread_edges, (radius, radius, 0))
+    #inv_unspread_edges_padded = ag.util.zeropad(inv_unspread_edges, (radius, radius, 0))
+
+    # Spread the edges
+    all_edges = ag.features.bspread(all_unspread_edges, spread=setts['spread'], radius=radius)
+    #inv_edges = ag.features.bspread(inv_unspread_edges, spread=setts['spread'], radius=radius)
+
+    #setts2['minimum_contrast'] *= 2
+    #edges2 = ag.features.bedges(img, **setts2)
+    #inv_edges2 = ag.features.bedges(inv_img, **setts2)
+    
+    #s = self.settings['bedges'].copy()
+    #if 'radius' in s:
+    #    del s['radius']
+    #edges_nospread = ag.features.bedges_from_image(filename, radius=0, **s)
+
+    # How many patches could we extract?
+
+    # This avoids hitting the outside of patches, even after rotating.
+    # The 15 here is fairly arbitrary
+    avoid_edge = int(15 + np.max(ps)*np.sqrt(2))
+
+    # This step assumes that the img -> edge process does not down-sample any
+
+    # TODO: Maybe shuffle an iterator of the indices?
+
+    # These indices represent the center of patches
+    indices = list(itr.product(xrange(pad[0]+avoid_edge, pad[0]+img.shape[0]-avoid_edge), xrange(pad[1]+avoid_edge, pad[1]+img.shape[1]-avoid_edge)))
+    random.shuffle(indices)
+    i_iter = iter(indices)
+
+    minus_ps = [-ps[i]//2 for i in xrange(2)]
+    plus_ps = [minus_ps[i] + ps[i] for i in xrange(2)]
+
+    E = all_edges.shape[-1]
+    th = _threshold_in_counts(settings, E)
+
+    rs = np.random.RandomState(0)
+
+    for sample in xrange(samples_per_image):
+        for tries in xrange(20):
+            #selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
+            #x, y = random.randint(0, w-1), random.randint(0, h-1)
+            x, y = i_iter.next()
+
+            selection0 = [0, slice(x+minus_ps[0], x+plus_ps[0]), slice(y+minus_ps[1], y+plus_ps[1])]
+
+            # Return grayscale patch and edges patch
+            edgepatch = all_edges[selection0]
+            #inv_edgepatch = inv_edges[selection]
+
+            #amppatch = amps[selection]
+            #edgepatch2 = edges2[selection]
+            #inv_edgepatch2 = inv_edges2[selection]
+            #edgepatch_nospread = edges_nospread[selection]
+
+            # The inv edges could be incorproated here, but it shouldn't be that different.
+            if fr == 0:
+                tot = edgepatch.sum()
+            else:
+                tot = edgepatch[fr:-fr,fr:-fr].sum()
+
+            #if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
+            if th <= tot:
+                XY = np.matrix([x, y, 1]).T
+                # Now, let's explore all orientations
+
+                patch = np.zeros((ORI,) + ps + (E,))
+                vispatch = np.zeros((ORI,) + ps)
+
+                for ori in xrange(ORI):
+                    p = matrices[ori] * XY
+                    ip = [int(round(p[i])) for i in xrange(2)]
+
+                    selection = [ori, slice(ip[0]+minus_ps[0], ip[0]+plus_ps[0]), slice(ip[1]+minus_ps[1], ip[1]+plus_ps[1])]
+
+                    patch[ori] = all_edges[selection]
+
+
+                    orig = all_img[selection]
+                    span = orig.min(), orig.max() 
+                    if span[1] - span[0] > 0:
+                        orig = (orig-span[0])/(span[1]-span[0])
+
+                    vispatch[ori] = orig 
+
+                vz.image_grid(np.rollaxis(patch, 3, 1), scale=5)
+
+
+                # Randomly rotate this patch, so that we don't bias 
+                # the unrotated (and possibly unblurred) image
+
+                shift = rs.randint(ORI)
+
+                patch = np.roll(patch, shift, axis=0)
+                vispatch = np.roll(vispatch, shift, axis=0)
+
+                the_patches.append(patch)
+                the_originals.append(vispatch)
+
+                break
+
+    return the_patches, the_originals 
 
 #def ok(amp, patch_frame, threshold):
     #amp_inner = amp[patch_frame:-patch_frame,patch_frame:-patch_frame]
@@ -38,11 +216,20 @@ def convert_partprobs_to_feature_vector(partprobs, tau=0.0):
     
     return feats
 
-@BinaryDescriptor.register('polarity-parts')
-class PolarityPartsDescriptor(BinaryDescriptor):
+def _translation_matrix(dx, dy):
+    return np.matrix([[1, 0, dx], [0, 1, dy], [0, 0, 1]])
+
+def _rotation_matrix(a):
+    return np.matrix([[np.cos(a), -np.sin(a), 0],
+                      [np.sin(a), np.cos(a),  0],
+                      [0,         0,          1]])
+
+@BinaryDescriptor.register('oriented-parts')
+class OrientedPartsDescriptor(BinaryDescriptor):
     def __init__(self, patch_size, num_parts, settings={}):
         self.patch_size = patch_size
         self._num_parts = num_parts 
+        self._num_true_parts = None
 
         self.parts = None
         self.unspread_parts = None
@@ -76,116 +263,11 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
     @property
     def num_true_parts(self):
-        return self._num_parts
+        return self._num_true_parts
 
     @property
     def subsample_size(self):
         return self.settings['subsample_size']
-
-    def _get_patches(self, filename):
-        samples_per_image = self.settings['samples_per_image']
-        fr = self.settings['patch_frame']
-        the_patches = []
-        the_unspread_patches = []
-        the_unspread_patches_padded = []
-        the_originals = []
-        ag.info("Extracting patches from", filename)
-        #edges, img = ag.features.bedges_from_image(f, k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=False, return_original=True, lastaxis=True)
-        setts = self.settings['bedges'].copy()
-        radius = setts['radius']
-        setts2 = setts.copy()
-        setts['radius'] = 0
-
-        # LEAVE-BEHIND
-        img = gv.img.load_image(filename)
-        img = gv.img.asgray(img)
-        inv_img = 1 - img
-        if 0:
-            unspread_edges = ag.features.bedges(img, **setts)
-            inv_unspread_edges = ag.features.bedges(inv_img, **setts)
-        else:
-            unspread_edges = self._extract_edges(img)
-            inv_unspread_edges = self._extract_edges(inv_img)
-
-        unspread_edges_padded = ag.util.zeropad(unspread_edges, (radius, radius, 0))
-        inv_unspread_edges_padded = ag.util.zeropad(inv_unspread_edges, (radius, radius, 0))
-
-        # Spread the edges
-        edges = ag.features.bspread(unspread_edges, spread=setts['spread'], radius=radius)
-        inv_edges = ag.features.bspread(inv_unspread_edges, spread=setts['spread'], radius=radius)
-
-        #setts2['minimum_contrast'] *= 2
-        #edges2 = ag.features.bedges(img, **setts2)
-        #inv_edges2 = ag.features.bedges(inv_img, **setts2)
-        
-        #s = self.settings['bedges'].copy()
-        #if 'radius' in s:
-        #    del s['radius']
-        #edges_nospread = ag.features.bedges_from_image(filename, radius=0, **s)
-
-        # How many patches could we extract?
-        w, h = [edges.shape[i]-self.patch_size[i]+1 for i in xrange(2)]
-
-        # TODO: Maybe shuffle an iterator of the indices?
-        indices = list(itr.product(xrange(w-1), xrange(h-1)))
-        random.shuffle(indices)
-        i_iter = iter(indices)
-
-        th = self.threshold_in_counts(self.settings['threshold'], edges.shape[-1])
-
-        for sample in xrange(samples_per_image):
-            for tries in xrange(20):
-                #x, y = random.randint(0, w-1), random.randint(0, h-1)
-                x, y = i_iter.next()
-                selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
-                selection_padded = [slice(x, x+radius*2+self.patch_size[0]), slice(y, y+radius*2+self.patch_size[1])]
-                # Return grayscale patch and edges patch
-                edgepatch = edges[selection]
-                inv_edgepatch = inv_edges[selection]
-
-                #amppatch = amps[selection]
-                #edgepatch2 = edges2[selection]
-                #inv_edgepatch2 = inv_edges2[selection]
-                #edgepatch_nospread = edges_nospread[selection]
-
-                # The inv edges could be incorproated here, but it shouldn't be that different.
-                if fr == 0:
-                    tot = edgepatch.sum()
-                else:
-                    tot = edgepatch[fr:-fr,fr:-fr].sum()
-
-                #if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
-                if th <= tot:
-                #if ok(amppatch, fr, self.settings['amp_threshold']): 
-                    #the_patches.append(np.asarray([edgepatch, inv_edgepatch, edgepatch2, inv_edgepatch2]))
-                    the_patches.append(np.asarray([edgepatch, inv_edgepatch]))
-                    #the_patches.append(edgepatch_nospread)
-    
-                    #the_unspread_patch = unspread_edges[selection]
-                    #the_unspread_patches.append(the_unspread_patch)
-
-                    #the_unspread_patch_padded = unspread_edges_padded[selection_padded]
-                    #the_unspread_patches_padded.append(the_unspread_patch_padded)
-        
-                    # The following is only for clearer visualization of the 
-                    # patches. However, normalizing like this might be misleading
-                    # in other ways.
-                    vispatch = img[selection]
-                    inv_vispatch = inv_img[selection]
-
-                    span = vispatch.min(), vispatch.max() 
-                    if span[1] - span[0] > 0:
-                        vispatch = (vispatch-span[0])/(span[1]-span[0])
-
-                    inv_span = inv_vispatch.min(), inv_vispatch.max() 
-                    if inv_span[1] - inv_span[0] > 0:
-                        inv_vispatch = (inv_vispatch-inv_span[0])/(inv_span[1]-inv_span[0])
-
-                    #the_originals.append(np.asarray([vispatch, inv_vispatch]*2))
-                    the_originals.append(np.asarray([vispatch, inv_vispatch]))
-                    break
-
-        return the_patches, the_originals
 
     def random_patches_from_images(self, filenames):
         raw_patches = []
@@ -193,19 +275,9 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         raw_unspread_patches_padded = []
         raw_originals = [] 
 
-        # TODO: Have an amitgroup / vision-research setting for "allow threading"
-        if 0:
-            if True:#self.settings['threaded']:
-                from multiprocessing import Pool
-                p = Pool(7) # Should not be hardcoded
-                mapfunc = p.map
-            else:
-                mapfunc = map
-
-        #mapfunc = gv.parallel.imap_unordered 
-        mapfunc = map
-
-        ret = mapfunc(self._get_patches, filenames)
+        #ret = mapfunc(_get_patches, filenames)
+        args = [(self.bedges_settings(), self.settings, filename) for filename in filenames]
+        ret = gv.parallel.starmap_unordered(_get_patches, args)
 
         for patches, originals in ret:
             raw_patches.extend(patches)
@@ -220,7 +292,6 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
     def train_from_images(self, filenames):
         raw_patches, raw_originals = self.random_patches_from_images(filenames)
-        self.P = raw_patches.shape[1]
 
         if len(raw_patches) == 0:
             raise Exception("No patches found, maybe your thresholds are too strict?")
@@ -228,9 +299,11 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         mixtures = []
         llhs = []
-        from gv.polarity_bernoulli_mm import PolarityBernoulliMM
+        from gv.latent_bernoulli_mm import LatentBernoulliMM
 
-        mixture = PolarityBernoulliMM(n_components=self._num_parts, n_iter=10, random_state=0, min_probability=self.settings['min_probability'])
+        P = self.settings['orientations']
+
+        mixture = LatentBernoulliMM(n_components=self._num_parts, n_latents=P, n_iter=10, random_state=0, min_probability=self.settings['min_probability'])
         mixture.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
 
         ag.info("Done.")
@@ -269,8 +342,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         #self.extra['means'] = np.asarray(means)
         #self.extra['stds'] = np.asarray(sigmas)
 
-        self.extra['means'] = scipy.ndimage.zoom(means, 2, order=0)
-        self.extra['stds'] = scipy.ndimage.zoom(sigmas, 2, order=0)
+        self.extra['means'] = scipy.ndimage.zoom(means, P, order=0)
+        self.extra['stds'] = scipy.ndimage.zoom(sigmas, P, order=0)
 
 
         means2 = []
@@ -289,8 +362,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         #self.extra['means_emp'] = np.asarray(means2)
         #self.extra['stds_emp'] = np.asarray(sigmas2)
 
-        self.extra['means_emp'] = scipy.ndimage.zoom(means2, 2, order=0)
-        self.extra['stds_emp'] = scipy.ndimage.zoom(sigmas2, 2, order=0)
+        self.extra['means_emp'] = scipy.ndimage.zoom(means2, P, order=0)
+        self.extra['stds_emp'] = scipy.ndimage.zoom(sigmas2, P, order=0)
 
         II = comps[:,0]
 
@@ -319,7 +392,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         ag.info("Pruned")
 
-        self.parts = mixture.means_.reshape((mixture.n_components, self.P) + raw_patches.shape[2:])
+        self.parts = mixture.means_.reshape((mixture.n_components, P) + raw_patches.shape[2:])
         self.orientations = None 
         #self.unspread_parts = self.unspread_parts[II]
         #self.unspread_parts_padded = self.unspread_parts_padded[II]
@@ -357,12 +430,13 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         self._num_parts = self.parts.shape[0]
 
-        self.parts = self.parts.reshape((self.parts.shape[0] * self.P,) + self.parts.shape[2:])
+
+        self.parts = self.parts.reshape((self.parts.shape[0] * P,) + self.parts.shape[2:])
 
         order_single = np.argsort(means / sigmas)
         new_order_single = []
         for f in order_single: 
-            part = self.parts[2*f] 
+            part = self.parts[P*f] 
             sh = part.shape
             p = part.reshape((sh[0]*sh[1], sh[2]))
             
@@ -380,13 +454,17 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         assert len(order_single) > 0, "No edges kept! Something probably went wrong"
 
-        self._num_parts = len(order_single)
+        #self._num_parts = len(order_single)
+        self._num_parts = len(order_single) * int(P//2)
+        self._num_true_parts = len(order_single)
         print 'num_parts', self._num_parts
+        print 'num_true_parts', self._num_true_parts
 
-        order = np.zeros(self.num_features * 2, dtype=int) 
-        for f in xrange(self.num_features):
-            order[2*f] = order_single[f]*2
-            order[2*f+1] = order_single[f]*2+1
+        order = np.zeros(len(order_single) * P, dtype=int) 
+        for f in xrange(len(order_single)):
+            for p in xrange(P):
+                order[P*f+p] = order_single[f]*P+p
+
         II = order
 
         # Require at least 20 originals
@@ -417,127 +495,6 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             originals.append(ims[:50])
         self.extra['originals'] = originals
 
-        #scores = scores[II]
-        #counts = counts[II]
-
-        #self.extra['scores'] = scores
-        #self.extra['counts'] = counts
-        #self.extra['weights'] = weights[II]
-
-        #for f in xrange(self.num_parts):
-            #part = mixture.means_[f]
-            #sh = part.shape
-            #p = part.reshape((sh[0]*sh[1], 
-
-        # Reject weak parts
-        if 0:
-            counts = np.bincount(mixture.mixture_components(), minlength=self.num_parts)
-            scores = np.empty(self.num_parts) 
-            for i in xrange(self.num_parts):
-                part = mixture.templates[i]
-                sh = part.shape
-                p = part.reshape((sh[0]*sh[1], sh[2]))
-                
-                pec = p.mean(axis=0)
-            
-                N = np.sum(p * np.log(p/pec) + (1-p)*np.log((1-p)/(1-pec)))
-                D = np.sqrt(np.sum(np.log(p/pec * (1-pec)/(1-p))**2 * p * (1-p)))
-                # Old:
-                #D = np.sqrt(np.sum(np.log(p/(1-p))**2 * p * (1-p)))
-
-                scores[i] = N/D 
-
-                # Require at least 20 occurrences
-                #if counts[i] < 5:
-                    #scores[i] = 0
-
-            # Only keep with a certain score
-            if not self.settings['bedges']['contrast_insensitive']:
-
-                visparts = mixture.remix(raw_originals)
-            else:
-                visparts = np.empty((self.num_parts,) + raw_originals.shape[1:])
-
-                self.extra['originals'] = []
-            
-                # Improved visparts
-                comps = mixture.mixture_components()
-                for i in xrange(self.num_parts):
-                    ims = raw_originals[comps == i].copy()
-
-                    self.extra['originals'].append(ims)
-
-                    # Stretch them all out
-                    #for j in xrange(len(ims)):
-                        #ims[j] = (ims[j] - ims[j].min()) / (ims[j].max() - ims[j].min())
-
-                    # Now, run a GMM with NM components on this and take the most common
-                    NM = 2
-
-                    from sklearn.mixture import GMM
-                    gmix = GMM(n_components=NM)
-                    gmix.fit(ims.reshape((ims.shape[0], -1)))
-
-                    visparts[i] = gmix.means_[gmix.weights_.argmax()].reshape(ims.shape[1:])
-
-            # Unspread parts
-            #unspread_parts_all = mixture.remix(raw_unspread_patches) 
-            #unspread_parts_padded_all = mixture.remix(raw_unspread_patches_padded) 
-
-            # The parts to keep
-            ok = (scores > 1) & (counts >= 10)
-
-            if 'originals' in self.extra:
-                self.extra['originals'] = list(itr.compress(self.extra['originals'], ok))
-
-            scores = scores[ok]
-            counts = counts[ok]
-            
-            self.parts = mixture.templates[ok]
-            #self.unspread_parts = unspread_parts_all[ok]
-            #self.unspread_parts_padded = unspread_parts_padded_all[ok]
-            self.visparts = visparts[ok]
-            self._num_parts = self.parts.shape[0]
-            
-            # Update num_parts
-            
-            # Store the stuff in the instance
-            #self.parts = mixture.templates
-            #self.visparts = mixture.remix(raw_originals)
-
-
-            # Sort the parts according to orientation, for better diagonistics
-            if 1:
-                E = self.parts.shape[-1]
-                E = self.parts.shape[-1]
-                ang = np.array([[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, 1]])
-                nang = ang / np.expand_dims(np.sqrt(ang[:,0]**2 + ang[:,1]**2), 1)
-                orrs = np.apply_over_axes(np.mean, self.parts, [1, 2]).reshape((self._num_parts, -1))
-                if E == 8:
-                    orrs = orrs[...,:4] + orrs[...,4:]    
-                nang = nang[:4]
-                norrs = orrs / np.expand_dims(orrs.sum(axis=1), 1)
-                dirs = (np.expand_dims(norrs, -1) * nang).sum(axis=1)
-                self.orientations = np.asarray([math.atan2(x[1], x[0]) for x in dirs])
-                II = np.argsort(self.orientations)
-
-            II = np.argsort(scores)
-
-            scores = scores[II]
-            counts = counts[II]
-
-            self.extra['scores'] = scores
-            self.extra['counts'] = counts
-            self.extra['originals'] = [self.extra['originals'][ii] for ii in II]
-            
-            # Now resort the parts according to this sorting
-            self.orientations = self.orientations[II]
-            self.parts = self.parts[II]
-            #self.unspread_parts = self.unspread_parts[II]
-            #self.unspread_parts_padded = self.unspread_parts_padded[II]
-            self.unspread_parts = None
-            self.unspread_parts_padded = None
-            self.visparts = self.visparts[II]
 
         self._preprocess_logs()
 
@@ -546,32 +503,13 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         self._log_parts = np.log(self.parts)
         self._log_invparts = np.log(1-self.parts)
 
-    def _extract_edges(self, image):
-        sett = self.bedges_settings().copy()
-        sett['radius'] = 0
-        sett['preserve_size'] = False 
-    
-        #return np.concatenate([gv.gradients.extract(image, orientations=8), ag.features.bedges(image, **sett)], axis=2)
-        #return np.concatenate([gv.gradients.extract(image, orientations=8), gv.gradients.extract(image, orientations=8, threshold=1.5)], axis=2)
-        edge_type = self.settings.get('edge_type', 'new')
-        if edge_type == 'yali':
-            return ag.features.bedges(image, **sett)
-        elif edge_type == 'new':
-            return gv.gradients.extract(image, 
-                                        orientations=8, 
-                                        threshold=self.settings.get('threshold2', 0.001),
-                                        eps=self.settings.get('eps', 0.001), 
-                                        blur_size=self.settings.get('blur_size', 10))
-        else:
-            raise RuntimeError("No such edge type")
-
     def extract_features(self, image, settings={}, dropout=None):
         sett = self.bedges_settings().copy()
         sett['radius'] = 0
         if 1:
             #unspread_edges = ag.features.bedges(image, **sett)
             #unspread_edges = gv.gradients.extract(image, orientations=8)
-            unspread_edges = self._extract_edges(image) 
+            unspread_edges = _extract_edges(self.bedges_settings(), self.settings, image) 
         else:
             # LEAVE-BEHIND: From multi-channel images
             unspread_edges = ag.features.bedges_from_image(image, **sett)
@@ -590,47 +528,29 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             sett = self.settings.copy()
             sett.update(settings)
             psize = sett.get('subsample_size', (1, 1))
-            if 0:
-                feats = ag.features.extract_parts_adaptive_EXPERIMENTAL(edges, unspread_edges, 
-                                                  self._log_parts,
-                                                  self._log_invparts,
-                                                  th,
-                                                  self.settings['patch_frame'],
-                                                  spread_radii=sett.get('spread_radii', (0, 0)),
-                                                  subsample_size=psize,
-                                                  collapse=2,
-                                                  accept_threshold=15)
-            elif 1:
-                # These are experiments with the new edge type
-                #import gv.fast
-                #th = self.settings['amp_threshold']
-                #feats = gv.fast.extract_parts(edges, unspread_edges, amps,
-                feats = ag.features.extract_parts(edges, unspread_edges,
-                                                  self._log_parts,
-                                                  self._log_invparts,
-                                                  th,
-                                                  self.settings['patch_frame'],
-                                                  spread_radii=sett.get('spread_radii', (0, 0)),
-                                                  subsample_size=psize,
-                                                  part_to_feature=np.arange(self.num_features)//2,
-                                                  stride=self.settings.get('part_coding_stride', 1))
 
-            else:
-                all_feats = []
-                for i in xrange(10):
-                    feats = ag.features.extract_parts(edges, unspread_edges,
-                                                      self._log_parts,
-                                                      self._log_invparts,
-                                                      th,
-                                                      self.settings['patch_frame'],
-                                                      spread_radii=sett.get('spread_radii', (0, 0)),
-                                                      subsample_size=psize,
-                                                      collapse=2,
-                                                      accept_threshold=-100000)
-                    all_feats.append(feats)
-                all_feats = np.asarray(all_feats)
+            P = self.settings['orientations']
+            H = P // 2
 
-                feats = all_feats.max(axis=0)
+            part_to_feature = np.zeros(self.parts.shape[0])
+            for f in xrange(part_to_feature.shape[0]):
+                thepart = f // P
+                ori = f % H
+                v = thepart * H + ori
+
+                part_to_feature[f] = v 
+            import pdb; pdb.set_trace()
+
+            feats = ag.features.extract_parts(edges, unspread_edges,
+                                              self._log_parts,
+                                              self._log_invparts,
+                                              th,
+                                              self.settings['patch_frame'],
+                                              spread_radii=sett.get('spread_radii', (0, 0)),
+                                              subsample_size=psize,
+                                              part_to_feature=part_to_feature,
+                                              stride=self.settings.get('part_coding_stride', 1))
+
             
             buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
             lower = (buf[0]//2, buf[1]//2)
@@ -836,6 +756,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         patch_size = d['patch_size']
         num_parts = d['num_parts']
         obj = cls(patch_size, num_parts)
+        obj._num_true_parts = d['num_true_parts']
         obj.parts = d['parts']
         # TODO: Experimental
         obj.unspread_parts = d['unspread_parts']
@@ -851,6 +772,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         # TODO: Experimental
         #return dict(num_parts=self.num_parts, patch_size=self.patch_size, parts=self.parts, visparts=self.visparts, settings=self.settings)
         return dict(num_parts=self._num_parts, 
+                    num_true_parts=self._num_true_parts,
                     patch_size=self.patch_size, 
                     parts=self.parts, 
                     unspread_parts=self.unspread_parts, 

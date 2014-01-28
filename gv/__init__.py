@@ -25,6 +25,7 @@ from .binary_descriptor import *
 from . import edge_descriptor
 from . import parts_descriptor
 from . import polarity_parts_descriptor
+from . import oriented_parts_descriptor
 from . import binary_hog_descriptor
 
 from .real_descriptor import *

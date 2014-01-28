@@ -3,6 +3,7 @@ import itertools as itr
 
 # Global set of workers - initialized when first called a map function
 _g_available_workers = None 
+_g_initialized = False
 
 def kill_workers():
     from mpi4py import MPI
@@ -11,23 +12,24 @@ def kill_workers():
         MPI.COMM_WORLD.send(None, dest=worker, tag=666)
 
 def _init():
-    global _g_available_workers
+    global _g_available_workers, _g_initialized
     from mpi4py import MPI
     import atexit
     _g_available_workers = set(range(1, MPI.COMM_WORLD.Get_size()))
+    _g_initialized = True
     atexit.register(kill_workers)
 
 def imap_unordered(f, workloads, star=False):
+    global _g_available_workers, _g_initialized
+
     from mpi4py import MPI
     N = MPI.COMM_WORLD.Get_size() - 1
-    if N == 0:
+    if N == 0 or not _g_initialized:
         mapf = [itr.imap, itr.starmap][star]
         for res in mapf(f, workloads):
             yield res
         return
      
-    global _g_available_workers
-
     for job_index, workload in enumerate(itr.chain(workloads, itr.repeat(None))):
         if workload is None and len(_g_available_workers) == N:
             break
@@ -50,14 +52,14 @@ def imap_unordered(f, workloads, star=False):
             MPI.COMM_WORLD.send(task, dest=dest_rank, tag=10)
 
 def imap(f, workloads, star=False):
+    global _g_available_workers, _g_initialized
     from mpi4py import MPI
     N = MPI.COMM_WORLD.Get_size() - 1
-    if N == 0:
+    if N == 0 or not _g_initialized:
         mapf = [itr.imap, itr.starmap][star]
         for res in mapf(f, workloads):
             yield res
         return
-    global _g_available_workers
 
     results = []
     indices = []
