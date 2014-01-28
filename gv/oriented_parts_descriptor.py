@@ -36,7 +36,7 @@ def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=Fa
         raise RuntimeError("No such edge type")
 
 def _extract_edges(bedges_settings, settings, image):
-    return _extract_many_edges(bedges_settings, settings, [image])[0]
+    return _extract_many_edges(bedges_settings, settings, image[np.newaxis])[0]
 
 def _get_patches(bedges_settings, settings, filename):
     samples_per_image = settings['samples_per_image']
@@ -533,7 +533,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             P = self.settings['orientations']
             H = P // 2
 
-            part_to_feature = np.zeros(self.parts.shape[0])
+            part_to_feature = np.zeros(self.parts.shape[0], dtype=np.int64)
             for f in xrange(part_to_feature.shape[0]):
                 thepart = f // P
                 ori = f % H
