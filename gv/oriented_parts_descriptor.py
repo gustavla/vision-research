@@ -402,6 +402,15 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         self.unspread_parts_padded = None
         #self.visparts = None#self.visparts[II]
 
+        firsts = np.zeros(self.parts.shape[0], dtype=int)
+        for f in xrange(self.parts.shape[0]): 
+            avgs = np.apply_over_axes(np.mean, self.parts[f,...,0], [1, 2]).squeeze()
+            firsts[f] = np.argmax(avgs)
+
+            self.parts[f] = np.roll(self.parts[f], -firsts[f], axis=0)
+
+        # Rotate the parts, so that the first orientation is dominating in the first edge feature.
+
         #visparts = mixture.remix(raw_originals)
         #aff = np.asarray(self.affinities)
         #self.visparts = np.asarray([np.average(data, axis=0, weights=aff[:,m]) for m in xrange(self.num_mix)])
@@ -409,7 +418,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         counts = np.zeros(mixture.n_components)
         for n in xrange(raw_originals.shape[0]):
             f, polarity = comps[n]# np.unravel_index(np.argmax(mixture.q[n]), mixture.q.shape[1:])
-            self.visparts[f] += raw_originals[n,polarity]
+            self.visparts[f] += raw_originals[n,(polarity+firsts[f])%P]
             counts[f] += 1
         self.visparts /= counts[:,np.newaxis,np.newaxis]
 
