@@ -1163,8 +1163,12 @@ class BernoulliDetector(Detector):
             #Xsum = np.apply_over_axes(np.sum, X, [0, 1])
             sturf = self.extra['sturf'][mixcomp]
             if 1:
-                Zs = sturf['Zs'][:50]#.clip(min=0.015, max=1-0.015)
-                Zs_pos = sturf['Zs_pos'][:50]#.clip(min=0.015, max=1-0.015)
+                #Zs = sturf['Zs'][:50]
+                Zs = sturf['actual_Zs_neg'][:200]
+                #Zs_pos = sturf['Zs_pos10'][:50]
+                #Zs_pos = sturf['actual_Zs'][:100] 
+                Zs_pos = Zs
+                rs = np.random.RandomState(0)
                 #term0_neg = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs[:,np.newaxis]))), [1, 2]).squeeze()
                 term0_pos = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs_pos[:,np.newaxis]))), [1, 2]).squeeze()
                 term0_neg = avgL * np.log(1 - Zs).sum(1)
@@ -1236,8 +1240,8 @@ class BernoulliDetector(Detector):
                             F = self.num_features
                             navg = sturf['navg']
                             par = self.param(1.0)
-                            Spos = par * sturf['S']# + np.eye(F) * 0.001
-                            Sneg = 1.0 * sturf['Sneg']# + np.eye(F) * 0.001
+                            #Spos = par * sturf['S']# + np.eye(F) * 0.001
+                            #Sneg = 1.0 * sturf['Sneg']# + np.eye(F) * 0.001
 
                             
 
@@ -1294,28 +1298,21 @@ class BernoulliDetector(Detector):
                                     term1_neg = (Xsum * gv.logit(Zs)).sum(1)
                                     term1_pos = (Xsum * gv.logit(Zs_pos)).sum(1)
 
-                                    #term2a = multivariate_normal.logpdf(Zs, mean=pavg, cov=Spos)
-                                    #term2b = multivariate_normal.logpdf(Zs, mean=navg, cov=Sneg)
-
                                     #import pdb; pdb.set_trace()
                                     PP = logsumexp(
                                             term0_pos + 
                                             term1_pos
-                                            #+ term2a
                                             )
 
                                     NN = logsumexp(
                                             term0_neg + 
                                             term1_neg
-                                            #+ term2b
                                             )
 
                                     #import pdb; pdb.set_trace()
                                 else:
                                     PP = NN = 0
 
-                                #if i >= 20 and j >= 20:
-                                    #import pdb; pdb.set_trace()
                                 score = 100000 + unstand_score + PP - NN
 
                                 mn = min(mn, PP - NN)

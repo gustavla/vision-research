@@ -99,6 +99,8 @@ if gv.parallel.main(__name__):
     pos_feats = []
     image_size = detector.settings['image_size']
 
+    print('Edge type:', descriptor.settings.get('edge_type', '(none)'))
+
     # Avoids sending the detector once for each image. This could be
     # optimized away with a more clever slution in gv.parallel. Think:
     #

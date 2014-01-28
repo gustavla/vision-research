@@ -55,7 +55,7 @@ for i, results_file in enumerate(results_files):
     plt.xlim((0, 1))
     plt.ylim((0, 1))
 
-plt.legend(fontsize='small')#, framealpha=0.2)
+plt.legend()#fontsize='small')#, framealpha=0.2)
 
 plt.grid()
 #plt.xticks(np.arange(0, 1+0.001, 0.05))

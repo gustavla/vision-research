@@ -166,7 +166,7 @@ def _psd_pinv_decomposed_log_pdet(mat, cond=None, rcond=None,
 
     # Note that eigh takes care of array conversion, chkfinite,
     # and assertion that the matrix is square.
-    s, u = scipy.linalg.eigh(mat, lower=lower, check_finite=check_finite)
+    s, u = scipy.linalg.eigh(mat, lower=lower)#, check_finite=check_finite)
 
     if rcond is not None:
         cond = rcond
