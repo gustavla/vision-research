@@ -3,6 +3,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Train mixture model on edge data')
 parser.add_argument('parts', metavar='<parts file>', type=argparse.FileType('rb'), help='Filename of parts file')
+parser.add_argument('--all', action='store_true', default=False)
 parser.add_argument('-o', '--output', type=argparse.FileType('wb'), help='Filename of output image')
 
 args = parser.parse_args()
@@ -24,7 +25,12 @@ descriptor = gv.BinaryDescriptor.getclass('parts').load(parts_file)
 originals = descriptor.visparts
 parts = descriptor.parts
 E = parts.shape[-1]
-F = descriptor.num_parts
+
+diff = descriptor.parts.shape[0] / descriptor.num_true_parts
+if args.all:
+    F = descriptor.parts.shape[0] 
+else:
+    F = descriptor.num_true_parts
 
 #F = 50
 
@@ -38,14 +44,18 @@ strides = descriptor.parts.shape[0] // F
 for f in xrange(F):
     #plt.subplot(*(shape + (1 + shape[1] * f,)))
     #plt.imshow(descriptor.visparts[f], interpolation='nearest', cmap=plt.cm.gray)
-    grid.set_image(descriptor.visparts[f], f, 0, cmap=plt.cm.gray) 
+    if args.all:
+        if f % diff == 0:
+            grid.set_image(descriptor.visparts[f // diff], f, 0, cmap=plt.cm.gray) 
+    else:
+        grid.set_image(descriptor.visparts[f], f, 0, cmap=plt.cm.gray) 
 
     for e in xrange(E):
         #plt.subplot(*(shape + (1 + shape[1] * f + e,)))
         #plt.imshow(descriptor.parts[f,...,e], vmin=0, vmax=1, interpolation='nearest', cmap=plt.cm.RdBu_r)
         grid.set_image(descriptor.parts[strides*f,...,e], f, 1+e, vmin=0, vmax=1, cmap=plt.cm.RdBu_r)
 
-grid.save(args.output)
+grid.save(args.output, scale=5)
 #ag.plot.images(originals, zero_to_one=False)
 #plt.show()
 

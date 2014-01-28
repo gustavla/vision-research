@@ -12,8 +12,8 @@ import os.path
 import random
 import glob
 
+ag.set_verbose(True)
 if gv.parallel.main(__name__):
-    ag.set_verbose(True)
 
     path = os.path.expandvars(psettings['image_dir'])
 
