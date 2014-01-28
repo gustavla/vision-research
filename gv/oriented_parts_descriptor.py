@@ -17,11 +17,11 @@ def _threshold_in_counts(settings, num_edges):
     frame = settings['patch_frame']
     return max(1, int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges))
 
-def _extract_many_edges(bedges_settings, settings, images):
+def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=False):
     """Extract edges of many images (must be the same size)"""
     sett = bedges_settings.copy()
     sett['radius'] = 0
-    sett['preserve_size'] = False 
+    sett['preserve_size'] = False or must_preserve_size
 
     edge_type = settings.get('edge_type', 'new')
     if edge_type == 'yali':
@@ -82,7 +82,7 @@ def _get_patches(bedges_settings, settings, filename):
     #import sys; sys.exit(0)
 
     #inv_img = 1 - img
-    all_unspread_edges = _extract_many_edges(bedges_settings, settings, all_img)
+    all_unspread_edges = _extract_many_edges(bedges_settings, settings, all_img, must_preserve_size=True)
 
     #unspread_edges_padded = ag.util.zeropad(unspread_edges, (radius, radius, 0))
     #inv_unspread_edges_padded = ag.util.zeropad(inv_unspread_edges, (radius, radius, 0))
@@ -293,6 +293,8 @@ class OrientedPartsDescriptor(BinaryDescriptor):
     def train_from_images(self, filenames):
         raw_patches, raw_originals = self.random_patches_from_images(filenames)
 
+        vz.image_grid(raw_originals[:200], scale=5)
+
         if len(raw_patches) == 0:
             raise Exception("No patches found, maybe your thresholds are too strict?")
         # Also store these in "settings"
@@ -485,7 +487,6 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             j = weights[i].argmax()
 
             # You were here: This line is not correct
-            #import pdb; pdb.set_trace()
 
             II0 = np.where(comps[:,0] == i)[0]
             II1 = comps[II0,1]
@@ -539,7 +540,6 @@ class OrientedPartsDescriptor(BinaryDescriptor):
                 v = thepart * H + ori
 
                 part_to_feature[f] = v 
-            import pdb; pdb.set_trace()
 
             feats = ag.features.extract_parts(edges, unspread_edges,
                                               self._log_parts,
@@ -579,7 +579,6 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             Q = np.load('Q.npy')
             new_feats_shape = feats.shape
             new_feats = np.empty(new_feats_shape, dtype=np.uint8)
-            #import pdb; pdb.set_trace()
             for i, j in itr.product(xrange(feats.shape[0]), xrange(feats.shape[1])):
                 # Transform the basis 0.572
                 #new_feats[i,j] = np.dot(Q[:,-ARTS:].T, feats[i,j])
