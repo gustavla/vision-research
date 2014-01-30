@@ -55,7 +55,7 @@ for f in xrange(F):
         #plt.imshow(descriptor.parts[f,...,e], vmin=0, vmax=1, interpolation='nearest', cmap=plt.cm.RdBu_r)
         grid.set_image(descriptor.parts[strides*f,...,e], f, 1+e, vmin=0, vmax=1, cmap=plt.cm.RdBu_r)
 
-grid.save(args.output, scale=5)
+grid.save(args.output, scale=3)
 #ag.plot.images(originals, zero_to_one=False)
 #plt.show()
 

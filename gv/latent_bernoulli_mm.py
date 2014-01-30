@@ -3,15 +3,27 @@ import numpy as np
 import itertools as itr
 import amitgroup as ag
 from scipy.special import logit
+from scipy.misc import logsumexp
+
+# TEMP
+import vz
 
 class LatentBernoulliMM(object):
-    def __init__(self, n_components=1, n_latents=1, n_iter=20, random_state=0, min_probability=0.05, thresh=1e-8):
+    def __init__(self, n_components=1, permutations=1, n_iter=20, random_state=0, min_probability=0.05, thresh=1e-8):
         if not isinstance(random_state, np.random.RandomState):
             random_state = np.random.RandomState(random_state)
 
         self.random_state = random_state
         self.n_components = n_components
-        self.n_latents = n_latents
+        if isinstance(permutations, (int, long)):
+            # Cycle through them
+            P = permutations
+            self.permutations = np.zeros((P, P))
+            for p1, p2 in itr.product(xrange(P), xrange(P)):
+                self.permutations[p1,p2] = (p1 + p2) % P
+        else:
+            self.permutations = np.asarray(permutations)
+
         self.n_iter = n_iter
         self.min_probability = min_probability
         self.thresh = thresh
@@ -21,7 +33,7 @@ class LatentBernoulliMM(object):
 
     def fit(self, X):
         N, P, F = X.shape
-        assert P == self.n_latents
+        assert P == len(self.permutations) 
         K = self.n_components
         eps = self.min_probability
         pi = np.ones((K, P)) / (K * P)
@@ -32,10 +44,16 @@ class LatentBernoulliMM(object):
         theta = np.asarray([np.mean(X[clusters == k], axis=0) for k in xrange(K)])
         theta[:] = np.clip(theta, eps, 1 - eps)
 
+        # TEMP
+        nice_theta = theta.reshape((theta.shape[0]*theta.shape[1], 6, 6, 8))
+        nice_theta = np.rollaxis(nice_theta, 3, 1)
+        vz.image_grid(nice_theta, vmin=0, vmax=1, cmap=vz.cm.RdBu_r, name='iter0', scale=4)
+
+
         self.q = np.empty((N, K, P))
         logq = np.empty((N, K, P))
-        for i in xrange(self.n_iter):
-            ag.info("Iteration ", i+1)
+        for loop in xrange(self.n_iter):
+            ag.info("Iteration ", loop+1)
             #logq[:] = np.log(pi)[np.newaxis,:,np.newaxis]
 
             #for k, p in itr.product(xrange(K), xrange(P)):
@@ -43,35 +61,53 @@ class LatentBernoulliMM(object):
             logq[:] = np.log(pi[np.newaxis])
 
             for p in xrange(P):
-                #p0, p1 = p, (p+1)%2
                 for shift in xrange(P):
-                    p0 = (p+shift)%P
+                    #p0_ = (p + shift)%P
+                    p0 = self.permutations[shift,p]
+                    #assert p0 == p0_, self.permutations
+                    #import pdb; pdb.set_trace()
                     logq[:,:,p] += np.dot(X[:,p0], logit(theta[:,shift]).T) + np.log(1 - theta[:,shift]).sum(axis=1)[np.newaxis]
 
-            import scipy.misc
-#
             #self.q[:] = np.exp(logq)
             #normq = self.q / np.apply_over_axes(np.sum, self.q, [1, 2])
             #self.q /= np.apply_over_axes(np.sum, self.q, [1, 2])
-            #q2 = np.exp(logq - scipy.misc.logsumexp(logq.reshape((-1, logq.shape[-1])), axis=0)[...,np.newaxis,np.newaxis])
-            norm_logq = logq - scipy.misc.logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis]
+            #q2 = np.exp(logq - logsumexp(logq.reshape((-1, logq.shape[-1])), axis=0)[...,np.newaxis,np.newaxis])
+            norm_logq = (logq - logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis]).clip(min=-200)
             q2 = np.exp(norm_logq)
             self.q[:] = q2
 
-            #norm_logq = logq - scipy.misc.logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis]
+            # Try regularizing a bit
+            #self.q[:] = self.q.clip(min=1e-4)
+            #self.q[:] /= np.apply_over_axes(np.sum, self.q, [1, 2])
+
+            #norm_logq = logq - logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis]
             #self.q[:] = np.exp(norm_logq)
 
             #dens = np.apply_over_axes(np.sum, self.q, [0, 2])
-            log_dens = scipy.misc.logsumexp(np.rollaxis(norm_logq, 2, 1).reshape((-1, norm_logq.shape[1])), axis=0)[np.newaxis,:,np.newaxis]
+            log_dens = logsumexp(np.rollaxis(norm_logq, 2, 1).reshape((-1, norm_logq.shape[1])), axis=0)[np.newaxis,:,np.newaxis]
             dens = np.exp(log_dens)
 
             for p in xrange(P):
                 v = 0 #np.dot(self.q[:,:,0].T, X[:,0]) + np.dot(self.q[:,:,1].T, X[:,1])
                 for shift in xrange(P):
-                    v += np.dot(self.q[:,:,shift].T, X[:,(p+shift)%P])
+                    #p0_ = (p + shift)%P
+                    p0 = self.permutations[shift,p]
+                    #assert p0 == p0_, self.permutations
+                    v += np.dot(self.q[:,:,shift].T, X[:,p0])
 
                 theta[:,p,:] = v
-            theta /= dens.flatten()[:,np.newaxis,np.newaxis]
+            np.seterr(all='raise')
+            #try:
+            #vz.image_grid(self.q[:100], vmin=0, vmax=1, cmap=vz.cm.RdBu_r, name='plot')
+            #import IPython; IPython.embed()
+            #import pdb; pdb.set_trace()
+            theta = theta / dens.ravel()[:,np.newaxis,np.newaxis]
+
+
+            nice_theta = theta.reshape((theta.shape[0]*theta.shape[1], 6, 6, 8))
+            nice_theta = np.rollaxis(nice_theta, 3, 1)
+            vz.image_grid(nice_theta, vmin=0, vmax=1, cmap=vz.cm.RdBu_r, name='iter{}'.format(loop+1), scale=4)
+
 
             #new parts
             #pi[:] = np.apply_over_axes(np.sum, self.q, [0, 2])[0,:,0] / N

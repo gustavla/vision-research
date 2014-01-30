@@ -53,7 +53,9 @@ def _get_patches(bedges_settings, settings, filename):
 
 
     ORI = settings.get('orientations', 8)
-    assert ORI%2 == 0, "Orientations must be even, so that opposite can be collapsed"
+    POL = settings.get('polarities', 1)
+    assert POL in (1, 2), "Polarity must be 1 or 2"
+    #assert ORI%2 == 0, "Orientations must be even, so that opposite can be collapsed"
 
     # LEAVE-BEHIND
 
@@ -72,14 +74,21 @@ def _get_patches(bedges_settings, settings, filename):
     angles = np.arange(0, 360, 360/ORI)
     radians = angles*np.pi/180
     all_img = np.asarray([transform.rotate(img_padded, angle) for angle in angles])
+    # Add inverted polarity too
+    if POL == 2:
+        all_img = np.concatenate([all_img, 1-all_img])
+
+
+    #vz.image_grid(all_img)
+    #import sys; sys.exit(0)
 
     # Set up matrices that will translate a position in the canonical image to
     # the rotated iamges. This way, we're not rotating each patch on demand, which
     # will end up slower.
     matrices = [_translation_matrix(new_size/2, new_size/2) * _rotation_matrix(a) * _translation_matrix(-new_size/2, -new_size/2) for a in radians]
 
-    #vz.imshow_raw(img_rotations[0])
-    #import sys; sys.exit(0)
+    # Add matrices for the polarity flips too, if applicable
+    matrices *= POL 
 
     #inv_img = 1 - img
     all_unspread_edges = _extract_many_edges(bedges_settings, settings, all_img, must_preserve_size=True)
@@ -151,10 +160,10 @@ def _get_patches(bedges_settings, settings, filename):
                 XY = np.matrix([x, y, 1]).T
                 # Now, let's explore all orientations
 
-                patch = np.zeros((ORI,) + ps + (E,))
-                vispatch = np.zeros((ORI,) + ps)
+                patch = np.zeros((ORI * POL,) + ps + (E,))
+                vispatch = np.zeros((ORI * POL,) + ps)
 
-                for ori in xrange(ORI):
+                for ori in xrange(ORI * POL):
                     p = matrices[ori] * XY
                     ip = [int(round(p[i])) for i in xrange(2)]
 
@@ -170,21 +179,30 @@ def _get_patches(bedges_settings, settings, filename):
 
                     vispatch[ori] = orig 
 
-                vz.image_grid(np.rollaxis(patch, 3, 1), scale=5)
-
-
                 # Randomly rotate this patch, so that we don't bias 
                 # the unrotated (and possibly unblurred) image
 
                 shift = rs.randint(ORI)
 
-                patch = np.roll(patch, shift, axis=0)
-                vispatch = np.roll(vispatch, shift, axis=0)
+                patch[:ORI] = np.roll(patch[:ORI], shift, axis=0)
+                vispatch[:ORI] = np.roll(vispatch[:ORI], shift, axis=0)
+
+                if POL == 2:
+                    patch[ORI:] = np.roll(patch[ORI:], shift, axis=0)
+                    vispatch[ORI:] = np.roll(vispatch[ORI:], shift, axis=0)
 
                 the_patches.append(patch)
                 the_originals.append(vispatch)
 
                 break
+
+    #vz.image_grid(np.asarray(the_originals), scale=5)
+    #the_patches = np.asarray(the_patches)
+    #print the_patches.shape
+    #vz.image_grid(np.rollaxis(the_patches[0], 3, 1), scale=5)
+    #vz.image_grid(np.rollaxis(all_edges, 3, 1), scale=1)
+    #vz.image_grid(the_originals[0], scale=5)
+    #import sys; sys.exit(0)
 
     return the_patches, the_originals 
 
@@ -293,8 +311,6 @@ class OrientedPartsDescriptor(BinaryDescriptor):
     def train_from_images(self, filenames):
         raw_patches, raw_originals = self.random_patches_from_images(filenames)
 
-        vz.image_grid(raw_originals[:200], scale=5)
-
         if len(raw_patches) == 0:
             raise Exception("No patches found, maybe your thresholds are too strict?")
         # Also store these in "settings"
@@ -303,9 +319,22 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         llhs = []
         from gv.latent_bernoulli_mm import LatentBernoulliMM
 
-        P = self.settings['orientations']
+        ORI = self.settings.get('orientations', 8)
+        POL = self.settings.get('polarities', 1)
+        #P = self.settings['orientations'] * self.settings['polarities'] 
+        P = ORI * POL
 
-        mixture = LatentBernoulliMM(n_components=self._num_parts, n_latents=P, n_iter=10, random_state=0, min_probability=self.settings['min_probability'])
+        def cycles(X):
+            return np.asarray([np.concatenate([X[i:], X[:i]]) for i in xrange(len(X))])
+
+        # Arrange permutations (probably a roundabout way of doing it)
+        RR = np.arange(ORI)
+        PP = np.arange(POL)
+        II = [list(itr.product(PPi, RRi)) for PPi in cycles(PP) for RRi in cycles(RR)]
+        lookup = dict(zip(itr.product(PP, RR), itr.count()))
+        permutations = np.asarray([[lookup[ii] for ii in rows] for rows in II])
+
+        mixture = LatentBernoulliMM(n_components=self._num_parts, permutations=permutations, n_iter=10, random_state=0, min_probability=self.settings['min_probability'])
         mixture.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
 
         ag.info("Done.")
@@ -355,8 +384,13 @@ class OrientedPartsDescriptor(BinaryDescriptor):
 
         for f in xrange(self.num_features):
             X = llhs[II == f]
-            mu = X.mean()
-            sigma = X.std()
+            if len(X) > 0:
+                mu = X.mean()
+                sigma = X.std()
+            else:
+                # This one will guaranteed be sorted out anyway
+                mu = 0.0 
+                sigma = 1.0
 
             means2.append(mu)
             sigmas2.append(sigma)
@@ -404,10 +438,12 @@ class OrientedPartsDescriptor(BinaryDescriptor):
 
         firsts = np.zeros(self.parts.shape[0], dtype=int)
         for f in xrange(self.parts.shape[0]): 
-            avgs = np.apply_over_axes(np.mean, self.parts[f,...,0], [1, 2]).squeeze()
+            avgs = np.apply_over_axes(np.mean, self.parts[f,:ORI,...,0], [1, 2]).squeeze()
             firsts[f] = np.argmax(avgs)
 
-            self.parts[f] = np.roll(self.parts[f], -firsts[f], axis=0)
+            self.parts[f,:ORI] = np.roll(self.parts[f,:ORI], -firsts[f], axis=0)
+            if POL == 2:
+                self.parts[f,ORI:] = np.roll(self.parts[f,ORI:], -firsts[f], axis=0)
 
         # Rotate the parts, so that the first orientation is dominating in the first edge feature.
 
@@ -420,7 +456,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             f, polarity = comps[n]# np.unravel_index(np.argmax(mixture.q[n]), mixture.q.shape[1:])
             self.visparts[f] += raw_originals[n,(polarity+firsts[f])%P]
             counts[f] += 1
-        self.visparts /= counts[:,np.newaxis,np.newaxis]
+        self.visparts /= counts[:,np.newaxis,np.newaxis].clip(min=1)
 
         #self.visparts = np.asarray([self.visparts, 1 - self.visparts])
         #self.visparts = np.rollaxis(self.visparts, 1)
@@ -539,16 +575,21 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             sett.update(settings)
             psize = sett.get('subsample_size', (1, 1))
 
-            P = self.settings['orientations']
+            ORI = self.settings.get('orientations', 8)
+            POL = self.settings.get('polarities', 1)
+            P = ORI * POL 
             H = P // 2
 
-            part_to_feature = np.zeros(self.parts.shape[0], dtype=np.int64)
-            for f in xrange(part_to_feature.shape[0]):
-                thepart = f // P
-                ori = f % H
-                v = thepart * H + ori
+            if POL == 2:
+                part_to_feature = np.zeros(self.parts.shape[0], dtype=np.int64)
+                for f in xrange(part_to_feature.shape[0]):
+                    thepart = f // P
+                    ori = f % H
+                    v = thepart * H + ori
 
-                part_to_feature[f] = v 
+                    part_to_feature[f] = v 
+            else:
+                part_to_feature = np.arange(self.parts.shape[0], dtype=np.int64)
 
             feats = ag.features.extract_parts(edges, unspread_edges,
                                               self._log_parts,
