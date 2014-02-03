@@ -999,7 +999,14 @@ def superimposed_model(settings, threading=True):
             weights = detector.build_clipped_weights(kern, bkg, detector.eps)
 
             if 1:
+                indices = get_key_points_even(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
+
+                M = np.zeros(weights.shape, dtype=np.uint8)
+                for index in indices:
+                    M[tuple(index)] = 1
+
                 F = detector.num_features
+                from scipy.special import logit, expit as sigmoid
 
                 #theta = np.load('theta3.npy')[1:-1,1:-1]
                 #th = theta
@@ -1016,6 +1023,7 @@ def superimposed_model(settings, threading=True):
 
 
                 pos, neg = all_pos_feats[m].astype(bool), all_neg_feats[m].astype(bool)
+                #avg = np.apply_over_axes(
 
                 diff = pos ^ neg
                 appeared = pos & ~neg
@@ -1044,7 +1052,6 @@ def superimposed_model(settings, threading=True):
                     else:
                         return find_zero(fun, m, u, depth-1)
 
-
                 if 0:
                     deltas = np.zeros(F)
                     for f in xrange(F):
@@ -1053,9 +1060,27 @@ def superimposed_model(settings, threading=True):
                             return (ss[...,0] * (clogit(x + pos[...,f].mean(0)) - clogit(neg[...,f].mean(0)))).mean(0).mean(0)
                         deltas[f] = find_zero(fun, -5, 5)
 
+                # Find zero-crossing
+                #for f in xrange(F):
+                    
+
                 # Now construct weights from these deltas
                 #weights = ((clogit(ss * deltas + A) - clogit(B)))
                 #weights = (ss * (clogit(deltas + pos.mean(0)) - clogit(neg.mean(0))))
+
+                
+                avg = np.apply_over_axes(np.mean, pos * M * ss, [1, 2]) / (ss * M).mean()
+
+                for l0, l1, f in gv.multirange(*weights.shape):
+
+                    def fun(w):
+                        return -(np.clip(pos[:,l0,l1,f].mean(), 0.005, 0.995) - np.mean(sigmoid(w + logit(avg[...,f]))))
+
+                    #if l0 == 2 and l1 == 10 and f == 0:
+                        #import pdb; pdb.set_trace()
+
+                    weights[l0,l1,f] = find_zero(fun, -10, 10)
+
 
 
                 if 1:
@@ -1087,7 +1112,6 @@ def superimposed_model(settings, threading=True):
                 avg_pos = (np.apply_over_axes(np.mean, pos * ss, [0, 1, 2]) / ss.mean()).squeeze()
                 avg_neg = (np.apply_over_axes(np.mean, neg * ss, [0, 1, 2]) / ss.mean()).squeeze()
 
-                from scipy.special import logit, expit as sigmoid
                 #w_avg = np.apply_over_axes(np.sum, weights * support[...,np.newaxis], [0, 1]) / support.sum()
                 #
                 #w_avg = (logit(np.apply_over_axes(np.mean, pos, [0, 1, 2])) - \
@@ -1099,9 +1123,9 @@ def superimposed_model(settings, threading=True):
                 #import pdb; pdb.set_trace()
 
                 #weights -= w_avg * support[...,np.newaxis]
-                #weights *= support[...,np.newaxis]
+                weights *= support[...,np.newaxis]
                 #weights = (weights - w_avg) * support[...,np.newaxis]
-                weights -= w_avg * support[...,np.newaxis]
+                #weights -= w_avg * support[...,np.newaxis]
 
                 if 1:
                     # Print these to file

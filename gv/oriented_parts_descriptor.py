@@ -133,7 +133,7 @@ def _get_patches(bedges_settings, settings, filename):
     rs = np.random.RandomState(0)
 
     for sample in xrange(samples_per_image):
-        for tries in xrange(20):
+        for tries in xrange(100):
             #selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
             #x, y = random.randint(0, w-1), random.randint(0, h-1)
             x, y = i_iter.next()
@@ -156,6 +156,7 @@ def _get_patches(bedges_settings, settings, filename):
                 tot = edgepatch[fr:-fr,fr:-fr].sum()
 
             #if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
+            #print(th, tot)
             if th <= tot:
                 XY = np.matrix([x, y, 1]).T
                 # Now, let's explore all orientations
@@ -195,6 +196,9 @@ def _get_patches(bedges_settings, settings, filename):
                 the_originals.append(vispatch)
 
                 break
+
+            if tries == 99:
+                print "100 tries!"
 
     #vz.image_grid(np.asarray(the_originals), scale=5)
     #the_patches = np.asarray(the_patches)
@@ -492,7 +496,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             N = np.sum(p * np.log(p/pec) + (1-p)*np.log((1-p)/(1-pec)))
             D = np.sqrt(np.sum(np.log(p/pec * (1-pec)/(1-p))**2 * p * (1-p)))
 
-            ok = (N/D > 1) and counts[f] > 50
+            ok = (N/D > 1) and counts[f] > 100
               
             if ok: 
                 new_order_single.append(f)
