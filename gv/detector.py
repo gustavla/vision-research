@@ -1111,12 +1111,12 @@ class BernoulliDetector(Detector):
 
         # TODO: Remove
         #C = np.load('cov.npy')
-        invC = np.load('invcov.npy')
+        #invC = np.load('invcov.npy')
 
         
         fs = []
 
-        if 1:
+        if 0:
             # TODO: Temporary stuff
             feats = np.load('uiuc-feats.npy')
             frames = np.apply_over_axes(np.mean, feats, [1, 2]).squeeze() 
@@ -1220,10 +1220,12 @@ class BernoulliDetector(Detector):
                         if 1 and cascade and 'sturf' in self.extra:
                             support0 = sturf['support'][...,np.newaxis]
                             avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
-                            avgf = gv.bclip(avgf, 0.01)
+                            avgf = gv.bclip(avgf, 0.025)[0]
+                            w = self.new_kp_weights(mixcomp) 
 
-                            new_score = score / (np.sqrt(avgf * (1 - avgf)) * logit(avgf)).sum()
-                            score += 100000 + new_score 
+                            V = (avgf * (1 - avgf) * w**2).sum()
+                            new_score = score / np.sqrt(V)
+                            score = 100000 + new_score 
 
 
                         if 0 and cascade and 'sturf' in self.extra:
