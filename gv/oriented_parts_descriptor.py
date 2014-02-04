@@ -1,5 +1,4 @@
 from __future__ import absolute_import, division
-from gv import vz # TODO: remove when done
 import random
 import copy
 import amitgroup as ag
@@ -52,7 +51,7 @@ def _get_patches(bedges_settings, settings, filename):
     ps = settings['part_size']
 
 
-    ORI = settings.get('orientations', 8)
+    ORI = settings.get('orientations', 1)
     POL = settings.get('polarities', 1)
     assert POL in (1, 2), "Polarity must be 1 or 2"
     #assert ORI%2 == 0, "Orientations must be even, so that opposite can be collapsed"
@@ -78,9 +77,6 @@ def _get_patches(bedges_settings, settings, filename):
     if POL == 2:
         all_img = np.concatenate([all_img, 1-all_img])
 
-
-    #vz.image_grid(all_img)
-    #import sys; sys.exit(0)
 
     # Set up matrices that will translate a position in the canonical image to
     # the rotated iamges. This way, we're not rotating each patch on demand, which
@@ -200,14 +196,6 @@ def _get_patches(bedges_settings, settings, filename):
             if tries == 99:
                 print "100 tries!"
 
-    #vz.image_grid(np.asarray(the_originals), scale=5)
-    #the_patches = np.asarray(the_patches)
-    #print the_patches.shape
-    #vz.image_grid(np.rollaxis(the_patches[0], 3, 1), scale=5)
-    #vz.image_grid(np.rollaxis(all_edges, 3, 1), scale=1)
-    #vz.image_grid(the_originals[0], scale=5)
-    #import sys; sys.exit(0)
-
     return the_patches, the_originals 
 
 #def ok(amp, patch_frame, threshold):
@@ -323,7 +311,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         llhs = []
         from gv.latent_bernoulli_mm import LatentBernoulliMM
 
-        ORI = self.settings.get('orientations', 8)
+        ORI = self.settings.get('orientations', 1)
         POL = self.settings.get('polarities', 1)
         #P = self.settings['orientations'] * self.settings['polarities'] 
         P = ORI * POL
@@ -579,7 +567,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             sett.update(settings)
             psize = sett.get('subsample_size', (1, 1))
 
-            ORI = self.settings.get('orientations', 8)
+            ORI = self.settings.get('orientations', 1)
             POL = self.settings.get('polarities', 1)
             P = ORI * POL 
             H = P // 2

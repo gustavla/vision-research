@@ -1,6 +1,7 @@
 import sys
 import os
 
+print "LOADING VZ"
 assert 'pylab' not in sys.modules, "Please import vz before importing pylab"
 import matplotlib as mpl
 mpl.use('Agg')

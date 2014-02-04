@@ -11,6 +11,7 @@ import sys
 from copy import deepcopy
 import itertools as itr
 from scipy.misc import logsumexp
+from scipy.special import logit, expit
 
 # TODO: Build into train_basis_...
 #cad_kernels = np.load('cad_kernel.npy')
@@ -1162,7 +1163,7 @@ class BernoulliDetector(Detector):
             L = np.prod(w.shape[:2])
             #Xsum = np.apply_over_axes(np.sum, X, [0, 1])
             sturf = self.extra['sturf'][mixcomp]
-            if 1:
+            if 0:
                 #Zs = sturf['Zs'][:50]
                 Zs = sturf['actual_Zs_neg'][:200]
                 #Zs_pos = sturf['Zs_pos10'][:50]
@@ -1215,7 +1216,17 @@ class BernoulliDetector(Detector):
                         #if score >= 15:
                             #print X.mean()
 
+                        # TODO: Rel model attempts
                         if 1 and cascade and 'sturf' in self.extra:
+                            support0 = sturf['support'][...,np.newaxis]
+                            avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
+                            avgf = gv.bclip(avgf, 0.01)
+
+                            new_score = score / (np.sqrt(avgf * (1 - avgf)) * logit(avgf)).sum()
+                            score += 100000 + new_score 
+
+
+                        if 0 and cascade and 'sturf' in self.extra:
                             sturf = self.extra['sturf'][mixcomp]
                             #rew = sturf['reweighted']
                             kp = self.keypoint_mask(mixcomp)
@@ -1284,7 +1295,7 @@ class BernoulliDetector(Detector):
 
                                 #with gv.Timer('stand'):
                                 #term1 = (X[np.newaxis] * gv.logit(Zs[:,np.newaxis,np.newaxis])).sum(1).sum(1).sum(1)
-                                SI = self.standardization_info[mixcomp]
+                                #SI = self.standardization_info[mixcomp]
                                 #unstand_score = (X * w).sum()# * SI['std'] + SI['mean']
                                 unstand_score = (X_kp * w_kp).sum()
 
@@ -1292,7 +1303,7 @@ class BernoulliDetector(Detector):
 
                                 #H = np.log(1 - gv.sigmoid(w[np.newaxis] + gv.logit(Zs[:,np.newaxis,np.newaxis])))
 
-                                if 1:
+                                if 0:
                                     #L = np.prod(X.shape[:2])
                                     Xsum = np.apply_over_axes(np.sum, X_kp, [0])
                                     term1_neg = (Xsum * gv.logit(Zs)).sum(1)
@@ -1411,7 +1422,6 @@ class BernoulliDetector(Detector):
 
                             #score = 10000 + alpha * score + (1 - alpha) * old_score
 
-                        # TODO: Rel model attempts
                         if 0 and cascade and 'sturf' in self.extra:
                             #avg = np.apply_over_axes(np.mean, X[2:-2,2:-2], [0, 1]) 
                             sturf = self.extra['sturf'][mixcomp]
@@ -1740,6 +1750,12 @@ class BernoulliDetector(Detector):
         #pd = self.kernel_templates[mixcomp].mean(axis=-1)
         #return w / np.minimum(pd, 0.5)
         return w
+
+    def new_weights(self, mixcomp):
+        return self.extra['weights'][mixcomp]
+
+    def new_kp_weights(self, mixcomp):
+        return self.extra['weights'][mixcomp][tuple(self.indices[0].T)].reshape((-1, self.num_features))
 
     def cascade_weights(self, mixcomp, bkgcomp):
         if bkgcomp == -1:

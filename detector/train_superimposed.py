@@ -10,6 +10,8 @@ from collections import namedtuple
 from copy import copy
 from superimpose_experiment import generate_random_patches
 from gv.keypoints import get_key_points_even
+from scipy.special import logit, expit
+
 
 #KMEANS = False 
 #LOGRATIO = True 
@@ -999,14 +1001,20 @@ def superimposed_model(settings, threading=True):
             weights = detector.build_clipped_weights(kern, bkg, detector.eps)
 
             if 1:
+                F = detector.num_features
                 indices = get_key_points_even(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
 
-                M = np.zeros(weights.shape, dtype=np.uint8)
-                for index in indices:
-                    M[tuple(index)] = 1
+                L0 = indices.shape[0] // F 
+                
+                kp_weights = np.zeros((L0, F))
 
-                F = detector.num_features
-                from scipy.special import logit, expit as sigmoid
+                M = np.zeros(weights.shape, dtype=np.uint8)
+                counts = np.zeros(F)
+                for index in indices:
+                    f = index[2]
+                    M[tuple(index)] = 1
+                    kp_weights[counts[f],f] = weights[tuple(index)]
+                    counts[f] += 1
 
                 #theta = np.load('theta3.npy')[1:-1,1:-1]
                 #th = theta
@@ -1071,15 +1079,16 @@ def superimposed_model(settings, threading=True):
                 
                 avg = np.apply_over_axes(np.mean, pos * M * ss, [1, 2]) / (ss * M).mean()
 
-                for l0, l1, f in gv.multirange(*weights.shape):
+                if 0:
+                    for l0, l1, f in gv.multirange(*weights.shape):
 
-                    def fun(w):
-                        return -(np.clip(pos[:,l0,l1,f].mean(), 0.005, 0.995) - np.mean(sigmoid(w + logit(avg[...,f]))))
+                        def fun(w):
+                            return -(np.clip(pos[:,l0,l1,f].mean(), 0.005, 0.995) - np.mean(expit(w + logit(avg[...,f]))))
 
-                    #if l0 == 2 and l1 == 10 and f == 0:
-                        #import pdb; pdb.set_trace()
+                        #if l0 == 2 and l1 == 10 and f == 0:
+                            #import pdb; pdb.set_trace()
 
-                    weights[l0,l1,f] = find_zero(fun, -10, 10)
+                        weights[l0,l1,f] = find_zero(fun, -10, 10)
 
 
 
@@ -1123,17 +1132,61 @@ def superimposed_model(settings, threading=True):
                 #import pdb; pdb.set_trace()
 
                 #weights -= w_avg * support[...,np.newaxis]
-                weights *= support[...,np.newaxis]
+                #weights *= support[...,np.newaxis] * M
+                if 0:
+                    weights *= support[...,np.newaxis]
+
+                    avg_weights = np.apply_over_axes(np.mean, weights, [0, 1]) / M.mean(0).mean(0)
+
+                    avg_w = kp_weights.mean(0)
+
+                    weights -= avg_w - (-kp_weights.var(0) / 2)
+
+                    weights *= support[...,np.newaxis]
+
+                    print((weights * M).mean(0))
+
+                #import pdb; pdb.set_trace()
+                #weights -=
+
                 #weights = (weights - w_avg) * support[...,np.newaxis]
-                #weights -= w_avg * support[...,np.newaxis]
+                #weights -= (w_avg + 0.0) * support[...,np.newaxis]
+
+                weights -= w_avg * support[...,np.newaxis]
+
+                F = detector.num_features
+
+                if 0:
+                    for f in xrange(F):
+                        #zz = np.random.normal(-1.5, size=(1, 1, 50))
+                        zz = np.random.normal(-1.5, size=(1, 1, 50)).ravel()
+
+                        betas = np.zeros(len(zz))
+                        for i, z in enumerate(zz):
+                            def fun(beta):
+                                w = weights[...,f] - beta * support 
+                                return np.log(1 - expit(w[...,np.newaxis] + z)).mean() - np.log(1 - expit(z))
+
+                            betas[i] = find_zero(fun, -10, 10)
+
+                        
+                        #import pdb; pdb.set_trace()
+                        #beta0 = find_zero(fun, -10, 10)
+                        if f == 0:
+                            np.save('betas.npy', betas)
+                        beta0 = betas.mean()
+                        print(f, beta0, betas.std())
+                        weights[...,f] -= beta0 * support 
+
 
                 if 1:
                     # Print these to file
                     from matplotlib.pylab import cm
-                    grid = gv.plot.ImageGrid(detector.num_features, 1, weights.shape[:2], border_color=(0.5, 0.5, 0.5))
+                    grid = gv.plot.ImageGrid(detector.num_features, 2, weights.shape[:2], border_color=(0.5, 0.5, 0.5))
                     mm = np.fabs(weights).max()
                     for f in xrange(detector.num_features):
                         grid.set_image(weights[...,f], f, 0, vmin=-mm, vmax=mm, cmap=cm.RdBu_r)
+                        grid.set_image(M[...,f], f, 1, vmin=0, vmax=1, cmap=cm.RdBu_r)
                     fn = os.path.join(os.path.expandvars('$HOME'), 'html', 'plots', 'plot.png')
                     grid.save(fn, scale=10)
                     os.chmod(fn, 0644)
@@ -1169,7 +1222,7 @@ def superimposed_model(settings, threading=True):
                 detector.extra['sturf'][m]['Zs_pos50'] = rs.multivariate_normal(avg_pos, Spos * 50, size=1000).clip(min=0.005, max=0.995)
 
             if 0:
-                #{{{c
+                #{{{
                     # Set weights! 
                     theta = np.load('theta3.npy')[1:-1,1:-1]
                     th = theta
@@ -1414,6 +1467,7 @@ def superimposed_model(settings, threading=True):
 
 
                     print('Indices:', np.prod(weights.shape))
+                    # TO NOT UPDATE INDEX
                     indices = get_key_points_even(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
                     print('After local suppression:', indices.shape[0])
                         
