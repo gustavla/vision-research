@@ -1222,10 +1222,20 @@ class BernoulliDetector(Detector):
                             avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
                             avgf = gv.bclip(avgf, 0.025)[0]
                             w = self.new_kp_weights(mixcomp) 
+                            #print w.mean()
+                            #print(w.shape, avgf.shape)
 
                             V = (avgf * (1 - avgf) * w**2).sum()
-                            new_score = score / np.sqrt(V)
+
+                            #score = w * avgf
+
+                            X_kp = X[tuple(self.indices[mixcomp].T)].reshape(w.shape[:2])
+                            #print score, (X_kp * w).sum()
+
+
+                            new_score = (score - (w * avgf).sum()) / np.sqrt(V)
                             score = 100000 + new_score 
+                            resmap[i,j] = new_score 
 
 
                         if 0 and cascade and 'sturf' in self.extra:
