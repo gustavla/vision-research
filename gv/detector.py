@@ -1225,7 +1225,11 @@ class BernoulliDetector(Detector):
                             #print w.mean()
                             #print(w.shape, avgf.shape)
 
-                            V = (avgf * (1 - avgf) * w**2).sum()
+                            #V = (avgf * (1 - avgf) * w**2).sum()
+
+                            wsum = w.sum(0)
+                            C = sturf['Sneg']
+                            V = np.dot(wsum, np.dot(C, wsum))
 
                             #score = w * avgf
 
