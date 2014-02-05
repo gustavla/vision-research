@@ -1118,8 +1118,8 @@ def superimposed_model(settings, threading=True):
 
                 detector.extra['sturf'][m]['support'] = support
 
-                avg_pos = (np.apply_over_axes(np.mean, pos * ss, [0, 1, 2]) / ss.mean()).squeeze()
-                avg_neg = (np.apply_over_axes(np.mean, neg * ss, [0, 1, 2]) / ss.mean()).squeeze()
+                avg_pos = (np.apply_over_axes(np.mean, pos * ss, [0, 1, 2]) / ss.mean()).squeeze().clip(eps, 1-eps)
+                avg_neg = (np.apply_over_axes(np.mean, neg * ss, [0, 1, 2]) / ss.mean()).squeeze().clip(eps, 1-eps)
 
                 #w_avg = np.apply_over_axes(np.sum, weights * support[...,np.newaxis], [0, 1]) / support.sum()
                 #
@@ -1518,9 +1518,11 @@ def superimposed_model(settings, threading=True):
                 
                 print('Indices:', np.prod(weights.shape))
 
+                import pdb; pdb.set_trace()
                 indices = get_key_points_even(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
 
-                detector.extra['weights'][m] = weights
+                if not detector.settings.get('plain'):
+                    detector.extra['weights'][m] = weights
             else:
                 #{{{
                 print('Indices:', np.prod(weights.shape))
