@@ -1217,7 +1217,7 @@ class BernoulliDetector(Detector):
                             #print X.mean()
 
                         # TODO: Rel model attempts
-                        if 1 and cascade and 'sturf' in self.extra:
+                        if 1 and cascade and 'sturf' in self.extra and not self.settings.get('plain'):
                             support0 = sturf['support'][...,np.newaxis]
                             avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
                             avgf = gv.bclip(avgf, 0.025)[0]
@@ -1230,7 +1230,7 @@ class BernoulliDetector(Detector):
                             #score = w * avgf
 
                             X_kp = X[tuple(self.indices[mixcomp].T)].reshape(w.shape[:2])
-                            #print score, (X_kp * w).sum()
+                            assert np.fabs(score - (X_kp * w).sum()) < 1e-5
 
 
                             new_score = (score - (w * avgf).sum()) / np.sqrt(V)

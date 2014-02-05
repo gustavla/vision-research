@@ -12,6 +12,7 @@ parser.add_argument('--contest', type=str, choices=gv.datasets.datasets(), defau
 parser.add_argument('--image-file', type=str, nargs=1, default=[None])
 parser.add_argument('--limit', nargs=1, default=[None], type=int, help='Limit bounding boxes')
 parser.add_argument('--param', type=float, default=None)
+parser.add_argument('--filter', type=str, default=None, help='Add filter to make detection harder')
 
 # TODO: Make into an option 
 parser.add_argument('mixcomp', metavar='<mixture component>', nargs='?', type=int, help='mix comp')
@@ -54,8 +55,12 @@ if fileobj is None:
     sys.exit(0)
 img = gv.img.load_image(fileobj.path) 
 grayscale_img = gv.img.asgray(img)
+grayscale_img = gv.imfilter.apply_filter(grayscale_img, args.filter)
 print("Image size:", grayscale_img.shape)
 #img = np.random.random(img.shape)
+
+if args.filter is not None:
+    img = grayscale_img
 
 #print(fileobj)
 #sys.exit(0)

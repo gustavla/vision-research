@@ -11,9 +11,12 @@ def get_key_points_even(weights, suppress_radius=2, max_indices=np.inf):
     #bkg = np.clip(bkg, eps, 1 - eps)
     #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
 
-    #absw = np.fabs(weights)
-    absw_pos = np.maximum(0, weights)
-    absw_neg = -np.minimum(0, weights)
+    rs = np.random.RandomState(0)
+
+    # Add some noise, since we want each feature to have the same amount of features,
+    # we must perturb the weights a bit since everyone is relying on the minimum amount.
+    absw_pos = np.maximum(0, weights + rs.normal(0, 0.00000001, size=weights.shape))
+    absw_neg = -np.minimum(0, weights + rs.normal(0, 0.00000001, size=weights.shape))
 
     import scipy.stats
     #almost_zero = scipy.stats.scoreatpercentile(np.fabs(weights.ravel()), 20)

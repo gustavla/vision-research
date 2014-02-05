@@ -1000,7 +1000,7 @@ def superimposed_model(settings, threading=True):
             #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
             weights = detector.build_clipped_weights(kern, bkg, detector.eps)
 
-            if 1:
+            if not detector.settings.get('plain'):
                 F = detector.num_features
                 indices = get_key_points_even(weights, suppress_radius=detector.settings.get('indices_suppress_radius', 4))
 

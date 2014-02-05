@@ -4,7 +4,7 @@ import argparse
 import gv.datasets
 import sys
 
-def detect_raw(detector, fileobj):
+def detect_raw(detector, filt, fileobj):
     #logger.info('Entering')
     import os
     #print("entering detect_raw", os.getpid())
@@ -16,6 +16,8 @@ def detect_raw(detector, fileobj):
     detections = []
     img = gv.img.load_image(fileobj.path)
     grayscale_img = gv.img.asgray(img)
+
+    grayscale_img = gv.imfilter.apply_filter(grayscale_img, filt)
     
     tp = tp_fp = tp_fn = 0
 
@@ -54,6 +56,7 @@ if gv.parallel.main(__name__):
     parser.add_argument('--log', type=str, default=None, help='Log to this directory name')
     parser.add_argument('--size', type=int, default=None, help='Use fixed size')
     parser.add_argument('--param', type=float, default=None)
+    parser.add_argument('--filter', type=str, default=None, help='Add filter to make detection harder')
 
     args = parser.parse_args()
     model_file = args.model
@@ -310,7 +313,9 @@ if gv.parallel.main(__name__):
 
 
     
-    res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.repeat(detector), files))
+    res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.repeat(detector), 
+                                                             itr.repeat(args.filter),
+                                                             files))
 
 
     tp_fn_dict = {}
