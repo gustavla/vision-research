@@ -1218,7 +1218,7 @@ class BernoulliDetector(Detector):
                             #print X.mean()
 
                         # TODO: Rel model attempts
-                        if 1 and cascade and 'sturf' in self.extra and not self.settings.get('plain'):
+                        elif 1 and cascade and 'sturf' in self.extra and not self.settings.get('plain'):
                             support0 = sturf['support'][...,np.newaxis]
                             avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
                             avgf = gv.bclip(avgf, 0.025)[0]
@@ -1259,8 +1259,6 @@ class BernoulliDetector(Detector):
                             #betaf = sturf['wavg'] * support0.sum()
 
                             X_kp = X[tuple(II.T)].reshape((-1, F))
-
-                            #import pdb; pdb.set_trace()
 
                             pavg = sturf['pavg']
                             #S = sturf['S']
@@ -1326,7 +1324,6 @@ class BernoulliDetector(Detector):
                                     term1_neg = (Xsum * gv.logit(Zs)).sum(1)
                                     term1_pos = (Xsum * gv.logit(Zs_pos)).sum(1)
 
-                                    #import pdb; pdb.set_trace()
                                     PP = logsumexp(
                                             term0_pos + 
                                             term1_pos
@@ -1337,7 +1334,6 @@ class BernoulliDetector(Detector):
                                             term1_neg
                                             )
 
-                                    #import pdb; pdb.set_trace()
                                 else:
                                     PP = NN = 0
 
@@ -1375,7 +1371,6 @@ class BernoulliDetector(Detector):
                                 #print("Optimizing...")
                                 ##ret = opt.minimize(ev2, gv.bclip(avgf.ravel(), 0.01), method='L-BFGS-B', bounds=[(0.01, 1-0.01)]*F)
 
-                                #import pdb; pdb.set_trace()
                                 std = np.sqrt(np.sum(Z * (1 - Z) * w_kp**2))
                                 score = 100000 + np.sum(w_kp * (X_kp - Z)) / std 
                                 #score = 100000 - ev(Z)
@@ -1409,7 +1404,6 @@ class BernoulliDetector(Detector):
 
                                 #C1 = clog((1 - gv.sigmoid((w * M) + gv.logit(c_avgf))) / (1 - c_avgf))
                                 #C2 = clog((1 - gv.sigmoid((w * M) + gv.logit(c_bkg))) / (1 - c_bkg))
-                                #import pdb; pdb.set_trace()
                                 C = C.sum()
                                 
                                 #score = 100000 + score - md * md_factor# + C
@@ -1435,7 +1429,6 @@ class BernoulliDetector(Detector):
 
                             #print np.sum(avgf * beta), md, 'factor', np.sum(avgf * beta)/md
                             
-                            #import pdb; pdb.set_trace()
 
                             #score = 10000 + alpha * score + (1 - alpha) * old_score
 
@@ -1468,8 +1461,6 @@ class BernoulliDetector(Detector):
                             #prior = st.norm.logpdf((avg - means) / stds).sum() * 0.1
                             
 
-                            #import pdb; pdb.set_trace()
-                            
                             #print(prior, score)
 
                             #print 'sp', score, prior
