@@ -22,7 +22,7 @@ def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=Fa
     sett['radius'] = 0
     sett['preserve_size'] = False or must_preserve_size
 
-    edge_type = settings.get('edge_type', 'new')
+    edge_type = settings.get('edge_type', 'yali')
     if edge_type == 'yali':
         return ag.features.bedges(images, **sett)
     elif edge_type == 'new':

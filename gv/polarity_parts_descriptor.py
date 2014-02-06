@@ -100,12 +100,9 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         img = gv.img.load_image(filename)
         img = gv.img.asgray(img)
         inv_img = 1 - img
-        if 0:
-            unspread_edges = ag.features.bedges(img, **setts)
-            inv_unspread_edges = ag.features.bedges(inv_img, **setts)
-        else:
-            unspread_edges = self._extract_edges(img)
-            inv_unspread_edges = self._extract_edges(inv_img)
+
+        unspread_edges = self._extract_edges(img, must_preserve_size=True)
+        inv_unspread_edges = self._extract_edges(inv_img, must_preserve_size=True)
 
         unspread_edges_padded = ag.util.zeropad(unspread_edges, (radius, radius, 0))
         inv_unspread_edges_padded = ag.util.zeropad(inv_unspread_edges, (radius, radius, 0))
@@ -230,7 +227,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         llhs = []
         from gv.polarity_bernoulli_mm import PolarityBernoulliMM
 
-        mixture = PolarityBernoulliMM(n_components=self._num_parts, n_iter=10, random_state=0, min_probability=self.settings['min_probability'])
+        mixture = PolarityBernoulliMM(n_components=self._num_parts, n_iter=15, random_state=0, min_probability=self.settings['min_probability'])
         mixture.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
 
         ag.info("Done.")
@@ -371,8 +368,8 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             N = np.sum(p * np.log(p/pec) + (1-p)*np.log((1-p)/(1-pec)))
             D = np.sqrt(np.sum(np.log(p/pec * (1-pec)/(1-p))**2 * p * (1-p)))
 
-            ok = (N/D > 1) and counts[f] > 50
-              
+            ok = (N/D > 1) and counts[f] > 100
+             
             if ok: 
                 new_order_single.append(f)
 
@@ -546,14 +543,14 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         self._log_parts = np.log(self.parts)
         self._log_invparts = np.log(1-self.parts)
 
-    def _extract_edges(self, image):
+    def _extract_edges(self, image, must_preserve_size=False):
         sett = self.bedges_settings().copy()
         sett['radius'] = 0
-        sett['preserve_size'] = False 
+        sett['preserve_size'] = False or must_preserve_size
     
         #return np.concatenate([gv.gradients.extract(image, orientations=8), ag.features.bedges(image, **sett)], axis=2)
         #return np.concatenate([gv.gradients.extract(image, orientations=8), gv.gradients.extract(image, orientations=8, threshold=1.5)], axis=2)
-        edge_type = self.settings.get('edge_type', 'new')
+        edge_type = self.settings.get('edge_type', 'yali')
         if edge_type == 'yali':
             return ag.features.bedges(image, **sett)
         elif edge_type == 'new':

@@ -1153,26 +1153,27 @@ class BernoulliDetector(Detector):
 
 
             # TEMP [
-            F = self.num_features
-            w = self.extra['weights'][mixcomp]
-            II = self.indices[mixcomp]
-            w_kp = w[tuple(II.T)].reshape((-1, F))
-            Ls = np.bincount(II[:,2], minlength=F)
-            avgL = np.mean(Ls)
+            if not self.settings.get('plain'):
+                F = self.num_features
+                w = self.extra['weights'][mixcomp]
+                II = self.indices[mixcomp]
+                w_kp = w[tuple(II.T)].reshape((-1, F))
+                Ls = np.bincount(II[:,2], minlength=F)
+                avgL = np.mean(Ls)
 
-            L = np.prod(w.shape[:2])
-            #Xsum = np.apply_over_axes(np.sum, X, [0, 1])
-            sturf = self.extra['sturf'][mixcomp]
-            if 0:
-                #Zs = sturf['Zs'][:50]
-                Zs = sturf['actual_Zs_neg'][:200]
-                #Zs_pos = sturf['Zs_pos10'][:50]
-                #Zs_pos = sturf['actual_Zs'][:100] 
-                Zs_pos = Zs
-                rs = np.random.RandomState(0)
-                #term0_neg = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs[:,np.newaxis]))), [1, 2]).squeeze()
-                term0_pos = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs_pos[:,np.newaxis]))), [1, 2]).squeeze()
-                term0_neg = avgL * np.log(1 - Zs).sum(1)
+                L = np.prod(w.shape[:2])
+                #Xsum = np.apply_over_axes(np.sum, X, [0, 1])
+                sturf = self.extra['sturf'][mixcomp]
+                if 0:
+                    #Zs = sturf['Zs'][:50]
+                    Zs = sturf['actual_Zs_neg'][:200]
+                    #Zs_pos = sturf['Zs_pos10'][:50]
+                    #Zs_pos = sturf['actual_Zs'][:100] 
+                    Zs_pos = Zs
+                    rs = np.random.RandomState(0)
+                    #term0_neg = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs[:,np.newaxis]))), [1, 2]).squeeze()
+                    term0_pos = np.apply_over_axes(np.sum, np.log(1 - gv.sigmoid(w_kp[np.newaxis] + gv.logit(Zs_pos[:,np.newaxis]))), [1, 2]).squeeze()
+                    term0_neg = avgL * np.log(1 - Zs).sum(1)
 
             mn, mx = np.inf, -np.inf
 
@@ -1473,13 +1474,6 @@ class BernoulliDetector(Detector):
 
                             #print 'sp', score, prior
                 
-
-                            if 0:
-                                obj = sturf['lmb'] * avg
-                                eps = 0.025
-                                obj = np.clip(obj, eps, 1 - eps)
-                                avg = np.clip(avg, eps, 1 - eps)
-                                kern = np.log(obj / (1 - obj) * ((1 - avg) / avg))
 
                             #score = (kern * X).sum() + prior
 
