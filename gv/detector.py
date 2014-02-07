@@ -1218,7 +1218,7 @@ class BernoulliDetector(Detector):
                             #print X.mean()
 
                         # TODO: Rel model attempts
-                        elif 1 and cascade and 'sturf' in self.extra and not self.settings.get('plain'):
+                        if 1 and cascade and 'sturf' in self.extra and not self.settings.get('plain'):
                             support0 = sturf['support'][...,np.newaxis]
                             avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
                             avgf = gv.bclip(avgf, 0.025)[0]

@@ -169,9 +169,6 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
     return kern, bkg, orig_size, support 
 
 
-def _create_kernel_for_mixcomp_star(args):
-    return _create_kernel_for_mixcomp(*args)
-
 
 def _load_cad_image(fn, im_size, bb):
     im = gv.img.load_image(fn)
@@ -217,9 +214,6 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, eps, bb, kern, bkg, ind
     return info 
 
 
-def _calc_standardization_for_mixcomp_star(args):
-    return _calc_standardization_for_mixcomp(*args)
-
 
 def _get_positives(mixcomp, settings, indices, files):
     im_size = settings['detector']['image_size']
@@ -259,9 +253,6 @@ def _get_positives(mixcomp, settings, indices, files):
     #return obj_counts.astype(np.float64) / count
     return np.asarray(all_feats)
 
-def _get_positives_star(args):
-    return _get_positives(*args)
-
 def __process_bkg(fn, descriptor, sett, factor):
     im = gv.img.asgray(gv.img.load_image(fn))
     im = gv.img.resize_with_factor_new(im, factor)
@@ -273,9 +264,6 @@ def __process_bkg(fn, descriptor, sett, factor):
     #count += np.prod(feats.shape[:2])
     #bkg_counts += np.apply_over_axes(np.sum, feats, [0, 1]).ravel()
     return np.apply_over_axes(np.sum, feats, [0, 1]).ravel(), np.prod(feats.shape[:2])
-
-def __process_bkg_star(args):
-    return __process_bkg(*args)
 
 def _get_background_model(settings, neg_files):
     descriptor = gv.load_descriptor(settings)
@@ -294,7 +282,7 @@ def _get_background_model(settings, neg_files):
     factors = rs.uniform(0.2, 1.0, size=neg_count)
     argses = [(neg_files[i], descriptor, sett, factors[i]) for i in xrange(neg_count)]
 
-    for feats, c in gv.parallel.imap_unordered(__process_bkg_star, argses):
+    for feats, c in gv.parallel.starmap_unordered(__process_bkg, argses):
     #for fn in itr.islice(neg_files, neg_count):
         if 0:
             im = gv.img.asgray(gv.img.load_image(fn))
@@ -410,17 +398,18 @@ def _process_file_kernel_basis(seed, mixcomp, settings, bb, filename, bkg_stack,
 
     return counts, empty_counts, totals
 
-def _process_file_kernel_basis_star(args):
-    return _process_file_kernel_basis(*args)
-
 
 def __process_one(args):
     index, mixcomp, files, im_size, bb, duplicates, neg_files, descriptor, sett = args
     size = gv.bb.size(bb)
     psize = sett['subsample_size']
 
-    ADAPTIVE = False 
+    ADAPTIVE = True 
     if ADAPTIVE:
+        # Do a pre-run, investigating the object model
+
+
+
         gen = generate_feature_patches_dense(neg_files, size, lambda im: descriptor.extract_features(im, settings=sett), psize, seed=index)
         dd = gv.Detector.load('uiuc-np3b.npy')
 
@@ -540,10 +529,6 @@ def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicate
 
     return all_neg_feats, all_pos_feats, alpha_maps 
 
-def _get_pos_and_neg_star(args):
-    return _get_pos_and_neg(*args)
-
-
 
 def get_strong_fps(detector, i, fileobj):
     topsy = [[] for k in xrange(detector.num_mixtures)]
@@ -568,9 +553,6 @@ def get_strong_fps(detector, i, fileobj):
                 topsy[m].append(bbobj)
 
     return topsy
-
-def get_strong_fps_star(args):
-    return get_strong_fps(*args)
 
 
 def superimposed_model(settings, threading=True):
@@ -699,8 +681,7 @@ def superimposed_model(settings, threading=True):
 
     if settings['detector'].get('superimpose'):
         argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in range(detector.num_mixtures)]        
-        #for neg_feats, pos_feats, alpha_maps in gv.parallel.imap(_get_pos_and_neg_star, argses):
-        for neg_feats, pos_feats, alpha_maps in itr.imap(_get_pos_and_neg_star, argses):
+        for neg_feats, pos_feats, alpha_maps in itr.starmap(_get_pos_and_neg, argses):
             alpha = alpha_maps.mean(0)
             all_alphas.append(alpha_maps)
             all_binarized_alphas.append(alpha_maps > 0.05)
@@ -767,7 +748,7 @@ def superimposed_model(settings, threading=True):
         bkg = _get_background_model(settings, neg_files)
 
         argses = [(m, settings, list(np.where(comps == m)[0]), files) for m in range(detector.num_mixtures)]        
-        for pos_feats in gv.parallel.imap(_get_positives_star, argses):
+        for pos_feats in gv.parallel.starmap(_get_positives, argses):
             obj = pos_feats.mean(axis=0)
             all_pos_feats.append(pos_feats)
 
@@ -1010,7 +991,7 @@ def superimposed_model(settings, threading=True):
     #{{{
     if 0:
         argses = [(m, settings, bbs[m], np.where(comps == m)[0], files, neg_files) for m in xrange(detector.num_mixtures)]
-        for kern, bkg, orig_size, sup in gv.parallel.imap(_create_kernel_for_mixcomp_star, argses):
+        for kern, bkg, orig_size, sup in gv.parallel.starmap(_create_kernel_for_mixcomp, argses):
             kernels.append(kern) 
             bkgs.append(bkg)
             orig_sizes.append(orig_size)
@@ -1073,7 +1054,7 @@ def superimposed_model(settings, threading=True):
         if testing_type == 'fixed':
             argses = [(m, settings, detector.eps, bbs[m], kernels[m], bkgs[m], None, None, None, detector.indices[m] if INDICES else None, 3) for m in xrange(detector.num_mixtures)]
 
-            detector.standardization_info = list(gv.parallel.imap(_calc_standardization_for_mixcomp_star, argses))
+            detector.standardization_info = list(gv.parallel.starmap(_calc_standardization_for_mixcomp, argses))
         else:
             raise Exception("Unknown testing type")
 
@@ -1111,7 +1092,7 @@ def superimposed_model(settings, threading=True):
             itr.islice(gen, COUNT)
         )
 
-        for res in gv.parallel.imap_unordered(get_strong_fps_star, args):
+        for res in gv.parallel.starmap_unordered(get_strong_fps, args):
             for m in xrange(detector.num_mixtures):
                 top_bbs[m].extend(res[m])
 
@@ -1141,7 +1122,7 @@ def superimposed_model(settings, threading=True):
             # Retrieve positives
             ag.info('Fetching positives again...')
             argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in range(detector.num_mixtures)]        
-            all_pos_feats = list(gv.parallel.imap(_get_positives_star, argses))
+            all_pos_feats = list(gv.parallel.starmap(_get_positives, argses))
             all_pos_X0 = []
             for mixcomp, pos_feats in enumerate(all_pos_feats):
                 all_pos_X0.append(np.asarray(map(lambda X: phi(X, mixcomp), pos_feats))) 
