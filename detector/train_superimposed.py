@@ -27,6 +27,12 @@ LLH_NEG = True
 #    img = gv.img.asgray(gv.img.load_image(patch.filename))
 #    return img[patch.selection]
 
+def arrange_support(alpha, obj_shape, psize):
+    offset = tuple([(alpha.shape[i] - obj_shape[i] * psize[i])//2 for i in xrange(2)])
+    support = gv.img.resize(alpha[offset[0]:offset[0]+psize[0]*obj_shape[0], \
+                                  offset[1]:offset[1]+psize[1]*obj_shape[1]], obj_shape[:2]) 
+    return support
+
 def generate_random_patches(filenames, size, seed=0, per_image=1):
     filenames = copy(filenames)
     randgen = np.random.RandomState(seed)
@@ -399,44 +405,51 @@ def _process_file_kernel_basis(seed, mixcomp, settings, bb, filename, bkg_stack,
     return counts, empty_counts, totals
 
 
-def __process_one(args):
-    index, mixcomp, files, im_size, bb, duplicates, neg_files, descriptor, sett = args
+def __process_one(index, mixcomp, files, im_size, bb, duplicates, neg_files, descriptor, sett, extra):
     size = gv.bb.size(bb)
     psize = sett['subsample_size']
 
-    ADAPTIVE = True 
+    ADAPTIVE = extra.get('selective') 
     if ADAPTIVE:
-        # Do a pre-run, investigating the object model
-
-
-
         gen = generate_feature_patches_dense(neg_files, size, lambda im: descriptor.extract_features(im, settings=sett), psize, seed=index)
-        dd = gv.Detector.load('uiuc-np3b.npy')
+        cons = extra['concentrations']
+        obj = cons['pos_avg'] 
+        obj_std = cons['pos_std'] 
+        s = '(adaptive)'
 
-        support = dd.extra['sturf'][0]['support']
-        pos = dd.extra['sturf'][0]['pos'].astype(bool)
-        neg = dd.extra['sturf'][0]['neg'].astype(bool)
-        S = support[...,np.newaxis]
-        appeared = pos & ~neg
-        A = appeared.mean(0) / (0.00001+((1-neg).mean(0)))
-        obj = ((np.apply_over_axes(np.mean, (A*S), [0, 1])) / S.mean()).ravel()
-
-        #obj = dd.extra['sturf'][0]['pavg']
-        obj_clipped = gv.bclip(obj, 0.001)
-        obj_std = np.sqrt(obj_clipped * (1 - obj_clipped))
-        if 0:
-            kern = dd.kernel_templates[mixcomp]
-            obj = np.apply_over_axes(np.mean, kern, [0, 1]).squeeze()
-            obj_clipped = np.clip(obj, 0.01, 1-0.01)
-            obj_std = np.sqrt(obj_clipped * (1 - obj_clipped))
-            #obj_std = np.ones(obj.size)
-        from scipy.stats import norm
         running_avg = None
         C = 0
+        from scipy.stats import norm
+        #{{{
+        if 0:
+            dd = gv.Detector.load('uiuc-np3b.npy')
+
+            support = dd.extra['sturf'][0]['support']
+            pos = dd.extra['sturf'][0]['pos'].astype(bool)
+            neg = dd.extra['sturf'][0]['neg'].astype(bool)
+            S = support[...,np.newaxis]
+            appeared = pos & ~neg
+            A = appeared.mean(0) / (0.00001+((1-neg).mean(0)))
+            obj = ((np.apply_over_axes(np.mean, (A*S), [0, 1])) / S.mean()).ravel()
+
+            #obj = dd.extra['sturf'][0]['pavg']
+            obj_clipped = gv.bclip(obj, 0.001)
+            obj_std = np.sqrt(obj_clipped * (1 - obj_clipped))
+            if 0:
+                kern = dd.kernel_templates[mixcomp]
+                obj = np.apply_over_axes(np.mean, kern, [0, 1]).squeeze()
+                obj_clipped = np.clip(obj, 0.01, 1-0.01)
+                obj_std = np.sqrt(obj_clipped * (1 - obj_clipped))
+                #obj_std = np.ones(obj.size)
+            from scipy.stats import norm
+            running_avg = None
+            C = 0
+        #}}}
     else:
         gen = generate_random_patches(neg_files, size, seed=index)
+        s = ''
 
-    ag.info("Fetching positives from image of index {0} and mixture component {1}".format(index, mixcomp))
+    ag.info("Fetching positives from image of index {0} and mixture component {1} {2}".format(index, mixcomp, s))
     gray_im, alpha = _load_cad_image(files[index], im_size, bb)
 
     all_pos_feats = []
@@ -484,6 +497,79 @@ def __process_one(args):
         all_neg_feats.append(neg_feats)
     return all_pos_feats, all_neg_feats, alpha
 
+def _get_avg_positives(mixcomp, settings, bb, indices, files, neg_files, descriptor, sett):
+    """
+    Returns an estimation of the concentrations over the object model.
+    
+    This is done in a way so that the background model should ideally 
+    not bleed into and influence this average. 
+    """
+
+    im_size = settings['detector']['image_size']
+    print("GETTING AVG")
+    # Run it first once
+    # TODO How many duplicates are needed for this? Probably not a lot.
+    duplicates = 5
+    args = [(index, mixcomp, files, im_size, bb, duplicates, neg_files, descriptor, sett, {}) for index in indices]
+
+    all_pos_feats = []
+    all_neg_feats = []
+    alpha_maps = []
+
+    for pos_feats, neg_feats, alpha in gv.parallel.starmap_unordered(__process_one, args):
+        all_pos_feats.extend(pos_feats)
+        all_neg_feats.extend(neg_feats)
+        alpha_maps.append(alpha)
+
+    # Figure out the average from this
+    pos = np.asarray(all_pos_feats)
+    neg = np.asarray(all_neg_feats)
+    alpha_maps = np.asarray(alpha_maps)
+
+    obj_shape = pos.shape[1:]
+    psize = settings['detector']['subsample_size']
+    support = arrange_support(alpha_maps.mean(0), obj_shape, psize)
+
+    print('pos', pos.shape)
+
+    den = np.apply_over_axes(np.mean, support[...,np.newaxis], [0, 1]).squeeze()
+    P = np.apply_over_axes(np.mean, pos * support[...,np.newaxis], [1, 2]).squeeze() / den
+    N = np.apply_over_axes(np.mean, neg * support[...,np.newaxis], [1, 2]).squeeze() / den
+
+    pos = pos.reshape((-1, duplicates) + pos.shape[1:])
+    neg = neg.reshape((-1, duplicates) + neg.shape[1:])
+    
+    diff = pos ^ neg
+    appeared = pos & ~neg
+    disappeared = ~pos & neg
+
+    print('pos', pos.shape)
+
+    A = (appeared.mean(1) / (0.00001 + ((1 - neg).mean(1)))).mean(1).mean(1)
+    print('A', A.shape)
+    #avg = A.mean(0).mean(0)
+    avg = A.mean(0)
+    std = A.std(0)
+    C = np.cov(A.T)
+    np.savez('data.npz', avg=avg, std=std, C=C)
+
+    neg_avg = N.mean(0)
+    neg_std = N.std(0)
+    neg_C = np.cov(N.T)
+
+    std = std.clip(min=0.001)      
+
+    P = gv.bclip(P, 0.001)
+    N = gv.bclip(N, 0.001)
+    logit_pos_avg = logit(P).mean(0)
+    logit_neg_avg = logit(N).mean(0)
+    logit_pos_cov = np.cov(logit(P).T)
+    logit_neg_cov = np.cov(logit(N).T)
+
+    return dict(pos_avg=avg, pos_std=std, pos_cov=C, neg_avg=neg_avg, neg_std=neg_std, neg_cov=neg_C,
+                logit_pos_avg=logit_pos_avg, logit_pos_cov=logit_pos_cov, logit_neg_avg=logit_neg_avg, logit_neg_cov=logit_neg_cov) 
+    
+
 def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicates_mult=1):
     im_size = settings['detector']['image_size']
     size = gv.bb.size(bb)
@@ -505,19 +591,17 @@ def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicate
 
     sett = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
 
+    extra = {}
+    if settings['detector'].get('selective_bkg'):
+        print("SELECTIVE!")
+        extra['selective'] = True
+        extra['concentrations'] = _get_avg_positives(mixcomp, settings, bb, indices, files, neg_files, descriptor, sett)
 
     alpha_maps = []
 
-    # TODO {{{
-    if 0:
-        pass
-    else:
-        pass
-    # }}}
-
-    args = [(index, mixcomp, files, im_size, bb, duplicates, neg_files, descriptor, sett) for index in indices]
+    args = [(index, mixcomp, files, im_size, bb, duplicates, neg_files, descriptor, sett, extra) for index in indices]
 #index, mixcomp, files, im_size, bb, duplicates):
-    for pos_feats, neg_feats, alpha in gv.parallel.imap_unordered(__process_one, args):
+    for pos_feats, neg_feats, alpha in gv.parallel.starmap_unordered(__process_one, args):
         all_pos_feats.extend(pos_feats)
         all_neg_feats.extend(neg_feats)
         alpha_maps.append(alpha)
@@ -527,7 +611,7 @@ def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicate
     alpha_maps = np.asarray(alpha_maps)
     #support = alpha_maps.mean(axis=0)
 
-    return all_neg_feats, all_pos_feats, alpha_maps 
+    return all_neg_feats, all_pos_feats, alpha_maps, extra 
 
 
 def get_strong_fps(detector, i, fileobj):
@@ -680,8 +764,10 @@ def superimposed_model(settings, threading=True):
 
 
     if settings['detector'].get('superimpose'):
+        detector.extra['concentrations'] = []
+
         argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in range(detector.num_mixtures)]        
-        for neg_feats, pos_feats, alpha_maps in itr.starmap(_get_pos_and_neg, argses):
+        for neg_feats, pos_feats, alpha_maps, extra in itr.starmap(_get_pos_and_neg, argses):
             alpha = alpha_maps.mean(0)
             all_alphas.append(alpha_maps)
             all_binarized_alphas.append(alpha_maps > 0.05)
@@ -689,6 +775,8 @@ def superimposed_model(settings, threading=True):
             alphas.append(alpha)
             all_neg_feats.append(neg_feats)
             all_pos_feats.append(pos_feats)
+
+            detector.extra['concentrations'].append(extra['concentrations'])
 
         ag.info('Done.')
 
@@ -763,7 +851,7 @@ def superimposed_model(settings, threading=True):
         detector.settings['per_mixcomp_bkg'] = True # False 
 
 
-    # Get weights
+    # Get weights and support
 
     for m in xrange(detector.num_mixtures):
         #kern = detector.kernel_templates[m]
@@ -778,8 +866,10 @@ def superimposed_model(settings, threading=True):
 
         detector.extra['weights'][m] = weights
 
+        detector.extra['sturf'][m]['support'] = arrange_support(alphas[m], weights.shape, psize)
 
     # Modify weights
+
     if not detector.settings.get('plain'):
         for m in xrange(detector.num_mixtures):
             weights = detector.extra['weights'][m] 
@@ -805,10 +895,8 @@ def superimposed_model(settings, threading=True):
 
             #support = 1-th[:,:,np.arange(1,F+1),np.arange(F)].mean(-1)
             #offset = gv.sub.subsample_offset_shape(alphas[m].shape, psize)
-            offset = tuple([(alphas[m].shape[i] - weights.shape[i] * psize[i])//2 for i in xrange(2)])
 
-            support = gv.img.resize(alphas[m][offset[0]:offset[0]+psize[0]*weights.shape[0], \
-                                              offset[1]:offset[1]+psize[1]*weights.shape[1]], weights.shape[:2]) 
+            support = detector.extra['sturf'][m]['support'] 
 
             #    def subsample_offset_shape(shape, size):
 
@@ -887,8 +975,6 @@ def superimposed_model(settings, threading=True):
             #avg = xx.mean(0)
             weights1 = ss*(weights - np.apply_over_axes(np.mean, weights * ss, [0, 1])/ss.mean())
             detector.extra['sturf'][m]['weights1'] = weights1
-
-            detector.extra['sturf'][m]['support'] = support
 
             eps = 0.025
 

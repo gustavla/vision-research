@@ -1082,7 +1082,7 @@ class BernoulliDetector(Detector):
         if resmap.size == 0:
             return [], resmap, bkgcomp
 
-        th = scoreatpercentile(resmap.ravel(), 80)
+        th = scoreatpercentile(resmap.ravel(), 50)
         #th = -0.1
         #th = -np.inf
     
@@ -1218,7 +1218,49 @@ class BernoulliDetector(Detector):
                             #print X.mean()
 
                         # TODO: Rel model attempts
-                        if 1 and cascade and 'sturf' in self.extra and not self.settings.get('plain'):
+                        if 1:
+                            sturf = self.extra['sturf'][mixcomp]
+                            # Remove prior stuff 
+                            par = self.param(1.0)
+
+
+                            support0 = sturf['support'][...,np.newaxis]
+                            avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
+                            avgf = gv.bclip(avgf, 0.001).squeeze()
+
+                            xx = logit(avgf)
+
+
+                            def quad_inv(A, x):
+                                return np.dot(x, np.linalg.solve(A, x))
+
+                            cons = self.extra['concentrations'][mixcomp]
+                            pos_cov = cons['logit_pos_cov'].copy()
+                            neg_cov = cons['logit_neg_cov'].copy()
+                            pos_avg = cons['logit_pos_avg']
+                            neg_avg = cons['logit_neg_avg']
+
+                            F = self.num_features
+
+                            # Regularize stuff
+                            pos_cov += np.eye(F) * 0.001 
+                            neg_cov += np.eye(F) * 0.001 
+
+                            pos_sol = quad_inv(pos_cov, xx - pos_avg)
+                            neg_sol = quad_inv(neg_cov, xx - neg_avg)
+
+                            prior = 0.5 * (neg_sol - pos_sol)
+                            #prior = -pos_sol
+
+                            prior *= par
+
+                            new_score = score + prior
+                            score = 100000000 + new_score
+
+                            resmap[i,j] = new_score#.clip(min=0) #new_score 
+
+                        elif 1 and cascade and 'sturf' in self.extra and not self.settings.get('plain'):
+                            sturf = self.extra['sturf'][mixcomp]
                             support0 = sturf['support'][...,np.newaxis]
                             avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
                             avgf = gv.bclip(avgf, 0.025)[0]
