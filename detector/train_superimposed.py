@@ -776,7 +776,7 @@ def superimposed_model(settings, threading=True):
             all_neg_feats.append(neg_feats)
             all_pos_feats.append(pos_feats)
 
-            detector.extra['concentrations'].append(extra['concentrations'])
+            detector.extra['concentrations'].append(extra.get('concentrations', {}))
 
         ag.info('Done.')
 

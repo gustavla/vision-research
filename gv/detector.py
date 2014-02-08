@@ -1197,7 +1197,10 @@ class BernoulliDetector(Detector):
                     score = resmap[i,j]
                     orig_score = orig_resmap[i,j]
                     X = None
-                    if score >= th:# and score == local_max:
+                    if score < th:
+                        continue
+                    else:
+                    #if score >= th:# and score == local_max:
 
                         # ...
                         #if self.TEMP_second and self.clfs is not None:
@@ -1218,7 +1221,7 @@ class BernoulliDetector(Detector):
                             #print X.mean()
 
                         # TODO: Rel model attempts
-                        if 1:
+                        if 0:
                             sturf = self.extra['sturf'][mixcomp]
                             # Remove prior stuff 
                             par = self.param(1.0)
@@ -1242,9 +1245,11 @@ class BernoulliDetector(Detector):
 
                             F = self.num_features
 
+
+                            r = 1.5 
                             # Regularize stuff
-                            pos_cov += np.eye(F) * 0.001 
-                            neg_cov += np.eye(F) * 0.001 
+                            pos_cov += np.eye(F) * 10**r 
+                            neg_cov += np.eye(F) * 10**r 
 
                             pos_sol = quad_inv(pos_cov, xx - pos_avg)
                             neg_sol = quad_inv(neg_cov, xx - neg_avg)
