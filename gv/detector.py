@@ -384,7 +384,10 @@ class BernoulliDetector(Detector):
         return edges
 
     def extract_spread_features(self, image):
-        edges = self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], subsample_size=self.settings['subsample_size'], crop_border=self.settings.get('crop_border')))
+        edges = self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], 
+                                                             subsample_size=self.settings['subsample_size'], 
+                                                             crop_border=self.settings.get('crop_border'),
+                                                             rotation_spreading_radius=self.settings.get('rotation_spreading_radius', 0)))
         return edges 
 
     @property
@@ -549,10 +552,11 @@ class BernoulliDetector(Detector):
 
         psize = self.settings['subsample_size']
         radii = self.settings['spread_radii']
+        rotspread = self.settings.get('rotation_spreading_radius', 0)
         cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
-        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize, adapt=True))
+        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, adapt=True))
         #unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), subsample_size=psize, crop_border=cb))
 
         # TODO: Avoid the edge for the background model

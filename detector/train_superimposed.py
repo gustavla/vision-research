@@ -96,6 +96,7 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
 
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
+    rotspread = settings['detector'].get('rotation_spreading_radius', 0)
     duplicates = settings['detector'].get('duplicates', 1)
     cb = settings['detector'].get('crop_border')
 
@@ -104,7 +105,7 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
     kern = None
     alpha_cum = None
 
-    setts = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+    setts = dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb)
     counts = 0 
 
     all_b = []
@@ -233,6 +234,7 @@ def _get_positives(mixcomp, settings, indices, files):
 
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
+    rotspread = settings['detector'].get('rotation_spreading_radius', 0)
     cb = settings['detector'].get('crop_border')
 
     #obj_counts = None
@@ -244,7 +246,7 @@ def _get_positives(mixcomp, settings, indices, files):
         gray_im = gv.img.asgray(gv.img.load_image(files[index]))
         gray_im = gv.img.resize(gray_im, im_size)
 
-        feats = descriptor.extract_features(gray_im, settings=dict(spread_radii=radii, subsample_size=psize, crop_border=cb))
+        feats = descriptor.extract_features(gray_im, settings=dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb))
         all_feats.append(feats)
         if 0:
             if obj_counts is None:
@@ -279,12 +281,13 @@ def _get_background_model(settings, neg_files):
 
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
+    rotspread = settings['detector'].get('rotation_spreading_radius', 0)
     cb = settings['detector'].get('crop_border')
 
     bkg_counts = np.zeros(descriptor.num_features, dtype=int)
     count = 0
 
-    sett = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+    sett = dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb)
     factors = rs.uniform(0.2, 1.0, size=neg_count)
     argses = [(neg_files[i], descriptor, sett, factors[i]) for i in xrange(neg_count)]
 
@@ -326,6 +329,7 @@ def _process_file_kernel_basis(seed, mixcomp, settings, bb, filename, bkg_stack,
     part_size = descriptor.settings['part_size']
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
+    rotspread = settings['detector'].get('rotation_spreading_radius', 0)
     cb = settings['detector'].get('crop_border')
 
     #sh = (size[0] // psize[0], size[1] // psize[1])
@@ -340,7 +344,7 @@ def _process_file_kernel_basis(seed, mixcomp, settings, bb, filename, bkg_stack,
     empty_counts = np.zeros((F + 1, F), dtype=np.int64)
     totals = 0
 
-    sett = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+    sett = dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb)
 
 
     alpha_maps = []
@@ -586,10 +590,11 @@ def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicate
 
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
+    rotspread = settings['detector'].get('rotation_spreading_radius', 0)
     duplicates = settings['detector'].get('duplicates', 1) * duplicates_mult
     cb = settings['detector'].get('crop_border')
 
-    sett = dict(spread_radii=radii, subsample_size=psize, crop_border=cb)
+    sett = dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb)
 
     extra = {}
     if settings['detector'].get('selective_bkg'):

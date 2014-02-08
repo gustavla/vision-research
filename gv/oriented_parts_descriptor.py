@@ -583,6 +583,19 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             else:
                 part_to_feature = np.arange(self.parts.shape[0], dtype=np.int64)
 
+            # Rotation spreading?
+            rotspread = sett.get('rotation_spreading_radius', 0)
+            if rotspread == 0:
+                between_feature_spreading = None
+            else:
+                between_feature_spreading = np.zeros((self.num_parts, rotspread*2 + 1), dtype=np.int32)
+
+                for f in xrange(self.num_parts):
+                    thepart = f // ORI
+                    ori = f % ORI 
+                    for i in xrange(rotspread*2 + 1):
+                        between_feature_spreading[f,i] = thepart * ORI + (ori - rotspread + i) % ORI
+
             feats = ag.features.extract_parts(edges, unspread_edges,
                                               self._log_parts,
                                               self._log_invparts,
@@ -591,7 +604,8 @@ class OrientedPartsDescriptor(BinaryDescriptor):
                                               spread_radii=sett.get('spread_radii', (0, 0)),
                                               subsample_size=psize,
                                               part_to_feature=part_to_feature,
-                                              stride=self.settings.get('part_coding_stride', 1))
+                                              stride=self.settings.get('part_coding_stride', 1),
+                                              between_feature_spreading=between_feature_spreading)
 
             
             buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
