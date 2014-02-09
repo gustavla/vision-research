@@ -1,9 +1,9 @@
-from __future__ import division
+from __future__ import division, print_function, absolute_import
 import numpy as np
-from ndfeature import ndfeature
-from real_descriptor import RealDescriptor
-from oriented_parts_descriptor import OrientedPartsDescriptor
-from unraveled_hog import unraveled_hog
+from .ndfeature import ndfeature
+from .real_descriptor import RealDescriptor
+from .oriented_parts_descriptor import OrientedPartsDescriptor
+from .unraveled_hog import unraveled_hog
 
 @RealDescriptor.register('oriented-parts')
 class RealOrientedPartsDescriptor(RealDescriptor):
@@ -43,3 +43,7 @@ class RealOrientedPartsDescriptor(RealDescriptor):
 
     def save_to_dict(self):
         return self._descriptor.save_to_dict()
+
+    @property
+    def visparts(self):
+        return self._descriptor.visparts

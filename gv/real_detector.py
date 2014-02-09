@@ -17,14 +17,16 @@ class RealDetector(BernoulliDetector):
         return gv.img.asgray(gv.img.load_image(fn))
 
     def train_from_features(self, feats, labels, save=True):
-        assert len(feats) == len(labels)
+        assert len(feats) == len(labels), '{0} != {1}'.format(len(feats), len(labels))
         labels = np.asarray(labels)
         feats = np.asarray(feats)
 
         pos_feats = feats[labels==1]
         neg_feats = feats[labels==0]
 
-        K = self.settings.get('num_mixtures', 1)
+        #K = self.settings.get('num_mixtures', 1)
+        # TODO: Only train one at a time
+        K = 1
         if K == 1:
             comp_feats = [pos_feats]
         else:
@@ -59,9 +61,9 @@ class RealDetector(BernoulliDetector):
 
             from sklearn import cross_validation
 
-            # Set penalty parameter with leave-out validation
             if 0:
-                Cs = np.array([50.0, 10.0, 5.0, 1.0, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
+                # Set penalty parameter with leave-out validation
+                Cs = np.array([1000.0, 500.0, 100.0, 50.0, 10.0, 5.0, 1.0, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
                 clfs = []
                 the_scores = np.zeros(len(Cs))
                 for i, C in enumerate(Cs):
@@ -69,6 +71,7 @@ class RealDetector(BernoulliDetector):
                     scores = cross_validation.cross_val_score(clf, flat_k_feats.astype(np.float64), k_labels, cv=5)
                     the_scores[i] = np.mean(scores)
                     clfs.append(clf)
+                    print 'C', C, 'score', np.mean(scores)
 
                 best_i = np.argmax(the_scores)
                 print 'BEST C', Cs[best_i]
@@ -125,6 +128,13 @@ class RealDetector(BernoulliDetector):
         final_bbs = bbs
 
         return final_bbs, resmap, None, spread_feats, img_resized
+
+    def weights(self, mixcomp):
+        return self.svms[mixcomp]['weights']
+
+    def keypoint_mask(self, mixcomp):
+        kp_only_weights = np.ones(self.weights_shape(mixcomp))
+        return kp_only_weights
 
     def _response_map(self, feats, mixcomp):
         sh = self.svms[mixcomp]['weights'].shape
@@ -196,7 +206,7 @@ class RealDetector(BernoulliDetector):
                     ok = True
         
                     # Cascade
-                    if cascade:
+                    if cascade and 0:
                         cur_score = score
                         import itertools as itr
                         for cas_i, cas in enumerate(self.extra['cascades']):
@@ -258,6 +268,7 @@ class RealDetector(BernoulliDetector):
             #obj.weights = d['weights']
             obj.svms = d['svms']
             obj.extra = d['extra']
+            obj.support = d.get('support')
             #obj.orig_kernel_size = d.get('orig_kernel_size')
             obj.kernel_sizes = d.get('kernel_sizes')
 
@@ -277,6 +288,7 @@ class RealDetector(BernoulliDetector):
         d['svms'] = self.svms
         #d['orig_kernel_size'] = self.orig_kernel_size
         d['kernel_sizes'] = self.kernel_sizes
+        d['support'] = self.support
         d['settings'] = self.settings
 
         return d

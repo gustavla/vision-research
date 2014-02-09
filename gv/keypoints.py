@@ -1,3 +1,4 @@
+from __future__ import division, print_function, absolute_import
 
 import numpy as np
 
@@ -10,6 +11,22 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
     #kern = np.clip(kern, eps, 1 - eps)
     #bkg = np.clip(bkg, eps, 1 - eps)
     #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+
+
+    # TEMP{
+    if 0:
+        rotspread = 1
+        ORI = 16
+        F = weights.shape[-1]
+        between_feature_spreading = np.zeros((F, rotspread*2 + 1), dtype=np.int32)
+
+        for f in xrange(F):
+            thepart = f // ORI
+            ori = f % ORI 
+            for i in xrange(rotspread*2 + 1):
+                between_feature_spreading[f,i] = thepart * ORI + (ori - rotspread + i) % ORI
+
+    # }TEMP
 
     F = weights.shape[-1]
 
@@ -35,7 +52,10 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
             ii = np.unravel_index(np.argmax(absw), absw.shape)
             indices.append(ii) 
             indices_weights.append(absw[ii])
+
+
             absw[max(0, ii[0]-suppress_radius):ii[0]+suppress_radius+1, max(0, ii[1]-suppress_radius):ii[1]+suppress_radius+1,ii[2]] = 0.0
+            #absw[max(0, ii[0]-suppress_radius):ii[0]+suppress_radius+1, max(0, ii[1]-suppress_radius):ii[1]+suppress_radius+1,between_feature_spreading[ii[2]]] = 0.0
 
             if len(indices) >= max_indices:
                 break
@@ -48,7 +68,7 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
     Ls = np.bincount(indices[:,2], minlength=weights.shape[-1])
     L = int(np.median(Ls))
 
-    print 'indices per features:', L
+    print('indices per features:', L)
 
     if not even:
         return indices

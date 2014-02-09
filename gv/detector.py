@@ -1792,9 +1792,9 @@ class BernoulliDetector(Detector):
         return cls.build_weights(clipped_obj, clipped_bkg)
 
     def weights_shape(self, mixcomp):
-        return self.kernel_templates[mixcomp].shape
+        return self.weights(0).shape
 
-    def weights(self, mixcomp):
+    def lrt_weights(self, mixcomp):
         bkg = np.clip(self.fixed_spread_bkg[mixcomp], self.eps, 1 - self.eps)
         kern = np.clip(self.kernel_templates[mixcomp], self.eps, 1 - self.eps)
         #w = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
@@ -1802,6 +1802,12 @@ class BernoulliDetector(Detector):
         #pd = self.kernel_templates[mixcomp].mean(axis=-1)
         #return w / np.minimum(pd, 0.5)
         return w
+
+    def weights(self, mixcomp):
+        if 'weights' in self.extra:
+            return self.extra['weights'][mixcomp]
+        else:
+            return self.lrt_weights(mixcomp)
 
     def new_weights(self, mixcomp):
         return self.extra['weights'][mixcomp]

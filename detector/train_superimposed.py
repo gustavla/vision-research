@@ -222,7 +222,7 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, eps, bb, kern, bkg, ind
 
 
 
-def _get_positives(mixcomp, settings, indices, files):
+def get_positives(mixcomp, settings, indices, files):
     im_size = settings['detector']['image_size']
 
     # Use the same seed for all mixture components! That will make them easier to compare,
@@ -237,8 +237,6 @@ def _get_positives(mixcomp, settings, indices, files):
     rotspread = settings['detector'].get('rotation_spreading_radius', 0)
     cb = settings['detector'].get('crop_border')
 
-    #obj_counts = None
-    #count = 0
     all_feats = []
 
     for index in indices: 
@@ -248,18 +246,8 @@ def _get_positives(mixcomp, settings, indices, files):
 
         feats = descriptor.extract_features(gray_im, settings=dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb))
         all_feats.append(feats)
-        if 0:
-            if obj_counts is None:
-                obj_counts = feats.astype(int)
-            else:
-                obj_counts += feats
 
-            count += 1 
-
-    #assert count > 0, "Did not find any object images!"
-
-    #return obj_counts.astype(np.float64) / count
-    return np.asarray(all_feats)
+    return mixcomp, np.asarray(all_feats)
 
 def __process_bkg(fn, descriptor, sett, factor):
     im = gv.img.asgray(gv.img.load_image(fn))
@@ -574,7 +562,7 @@ def _get_avg_positives(mixcomp, settings, bb, indices, files, neg_files, descrip
                 logit_pos_avg=logit_pos_avg, logit_pos_cov=logit_pos_cov, logit_neg_avg=logit_neg_avg, logit_neg_cov=logit_neg_cov) 
     
 
-def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicates_mult=1):
+def get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicates_mult=1):
     im_size = settings['detector']['image_size']
     size = gv.bb.size(bb)
 
@@ -613,10 +601,10 @@ def _get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicate
 
     all_neg_feats = np.asarray(all_neg_feats)
     all_pos_feats = np.asarray(all_pos_feats)
-    alpha_maps = np.asarray(alpha_maps)
+    #alpha_maps = np.asarray(alpha_maps)
     #support = alpha_maps.mean(axis=0)
 
-    return all_neg_feats, all_pos_feats, alpha_maps, extra 
+    return mixcomp, all_neg_feats, all_pos_feats, alpha_maps, extra 
 
 
 def get_strong_fps(detector, i, fileobj):
@@ -644,34 +632,15 @@ def get_strong_fps(detector, i, fileobj):
     return topsy
 
 
-def superimposed_model(settings, threading=True):
-    offset = settings['detector'].get('train_offset', 0)
-    limit = settings['detector'].get('train_limit')
-    num_mixtures = settings['detector']['num_mixtures']
-    assert limit is not None, "Must specify limit in the settings file"
-    files = sorted(glob.glob(settings['detector']['train_dir']))[offset:offset+limit]
-    neg_files = sorted(glob.glob(settings['detector']['neg_dir']))
-    neg_files2 = sorted(glob.glob(settings['detector']['neg_dir2']))
-
-    # Train a mixture model to get a clustering of the angles of the object
-    descriptor = gv.load_descriptor(settings)
-    detector = gv.BernoulliDetector(num_mixtures, descriptor, settings['detector'])
-
-    print("Checkpoint 1")
-
+def cluster(detector, files):
     testing_type = detector.settings.get('testing_type')
     bkg_type = detector.settings.get('bkg_type')
 
-
-    # Extract clusters (manual or through EM)
-    ##############################################################################
-
+    
     if detector.num_mixtures == 1 or detector.settings.get('manual_clusters', False):
-
-        if detector.num_mixtures == 1:
-            comps = np.zeros(len(files), dtype=int)
-        else:
-            comps = np.zeros(len(files), dtype=np.int64)
+        ag.info('Manual clustering')
+        comps = np.zeros(len(files), dtype=np.int64)
+        if detector.num_mixtures != 1:
             for i, f in enumerate(files):
                 try:
                     v = int(os.path.basename(f).split('-')[0])
@@ -688,36 +657,61 @@ def superimposed_model(settings, threading=True):
         detector.determine_optimal_bounding_boxes(comps, alpha_maps)
 
     else:
-        detector.settings['bkg_type'] = None
-        detector.settings['testing_type'] = None
+        ag.info('Automatic clustering ({})'.format(detector.num_mixtures))
+        #detector.settings['bkg_type'] = None
+        #detector.settings['testing_type'] = None
 
-        detector.train_from_images(files)
+        #detector.train_from_images(files)
 
-        detector.settings['bkg_type'] = bkg_type
-        detector.settings['testing_type'] = testing_type
+        alpha_maps = []
+        feats = []
+
+        for i, grayscale_img, img, alpha in detector.load_img(files):
+            #alpha_maps.append(alpha)
+            #raw_im = gv.img.load_image(fn)
+            #im = gv.img.asgray(raw_im)
+            feat = detector.extract_spread_features(grayscale_img)
+            print(feat.shape)
+            feats.append(feat)
+            alpha_maps.append(alpha)
+
+        alpha_maps = np.asarray(alpha_maps)
+        print('A', alpha_maps.shape)
+        feats = np.asarray(feats)
+        feats = feats.reshape((feats.shape[0], -1))
+
+        from sklearn.mixture import GMM
+
+        if 0:
+            ag.info('Fitting GMM')
+            print(feats.shape)
+            g = GMM(n_components=detector.num_mixtures)
+            g.fit(feats)
+            comps = g.predict(feats)
+        else:
+            g = ag.stats.BernoulliMixture(detector.num_mixtures, feats)
+            g.run_EM(1e-8, min_probability=0.025)
+
+            comps = g.mixture_components()
+
+        
+
+        detector.determine_optimal_bounding_boxes(comps, alpha_maps)
+        # Cluster using a Bernoulli detector, even though this might not be. 
+
+        #detector.settings['bkg_type'] = bkg_type
+        #detector.settings['testing_type'] = testing_type
 
         print("Checkpoint 2")
 
-        comps = detector.mixture.mixture_components()
-    each_mix_N = np.bincount(comps, minlength=num_mixtures)
+        #comps = detector.mixture.mixture_components()
 
-    ##############################################################################
+    print(detector.extra['bbs'])
 
-    print("Checkpoint 3")
+    return detector, comps
 
-    print("Checkpoint 4")
-
-    support = detector.support 
-
-    kernels = []
-
-    #print("TODO, quitting")
-    #return detector
-
-    # Determine bounding boxes
-    ##############################################################################
-
-    psize = settings['detector']['subsample_size']
+def calc_bbs(detector):
+    psize = detector.settings['subsample_size']
 
     def get_full_size_bb(k):
         bb = detector.bounding_box_for_mix_comp(k)
@@ -742,11 +736,53 @@ def superimposed_model(settings, threading=True):
     else: 
         bbs = [make_bb(get_full_size_bb(k), max_bb) for k in xrange(detector.num_mixtures)]
 
+    return bbs
+
+def superimposed_model(settings, threading=True):
+    offset = settings['detector'].get('train_offset', 0)
+    limit = settings['detector'].get('train_limit')
+    num_mixtures = settings['detector']['num_mixtures']
+    assert limit is not None, "Must specify limit in the settings file"
+    files = sorted(glob.glob(settings['detector']['train_dir']))[offset:offset+limit]
+    neg_files = sorted(glob.glob(settings['detector']['neg_dir']))
+
+    # Train a mixture model to get a clustering of the angles of the object
+    descriptor = gv.load_descriptor(settings)
+    detector = gv.BernoulliDetector(num_mixtures, descriptor, settings['detector'])
+
+    print("Checkpoint 1")
+
+    testing_type = detector.settings.get('testing_type')
+
+    # Extract clusters (manual or through EM)
+    ##############################################################################
+    detector, comps = cluster(detector, files)
+    each_mix_N = np.bincount(comps, minlength=num_mixtures)
+
+    ##############################################################################
+
+    print("Checkpoint 3")
+
+    print("Checkpoint 4")
+
+    support = detector.support 
+
+    kernels = []
+
+    #print("TODO, quitting")
+    #return detector
+
+    # Determine bounding boxes
+    ##############################################################################
+
+    psize = settings['detector']['subsample_size']
+
+    bbs = calc_bbs(detector)
+
     print("Checkpoint 6")
 
     print("Checkpoint 7")
 
-    kernels = []
     bkgs = []
     orig_sizes = []
     new_support = []
@@ -772,8 +808,9 @@ def superimposed_model(settings, threading=True):
         detector.extra['concentrations'] = []
 
         argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in range(detector.num_mixtures)]        
-        for neg_feats, pos_feats, alpha_maps, extra in itr.starmap(_get_pos_and_neg, argses):
-            alpha = alpha_maps.mean(0)
+        for mixcomp, neg_feats, pos_feats, alpha_maps, extra in itr.starmap(get_pos_and_neg, argses):
+            alpha = np.mean(alpha_maps, axis=0)
+            alpha_maps = np.asarray(alpha_maps)
             all_alphas.append(alpha_maps)
             all_binarized_alphas.append(alpha_maps > 0.05)
 
@@ -841,7 +878,7 @@ def superimposed_model(settings, threading=True):
         bkg = _get_background_model(settings, neg_files)
 
         argses = [(m, settings, list(np.where(comps == m)[0]), files) for m in range(detector.num_mixtures)]        
-        for pos_feats in gv.parallel.starmap(_get_positives, argses):
+        for m, pos_feats in gv.parallel.starmap(get_positives, argses):
             obj = pos_feats.mean(axis=0)
             all_pos_feats.append(pos_feats)
 
@@ -1207,17 +1244,6 @@ def superimposed_model(settings, threading=True):
             all_neg_X0.append(np.asarray(map(lambda bbobj: phi(bbobj.X, k), top_bbs[k])))
 
         del top_bbs
-
-        # OLD PLACE FOR FETCHING POSITIVES
-        if 0:
-            # Retrieve positives
-            ag.info('Fetching positives again...')
-            argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in range(detector.num_mixtures)]        
-            all_pos_feats = list(gv.parallel.starmap(_get_positives, argses))
-            all_pos_X0 = []
-            for mixcomp, pos_feats in enumerate(all_pos_feats):
-                all_pos_X0.append(np.asarray(map(lambda X: phi(X, mixcomp), pos_feats))) 
-            ag.info('Done.')
 
         all_pos_X0 = []
         for mixcomp, pos_feats in enumerate(all_pos_feats):

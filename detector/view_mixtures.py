@@ -1,6 +1,7 @@
 from __future__ import division
 
 import gv
+import os
 
 def view_mixtures(detector, output_file=None):
     import amitgroup as ag
@@ -34,11 +35,18 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='View mixture components')
     parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
+    parser.add_argument('-o', '--output', type=argparse.FileType('wb'), help='Filename of output image')
+
+    import matplotlib as mpl
 
     args = parser.parse_args()
     model_file = args.model
 
+    if args.output is not None:
+        mpl.use('Agg')
+
     # Load detector
     detector = gv.Detector.load(model_file)
 
-    view_mixtures(detector)
+    view_mixtures(detector, output_file=args.output)
+    os.chmod(args.output.name, 0644)
