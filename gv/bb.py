@@ -70,6 +70,14 @@ def inflate2(bb, amounts):
 def center(bb):
     return ((bb[0]+bb[2])//2, (bb[1]+bb[3])//2)
 
+def create(center=None, size=None):
+    assert size is not None
+    if center is None:
+        center = (0, 0)
+    half_size = [s//2 for s in size]
+    return (center[0]-half_size[0], center[1]-half_size[1],
+            center[1]-half_size[0]+size[0], center[1]-half_size[1]+size[1])
+
 def expand_to_square(bb):
     """Expands a bounding box to square"""
     diffs = [bb[2]-bb[0], bb[3]-bb[1]]

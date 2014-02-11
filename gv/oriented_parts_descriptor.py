@@ -81,7 +81,7 @@ def _get_patches(bedges_settings, settings, filename):
     # Set up matrices that will translate a position in the canonical image to
     # the rotated iamges. This way, we're not rotating each patch on demand, which
     # will end up slower.
-    matrices = [_translation_matrix(new_size/2, new_size/2) * _rotation_matrix(a) * _translation_matrix(-new_size/2, -new_size/2) for a in radians]
+    matrices = [gv.matrix.translation(new_size/2, new_size/2) * gv.matrix.rotation(a) * gv.matrix.translation(-new_size/2, -new_size/2) for a in radians]
 
     # Add matrices for the polarity flips too, if applicable
     matrices *= POL 
@@ -225,14 +225,6 @@ def convert_partprobs_to_feature_vector(partprobs, tau=0.0):
 
     
     return feats
-
-def _translation_matrix(dx, dy):
-    return np.matrix([[1, 0, dx], [0, 1, dy], [0, 0, 1]])
-
-def _rotation_matrix(a):
-    return np.matrix([[np.cos(a), -np.sin(a), 0],
-                      [np.sin(a), np.cos(a),  0],
-                      [0,         0,          1]])
 
 @BinaryDescriptor.register('oriented-parts')
 class OrientedPartsDescriptor(BinaryDescriptor):

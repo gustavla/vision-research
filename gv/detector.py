@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 
 import amitgroup as ag
 import numpy as np
@@ -90,12 +90,16 @@ class BernoulliDetector(Detector):
     def load_img(self, images, offsets=None):
         resize_to = self.settings.get('image_size')
         for i, img_obj in enumerate(images):
+            print(img_obj)
             if isinstance(img_obj, str):
                 img = gv.img.load_image(img_obj)
             grayscale_img = gv.img.asgray(img)
 
             # Resize the image before extracting features
-            if resize_to is not None and resize_to != grayscale_img.shape[:2]:
+            if self.settings.get('crop_image'):
+                img = gv.img.crop(img, resize_to)
+                gryscale_img = gv.img.crop(grayscale_img, resize_to)
+            elif resize_to is not None and resize_to != grayscale_img.shape[:2]:
                 img = gv.img.resize(img, resize_to)
                 grayscale_img = gv.img.resize(grayscale_img, resize_to) 
 
@@ -316,7 +320,7 @@ class BernoulliDetector(Detector):
             #import pylab as plt
             #plt.imshow(kernels[0].sum(axis=-1), interpolation='nearest')
             #plt.show()
-            print np.asarray(output).shape, shape
+            print(np.asarray(output).shape, shape)
             X = np.asarray(output).reshape((-1,) + shape) #sub_output.reshape((sub_output.shape[0], -1))
             llhs = [[] for i in xrange(self.num_mixtures)] 
 
@@ -335,8 +339,11 @@ class BernoulliDetector(Detector):
         self.extra['bbs'] = []
         for k in xrange(self.num_mixtures):
             ag.info("Determining bounding box for mixcomp", k)
+            print('CP 1')
             alphas = alpha_maps[comps == k] 
+            print('CP 2')
             bbs = map(gv.img.bounding_box, alphas) 
+            print('CP 3')
 
             #def score(bb):
                 #return sum()
@@ -347,14 +354,16 @@ class BernoulliDetector(Detector):
 
             from scipy.optimize import minimize
 
-            # Initialize with the smallest from the set
-            contendors = []
+            contendors = set() 
             # TODO: Up to 7 is not necessary here, but I guess it doesn't hurt either.
             for inflate in xrange(7):
+                print('CP 4', inflate)
                 for bbi in bbs:
-                    contendors.append(gv.bb.inflate(bbi, inflate))
+                    contendors.add(gv.bb.inflate(bbi, inflate))
 
-            #bb0 = bbs[np.argmin([loss(bbi) for bbi in bbs])]
+            contendors = list(contendors)
+
+            print('CP 5')
             bb0 = contendors[np.argmin([loss(bbi) for bbi in contendors])]
 
             #{{{ Old code
@@ -364,8 +373,8 @@ class BernoulliDetector(Detector):
                 bb = tuple(res.x)
 
                 # What is the worst value in this mixture component? If below 0.5, there might be no point keeping it
-                print k, 'loss', loss(bb)
-                print k, 'minimum', min([gv.bb.fraction_metric(bb, bbi) for bbi in bbs])
+                print(k, 'loss', loss(bb))
+                print(k, 'minimum', min([gv.bb.fraction_metric(bb, bbi) for bbi in bbs]))
             #}}}
             bb = bb0
 
@@ -374,10 +383,11 @@ class BernoulliDetector(Detector):
             #if inf_bb is not None:
                 #bb = gv.bb.inflate(bb, inf_bb)
 
-            psize = self.settings['subsample_size']
+            #psize = self.settings['subsample_size']
             #bb = tuple([(bb[i] - alphas.shape[i%2] // 2) / psize[i%2] for i in xrange(4)])
 
             self.extra['bbs'].append(bb)
+        ag.info('Done determining all bounding boxes')
 
     def extract_unspread_features(self, image):
         edges = self.descriptor.extract_features(image, dict(spread_radii=(0, 0), crop_border=self.settings.get('crop_border')))
@@ -656,7 +666,7 @@ class BernoulliDetector(Detector):
                 self.aa += a
             except:
                 self.aa = a
-            print self.aa.astype(np.float64) / self.aa.sum()
+            print(self.aa.astype(np.float64) / self.aa.sum())
         #}}}
         bbs = bbs[:20]
 
@@ -1215,15 +1225,6 @@ class BernoulliDetector(Detector):
                         bk = -1 
                         X = bigger[i:i+sh0[0], j:j+sh0[1]].copy()
 
-                        #if np.fabs(X.mean() - 0.2) > 0.05:
-                            #score -= 3 
-
-
-                        #if X.mean() < 0.1:
-                            #score -= 10
-                        #if score >= 15:
-                            #print X.mean()
-
                         # TODO: Rel model attempts
                         if 0:
                             sturf = self.extra['sturf'][mixcomp]
@@ -1274,8 +1275,6 @@ class BernoulliDetector(Detector):
                             avgf = np.apply_over_axes(np.sum, X * support0, [0, 1]) / support0.sum()
                             avgf = gv.bclip(avgf, 0.025)[0]
                             w = self.new_kp_weights(mixcomp) 
-                            #print w.mean()
-                            #print(w.shape, avgf.shape)
 
                             #V = (avgf * (1 - avgf) * w**2).sum()
 
@@ -1431,7 +1430,6 @@ class BernoulliDetector(Detector):
                                 Sreg = S + np.eye(S.shape[0]) * 0.002
                                 md = np.sqrt(np.dot(d, np.linalg.solve(Sreg, d)))
                                 #md = np.sqrt(np.dot(d, np.dot(invC, d)))
-                                #print score, md
 
                                 bkg = self.fixed_spread_bkg[mixcomp].mean(0).mean(0)
 
@@ -1464,7 +1462,6 @@ class BernoulliDetector(Detector):
                                 #new_score = score - md * md_factor
                                 #new_score = score + C / std
                                 #new_score = C / std
-                                #print score, md*md_factor, C/std
                                 score = 100000 + new_score
                             else:
                                 score = 100000 + old_score        
@@ -1474,12 +1471,6 @@ class BernoulliDetector(Detector):
                                 resmap[i,j] = score
 
                             #score = 100000 + old_score
-
-                            #if score > 97500:
-                                #print 'md', md, orig_score
-
-                            #print np.sum(avgf * beta), md, 'factor', np.sum(avgf * beta)/md
-                            
 
                             #score = 10000 + alpha * score + (1 - alpha) * old_score
 
@@ -1512,11 +1503,6 @@ class BernoulliDetector(Detector):
                             #prior = st.norm.logpdf((avg - means) / stds).sum() * 0.1
                             
 
-                            #print(prior, score)
-
-                            #print 'sp', score, prior
-                
-
                             #score = (kern * X).sum() + prior
 
                             # New weights 
@@ -1545,7 +1531,6 @@ class BernoulliDetector(Detector):
                                     f = (svm_info['intercept'] + np.sum(svm_info['weights'] * X0)).flat[0]
                                     #fs.append(f)
                                     #score = cascade_score + score - orig_score + 100 / (1 + np.exp(-f/50)).flat[0]
-                                    #print 'f', f
                                     #score = max(score, 100 + f)
                                     scores.append(100 + f + 0.10 * factor)
                                     #scores.append(100 + f)
@@ -1650,13 +1635,9 @@ class BernoulliDetector(Detector):
                                 #score = f
                                 
 
-                                #print "Refining using SVM", score
-
                                 score = 0.0 + 1 / (1 + np.exp(-f)).flat[0]
                                 #score = max(score, local_score)
                                 #score = f
-                                #print "New score", score
-
 
                                 #if y == 0:
                                     #score = -100.0
@@ -1752,9 +1733,6 @@ class BernoulliDetector(Detector):
         # Let's limit to five per level
         bbs_sorted = self.nonmaximal_suppression(bbs)
 
-        # Temporary
-        #print mn, mx
-
         if more_detections:
             bbs_sorted = bbs_sorted[:100]
         else:
@@ -1776,8 +1754,8 @@ class BernoulliDetector(Detector):
             fallback_eps = settings.get('min_probability_fallback', 0.0001)
             if eps < fallback_eps:
                 eps = fallback_eps
-            print model.shape
-            print "EPS", eps
+            print(model.shape)
+            print("EPS", eps)
             return eps
         else:
             return eps 
@@ -1849,7 +1827,7 @@ class BernoulliDetector(Detector):
 
     def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True, use_padding=True):
         if np.min(sub_feats.shape) <= 1:
-            return np.zeros((0, 0, 0)), None, None
+            return np.zeros((0, 0, 0)), None, None, None
     
         # TODO: Temporary
         kern = sub_kernels[mixcomp]
@@ -1900,7 +1878,6 @@ class BernoulliDetector(Detector):
             if self.indices is not None and len(self.indices[mixcomp]) > 0:
                 indices = self.indices[mixcomp].astype(np.int32)
                 from .fast import multifeature_correlate2d_with_indices
-                #print bigger.shape, weights.shape, indices
                 res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices)
             else:
                 res = multifeature_correlate2d(bigger, weights.astype(np.float64))

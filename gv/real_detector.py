@@ -44,6 +44,7 @@ class RealDetector(BernoulliDetector):
         kernel_sizes = []
         svms = []
         for k in xrange(K):
+            from sklearn import linear_model
             from sklearn import svm
             k_pos_feats = comp_feats[k]
 
@@ -83,8 +84,14 @@ class RealDetector(BernoulliDetector):
             else:
                 C = self.settings.get('penalty_parameter', 1)
 
-            svc = svm.LinearSVC(C=C)
-            svc.fit(flat_k_feats.astype(np.float64), k_labels) 
+            import scipy.sparse
+
+            svc = linear_model.SGDClassifier(loss='hinge', penalty='l2')
+            X = scipy.sparse.csr_matrix(flat_k_feats)
+           
+            svc.fit(X, k_labels)
+            #svc = svm.LinearSVC(C=C)
+            #svc.fit(flat_k_feats.astype(np.float64), k_labels) 
 
             svms.append(dict(intercept=svc.intercept_, 
                                   weights=svc.coef_.reshape(feats.shape[1:])))

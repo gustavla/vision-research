@@ -1,18 +1,21 @@
 #import gv.collection
 from collections import namedtuple
 import amitgroup.util
+from functools import partial
 
 ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
+#ImgFile.__new__ = partial(ImgFile.__new__, path=None, boxes=[], img_id='(none)')
+ImgFile.__new__.__defaults__ = (None, [], '(none)')
 
 def contests():
     return ('voc-val', 'voc-train', 'voc-trainval', 'voc-test', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-profile5', 
             'voc-easy', 'voc-fronts', 'voc-fronts-negs', 'voc-sides', 'voc-val-profile', 'voc-test-profile',
-            'uiuc', 'uiuc-multiscale', 
+            'uiuc', 'uiuc-multiscale', 'rot-uiuc',
             'inria-test',
             'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks')
 
 def datasets():
-    return ('none', 'voc', 'uiuc', 'uiuc-multiscale', 'inria',
+    return ('none', 'voc', 'uiuc', 'uiuc-multiscale', 'rot-uiuc', 'inria',
             'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks')
 
 def load_files(contest, obj_class):
@@ -51,6 +54,8 @@ def load_files(contest, obj_class):
         files, tot = gv.uiuc.load_testing_files()
     elif contest == 'uiuc-multiscale':
         files, tot = gv.uiuc.load_testing_files(single_scale=False)
+    elif contest == 'rot-uiuc':
+        files, tot = gv.uiuc.load_testing_files(env='ROT_UIUC_DIR')
     elif contest == 'inria-test' or contest == 'inria':
         assert obj_class == 'person', "INRIA only has person class"
         files, tot = gv.inria.load_files(obj_class, dataset='test')
@@ -66,6 +71,8 @@ def load_file(contest, img_id, obj_class=None, path=None):
     import gv.custom
     if contest.startswith('uiuc'):
         return gv.uiuc.load_testing_file(img_id, single_scale=(contest=='uiuc'))
+    if contest.startswith('rot-uiuc'):
+        return gv.uiuc.load_testing_file(img_id, single_scale=(contest=='rot-uiuc'), env='ROT_UIUC_DIR')
     elif contest.startswith('voc'):
         return gv.voc.load_file(obj_class, img_id) 
     elif contest == 'inria':

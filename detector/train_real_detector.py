@@ -22,7 +22,7 @@ from train_superimposed import generate_random_patches, cluster, calc_bbs, get_p
 
 ag.set_verbose(True)
 
-PER_IMAGE = 5
+PER_IMAGE = 10 
 
 if 0:
     def get_positives(detector, fns):
@@ -196,7 +196,7 @@ if gv.parallel.main(__name__):
             #print('negatives', len([im for im in gen]))
         else:
             print('Taking negatives from neg_dir')
-            gen = neg_files
+            gen = itr.cycle(gv.datasets.ImgFile(path=fn, img_id=os.path.basename(fn)) for fn in neg_files)
             
         gen = itr.cycle(gen)
         index = 0
@@ -230,7 +230,8 @@ if gv.parallel.main(__name__):
 
         print("Training with {total} (pos = {pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1)))
         print("feats", feats.shape)
-        svms, kernel_sizes = detector.train_from_features(feats, labels, save=False)
+        with gv.Timer('Training SVM'):
+            svms, kernel_sizes = detector.train_from_features(feats, labels, save=False)
 
         detector.svms[m] = svms[0]
         detector.kernel_sizes[m] = kernel_sizes[0]
@@ -287,13 +288,16 @@ if gv.parallel.main(__name__):
             #detector0 = deepcopy(cur_detector)
             detector0 = cur_detector
             print("Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1)))
-            svms, kernel_sizes = detector0.train_from_features(feats, labels, save=False)
+            with gv.Timer('Training SVM'):
+                svms, kernel_sizes = detector0.train_from_features(feats, labels, save=False)
 
             count = np.sum(np.asarray(labels)==0)
 
             # Do not cascade, instead override the detector
             detector.svms[m] = svms[0]
             detector.kernel_sizes[m] = kernel_sizes[0]
+
+            np.savez('training_data-iter{}.npz'.format(loop), feats=feats, labels=labels)
 
             if 0:
                 detectors.append(detector0) 

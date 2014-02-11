@@ -16,6 +16,7 @@ from . import parallel
 from . import gradients
 from . import plot
 from . import imfilter
+from . import matrix
 
 from .core import *
 

@@ -99,6 +99,7 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
     rotspread = settings['detector'].get('rotation_spreading_radius', 0)
     duplicates = settings['detector'].get('duplicates', 1)
     cb = settings['detector'].get('crop_border')
+    crop_image = settings['detector'].get('crop_image')
 
     totals = 0
     bkg = None
@@ -114,7 +115,7 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
 
     for index in indices: 
         ag.info("Processing image of index {0} and mixture component {1}".format(index, mixcomp))
-        gray_im, alpha = _load_cad_image(files[index], im_size, bb)
+        gray_im, alpha = _load_cad_image(files[index], im_size, bb, crop=crop_image)
 
         bin_alpha = (alpha > 0.05).astype(np.uint32)
 
@@ -177,9 +178,12 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
 
 
 
-def _load_cad_image(fn, im_size, bb):
+def _load_cad_image(fn, im_size, bb, crop=False):
     im = gv.img.load_image(fn)
-    im = gv.img.resize(im, im_size)
+    if crop:
+        im = gv.img.crop(im, im_size)
+    else:
+        im = gv.img.resize(im, im_size)
     im = gv.img.crop_to_bounding_box(im, bb)
     if im.ndim == 3:
         if im.shape[2] == 4:
@@ -318,6 +322,7 @@ def _process_file_kernel_basis(seed, mixcomp, settings, bb, filename, bkg_stack,
     radii = settings['detector']['spread_radii']
     psize = settings['detector']['subsample_size']
     rotspread = settings['detector'].get('rotation_spreading_radius', 0)
+    crop_image = settings['detector'].get('crop_image')
     cb = settings['detector'].get('crop_border')
 
     #sh = (size[0] // psize[0], size[1] // psize[1])
@@ -337,7 +342,7 @@ def _process_file_kernel_basis(seed, mixcomp, settings, bb, filename, bkg_stack,
 
     alpha_maps = []
 
-    gray_im, alpha = _load_cad_image(filename, im_size, bb)
+    gray_im, alpha = _load_cad_image(filename, im_size, bb, crop=crop_image)
 
     pad = (radii[0] + 2, radii[1] + 2)
 
@@ -400,6 +405,7 @@ def _process_file_kernel_basis(seed, mixcomp, settings, bb, filename, bkg_stack,
 def __process_one(index, mixcomp, files, im_size, bb, duplicates, neg_files, descriptor, sett, extra):
     size = gv.bb.size(bb)
     psize = sett['subsample_size']
+    crop_image = sett.get('crop_image')
 
     ADAPTIVE = extra.get('selective') 
     if ADAPTIVE:
@@ -442,7 +448,7 @@ def __process_one(index, mixcomp, files, im_size, bb, duplicates, neg_files, des
         s = ''
 
     ag.info("Fetching positives from image of index {0} and mixture component {1} {2}".format(index, mixcomp, s))
-    gray_im, alpha = _load_cad_image(files[index], im_size, bb)
+    gray_im, alpha = _load_cad_image(files[index], im_size, bb, crop=crop_image)
 
     all_pos_feats = []
     all_neg_feats = []
@@ -581,8 +587,9 @@ def get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicates
     rotspread = settings['detector'].get('rotation_spreading_radius', 0)
     duplicates = settings['detector'].get('duplicates', 1) * duplicates_mult
     cb = settings['detector'].get('crop_border')
+    crop_image = settings['detector'].get('crop_image')
 
-    sett = dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb)
+    sett = dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb, crop_image=crop_image)
 
     extra = {}
     if settings['detector'].get('selective_bkg'):

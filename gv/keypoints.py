@@ -11,12 +11,16 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
     #kern = np.clip(kern, eps, 1 - eps)
     #bkg = np.clip(bkg, eps, 1 - eps)
     #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
+    print('Keypointing -------')
+    print('Even', even)
 
+
+    suppress_radii = np.array([1, 2, 1])
 
     # TEMP{
     if 0:
         rotspread = 1
-        ORI = 16
+        ORI = 24 
         F = weights.shape[-1]
         between_feature_spreading = np.zeros((F, rotspread*2 + 1), dtype=np.int32)
 
@@ -56,6 +60,10 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
 
             absw[max(0, ii[0]-suppress_radius):ii[0]+suppress_radius+1, max(0, ii[1]-suppress_radius):ii[1]+suppress_radius+1,ii[2]] = 0.0
             #absw[max(0, ii[0]-suppress_radius):ii[0]+suppress_radius+1, max(0, ii[1]-suppress_radius):ii[1]+suppress_radius+1,between_feature_spreading[ii[2]]] = 0.0
+            if 0:
+                for j in xrange(3):
+                    r = suppress_radii[j]
+                    absw[max(0, ii[0]-r):ii[0]+r+1, max(0, ii[1]-r):ii[1]+r+1,between_feature_spreading[ii[2],j]] = 0.0
 
             if len(indices) >= max_indices:
                 break
@@ -65,15 +73,15 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
     II = np.argsort(indices_weights)[::-1]
     indices = indices[II]
 
-    Ls = np.bincount(indices[:,2], minlength=weights.shape[-1])
-    L = int(np.median(Ls))
-
-    print('indices per features:', L)
-
     if not even:
-        return indices
+        new_indices = indices
     #new_indices = []
     else: 
+        Ls = np.bincount(indices[:,2], minlength=weights.shape[-1])
+        L = int(np.median(Ls))
+
+        print('indices per features:', L)
+
         new_indices = np.zeros((L * F, 3), dtype=np.int32)
 
         for f in xrange(F):
@@ -91,7 +99,9 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
                         new_indices[L*f + l] = (l0, l1, f)
                         break
 
-        return new_indices
+    print('Indices:', len(new_indices))
+    return new_indices
+
     if 0:
         Ls = np.bincount(indices[:,2], minlength=weights.shape[-1])
         min_L = np.min(Ls)
