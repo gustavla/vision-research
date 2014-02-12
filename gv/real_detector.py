@@ -83,9 +83,11 @@ class RealDetector(BernoulliDetector):
             svc = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=100, shuffle=True)
             #X = scipy.sparse.csr_matrix(flat_k_feats)
             #svc.fit(X, k_labels)
+
             #svc = svm.LinearSVC(C=C)
-            #X = scipy.sparse.csr_matrix(flat_k_feats)
             X = flat_k_feats
+            if self.settings.get('sparsify'):
+                X = scipy.sparse.csr_matrix(X)
 
             #cl = flat_k_feats.clip(min=0.05, max=0.95)
             #from scipy.special import logit
