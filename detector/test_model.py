@@ -5,9 +5,7 @@ import gv.datasets
 import sys
 
 def detect_raw(detector, filt, fileobj):
-    #logger.info('Entering')
     import os
-    #print("entering detect_raw", os.getpid())
     import textwrap
     import gv
     import amitgroup as ag
@@ -18,6 +16,8 @@ def detect_raw(detector, filt, fileobj):
     grayscale_img = gv.img.asgray(img)
 
     grayscale_img = gv.imfilter.apply_filter(grayscale_img, filt)
+
+    print('image size', grayscale_img.shape)
     
     tp = tp_fp = tp_fn = 0
 
@@ -26,9 +26,7 @@ def detect_raw(detector, filt, fileobj):
         if not bbobj.difficult:
             tp_fn += 1 
 
-    #logger.info('Detecting Start')
     bbs = detector.detect(grayscale_img, fileobj=fileobj)
-    #logger.info('Detecting Done')
 
     tp_fp += len(bbs)
     
@@ -39,8 +37,6 @@ def detect_raw(detector, filt, fileobj):
         if bbobj.correct and not bbobj.difficult:
             tp += 1
 
-    #print("exiting detect_raw", os.getpid())
-    #logger.info('Exiting')
     return (tp, tp_fp, tp_fn, bbs, fileobj.img_id)
 
 if gv.parallel.main(__name__):
@@ -57,6 +53,7 @@ if gv.parallel.main(__name__):
     parser.add_argument('--size', type=int, default=None, help='Use fixed size')
     parser.add_argument('--param', type=float, default=None)
     parser.add_argument('--filter', type=str, default=None, help='Add filter to make detection harder')
+    parser.add_argument('--classifier', action='store_true', default=False, help='Run as classifier and not detector')
 
     args = parser.parse_args()
     model_file = args.model

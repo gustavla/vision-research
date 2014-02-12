@@ -52,7 +52,7 @@ slices = SlicesClass()
 
 import time
 class Timer(object):
-    def __init__(self, name):
+    def __init__(self, name='(no name)'):
         self.name = name
 
     def __enter__(self):

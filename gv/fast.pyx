@@ -24,8 +24,8 @@ cdef real logit(real x) nogil:
     return log(x / (1 - x))
 
 def multifeature_correlate2d_with_mask(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=3] kernel_, np.ndarray[mybool,ndim=2] mask_):
-    assert data_.shape[0] > kernel_.shape[0]
-    assert data_.shape[1] > kernel_.shape[1]
+    assert data_.shape[0] >= kernel_.shape[0]
+    assert data_.shape[1] >= kernel_.shape[1]
     cdef:
         int data_d0 = data_.shape[0]
         int data_d1 = data_.shape[1]
@@ -62,16 +62,18 @@ def multifeature_correlate2d_with_mask(np.ndarray[mybool,ndim=3] data_, np.ndarr
     return response_
 
 
-def multifeature_correlate2d(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=3] kernel_):
-    assert data_.shape[0] > kernel_.shape[0]
-    assert data_.shape[1] > kernel_.shape[1]
+def multifeature_correlate2d(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=3] kernel_, strides=(1, 1)):
+    assert data_.shape[0] >= kernel_.shape[0]
+    assert data_.shape[1] >= kernel_.shape[1]
     cdef:
         int data_d0 = data_.shape[0]
         int data_d1 = data_.shape[1]
         int kernel_d0 = kernel_.shape[0]
         int kernel_d1 = kernel_.shape[1]
-        int steps_x = (data_d0 - kernel_d0) + 1
-        int steps_y = (data_d1 - kernel_d1) + 1
+        int stride0 = <int>strides[0]
+        int stride1 = <int>strides[1]
+        int steps_x = (data_d0 - kernel_d0) // stride0 + 1
+        int steps_y = (data_d1 - kernel_d1) // stride1 + 1
         int num_feat = data_.shape[2]
 
         #int size_d0 = min(data_d0, kernel_d0)
@@ -83,21 +85,26 @@ def multifeature_correlate2d(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,nd
         real[:,:] response = response_
     
         real v
-        int i, j, sx, sy, f
+        int i, j, sx, sy, f, ii, jj
 
     with nogil:
         for i in range(steps_x):
+            ii = i * stride0
             for j in range(steps_y):
+                jj = j * stride1
                 v = 0
                 for sx in range(kernel_d0):
                     for sy in range(kernel_d1):
                         for f in range(num_feat):
-                            v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
+                            v += data[ii+sx,jj+sy,f] * kernel[sx,sy,f]
                 response[i,j] = v
 
     return response_
 
-def multifeature_correlate2d_with_indices(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=3] kernel_, np.ndarray[np.int32_t, ndim=2] indices_):
+def multifeature_correlate2d_with_indices(np.ndarray[mybool,ndim=3] data_, 
+                                          np.ndarray[real,ndim=3] kernel_, 
+                                          np.ndarray[np.int32_t, ndim=2] indices_, 
+                                          strides=(1, 1)):
     assert data_.shape[0] >= kernel_.shape[0]
     assert data_.shape[1] >= kernel_.shape[1]
     assert indices_.shape[1] == 3
@@ -106,8 +113,10 @@ def multifeature_correlate2d_with_indices(np.ndarray[mybool,ndim=3] data_, np.nd
         int data_d1 = data_.shape[1]
         int kernel_d0 = kernel_.shape[0]
         int kernel_d1 = kernel_.shape[1]
-        int steps_x = (data_d0 - kernel_d0) + 1
-        int steps_y = (data_d1 - kernel_d1) + 1
+        int stride0 = <int>strides[0]
+        int stride1 = <int>strides[1]
+        int steps_x = (data_d0 - kernel_d0) // stride0 + 1
+        int steps_y = (data_d1 - kernel_d1) // stride1 + 1
         int num_feat = data_.shape[2]
         int num_indices = indices_.shape[0]
 
@@ -121,30 +130,32 @@ def multifeature_correlate2d_with_indices(np.ndarray[mybool,ndim=3] data_, np.nd
         real[:,:] response = response_
     
         real v
-        int i, j, ii, sx, sy, f
+        int i, j, ind, sx, sy, f, ii, jj
 
     #with nogil:
     #    for i in range(steps_x):
     #        for j in range(steps_y):
     #            v = 0
-    #            for ii in range(num_indices):
-    #                sx = indices[ii,0]     
-    #                sy = indices[ii,1]
-    #                f = indices[ii,2]
+    #            for ind in range(num_indices):
+    #                sx = indices[ind,0]     
+    #                sy = indices[ind,1]
+    #                f = indices[ind,2]
     #                v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
     #                #for f in range(num_feat):
     #                    #v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
     #            response[i,j] = v
 
     with nogil:
-        for ii in range(num_indices):
-            sx = indices[ii,0]     
-            sy = indices[ii,1]
-            f = indices[ii,2]
+        for ind in range(num_indices):
+            sx = indices[ind,0]     
+            sy = indices[ind,1]
+            f = indices[ind,2]
             for i in range(steps_x):
+                ii = i * stride0
                 for j in range(steps_y):
-                    v = 0
-                    v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
+                    jj = j * stride1
+                    #v = 0
+                    v = data[ii+sx,jj+sy,f] * kernel[sx,sy,f]
                     #for f in range(num_feat):
                         #v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
                     response[i,j] += v
@@ -152,8 +163,8 @@ def multifeature_correlate2d_with_indices(np.ndarray[mybool,ndim=3] data_, np.nd
     return response_
 
 def multifeature_correlate2d_multi(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=4] kernels_, np.ndarray[np.int32_t,ndim=2] bkgcomps_):
-    assert data_.shape[0] > kernels_.shape[1]
-    assert data_.shape[1] > kernels_.shape[2]
+    assert data_.shape[0] >= kernels_.shape[1]
+    assert data_.shape[1] >= kernels_.shape[2]
     cdef:
         int data_d0 = data_.shape[0]
         int data_d1 = data_.shape[1]
@@ -190,16 +201,18 @@ def multifeature_correlate2d_multi(np.ndarray[mybool,ndim=3] data_, np.ndarray[r
     return response_
 
 
-def multifeature_real_correlate2d(np.ndarray[real,ndim=3] data_, np.ndarray[real,ndim=3] kernel_):
-    assert data_.shape[0] > kernel_.shape[0]
-    assert data_.shape[1] > kernel_.shape[1]
+def multifeature_real_correlate2d(np.ndarray[real,ndim=3] data_, np.ndarray[real,ndim=3] kernel_, strides=(1, 1)):
+    assert data_.shape[0] >= kernel_.shape[0]
+    assert data_.shape[1] >= kernel_.shape[1]
     cdef:
         int data_d0 = data_.shape[0]
         int data_d1 = data_.shape[1]
         int kernel_d0 = kernel_.shape[0]
         int kernel_d1 = kernel_.shape[1]
-        int steps_x = (data_d0 - kernel_d0) + 1
-        int steps_y = (data_d1 - kernel_d1) + 1
+        int stride0 = <int>strides[0]
+        int stride1 = <int>strides[1]
+        int steps_x = (data_d0 - kernel_d0) // stride0 + 1
+        int steps_y = (data_d1 - kernel_d1) // stride1 + 1
         int num_feat = data_.shape[2]
 
         #int size_d0 = min(data_d0, kernel_d0)
@@ -211,15 +224,17 @@ def multifeature_real_correlate2d(np.ndarray[real,ndim=3] data_, np.ndarray[real
         real[:,:] response = response_
     
         real v
-        int i, j, sx, sy, f
+        int i, j, sx, sy, f, ii, jj
 
     for i in range(steps_x):
+        ii = i * stride0
         for j in range(steps_y):
+            jj = j * stride1
             v = 0
             for sx in range(kernel_d0):
                 for sy in range(kernel_d1):
                     for f in range(num_feat):
-                        v += data[i+sx,j+sy,f] * kernel[sx,sy,f]
+                        v += data[ii+sx,jj+sy,f] * kernel[sx,sy,f]
             response[i,j] = v
 
     return response_
@@ -227,8 +242,8 @@ def multifeature_real_correlate2d(np.ndarray[real,ndim=3] data_, np.ndarray[real
 
 
 def llh(np.ndarray[mybool,ndim=3] data_, np.ndarray[real,ndim=3] kernel_, np.ndarray[mybool,ndim=2] support_):
-    assert data_.shape[0] > kernel_.shape[0]
-    assert data_.shape[1] > kernel_.shape[1]
+    assert data_.shape[0] >= kernel_.shape[0]
+    assert data_.shape[1] >= kernel_.shape[1]
     cdef:
         int data_d0 = data_.shape[0]
         int data_d1 = data_.shape[1]

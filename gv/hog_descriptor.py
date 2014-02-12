@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 from ndfeature import ndfeature
 from real_descriptor import RealDescriptor
@@ -17,15 +17,18 @@ class HOGDescriptor(RealDescriptor):
         self.settings.update(settings)
 
     def extract_features(self, image, settings={}, raveled=True):
+        sett = self.settings.copy()
+        sett.update(settings)
+
         from skimage import feature
-        orientations = self.settings['orientations']
+        orientations = sett['orientations']
         ppc = self.settings['pixels_per_cell']
         if 0:
             hog = unraveled_hog(image, 
-                              orientations=self.settings['orientations'],
+                              orientations=sett['orientations'],
                               pixels_per_cell=ppc,
-                              cells_per_block=self.settings['cells_per_block'],
-                              normalise=self.settings['normalise'])
+                              cells_per_block=sett['cells_per_block'],
+                              normalise=sett['normalise'])
 
         from gv.hog import hog as hogf
         X = np.tile(image[...,np.newaxis], 3)
@@ -46,9 +49,11 @@ class HOGDescriptor(RealDescriptor):
             hog = new_hog
 
         if 0:
-            if not self.settings['polarity_sensitive']:
-                assert self.settings['orientations'] % 2 == 0, "Must have even number of orientations for polarity insensitive edges"
-                S = self.settings['orientations'] // 2
+            # The HOG we're using is not that configurable. It uses polarity insensitive gradients.
+            print('orientations', orientations)
+            if not sett['polarity_sensitive']:
+                assert orientations % 2 == 0, "Must have even number of orientations for polarity insensitive edges"
+                S = orientations // 2
                 hog = (hog[...,:S] + hog[...,S:]) / 2
 
         # Let's binarize the features somehow
@@ -56,6 +61,13 @@ class HOGDescriptor(RealDescriptor):
 
         #if raveled:
             #hog = hog.reshape(hog.shape[:2] + (-1,))
+
+        cb = sett.get('crop_border')
+        if cb:
+            # Due to spreading, the area of influence can be greater
+            # than what we're cutting off. That's why it's good to have
+            # a cut_border property if you're training on real images.
+            hog = hog[cb:-cb, cb:-cb]
 
         # How much space was cut away?
         buf = tuple(image.shape[i] - hog.shape[i] * ppc[i] for i in xrange(2))
@@ -66,10 +78,11 @@ class HOGDescriptor(RealDescriptor):
 
     @property
     def num_features(self):
-        orients = self.settings['orientations']
-        if not self.settings['polarity_sensitive']:
-            orients //= 2
-        return orients * np.prod(self.settings['cells_per_block'])
+        #orients = self.settings['orientations']
+        #if not self.settings['polarity_sensitive']:
+            #orients //= 2
+        #return orients * np.prod(self.settings['cells_per_block'])
+        return 13
 
     @property
     def subsample_size(self):

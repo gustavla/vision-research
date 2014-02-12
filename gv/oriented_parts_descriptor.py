@@ -745,59 +745,6 @@ class OrientedPartsDescriptor(BinaryDescriptor):
 
         return feats 
     
-    def __OLD_extract_parts(self, edges, settings={}, support_mask=None):
-        if support_mask is not None: 
-            partprobs = ag.features.code_parts_support_mask(edges, self._log_parts, self._log_invparts, 
-                                               self.settings['threshold'], support_mask[2:-2,2:-2].astype(np.uint8), self.settings['patch_frame'])
-        else:
-            partprobs = ag.features.code_parts(edges, self._log_parts, self._log_invparts, 
-                                               self.settings['threshold'], self.settings['patch_frame'], strides=1)
-
-        tau = self.settings.get('tau', 0.0)
-        #if self.settings.get('tau'):
-
-        parts = partprobs.argmax(axis=-1)
-
-        # Pad with background (TODO: maybe incorporate as an option to code_parts?)
-        # This just makes things a lot easier, and we don't have to match for instance the
-        # support which will be bigger if we don't do this.
-        # TODO: If we're not using a support, this could be extremely detrimental!
-
-        if settings.get('preserve_size'):
-            parts = ag.util.zeropad(parts, (self._log_parts.shape[1]//2, self._log_parts.shape[2]//2))
-            partprobs = ag.util.zeropad(partprobs, (self._log_parts.shape[1]//2, self._log_parts.shape[2]//2, 0))
-
-            # TODO: This is a bit of a hack. This makes it handle even-sized parts
-            if self._log_parts.shape[1] % 2 == 0:
-                parts = parts[:-1]
-                partprobs = partprobs[:-1]
-            if self._log_parts.shape[2] % 2 == 0:
-                parts = partprobs[:,:-1]
-                partprobs = partprobs[:,:-1]
-
-        sett = self.settings.copy()
-        sett.update(settings)
-
-        # Do spreading
-        radii = sett.get('spread_radii', (0, 0))
-
-        print tau
-        spread_parts = ag.features.spread_patches_new(partprobs.astype(np.float32), radii[0], radii[1], tau)
-
-        cb = sett.get('crop_border')
-        if cb:
-            # Due to spreading, the area of influence can be greater
-            # than what we're cutting off. That's why it's good to have
-            # a cut_border property if you're training on real images.
-            spread_parts = spread_parts[cb:-cb, cb:-cb]
-
-        return spread_parts 
-        #else:
-            # TODO: Maybe not this way.
-            #spread_parts = ag.features.spread_parts(parts, 0, 0, self.num_parts)
-            #return spread_parts 
-            #return parts
-
     @classmethod
     def load_from_dict(cls, d):
         patch_size = d['patch_size']

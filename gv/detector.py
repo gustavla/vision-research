@@ -550,7 +550,10 @@ class BernoulliDetector(Detector):
                                     img_id=0, use_padding=True, 
                                     use_scale_prior=True, cascade=True,
                                     more_detections=False,
-                                    discard_weak=False):
+                                    farming=False,
+                                    discard_weak=False,
+                                    return_bounding_boxes=True,
+                                    strides=(1, 1)):
         """
         TODO: Experimental changes under way!
         """
@@ -566,7 +569,7 @@ class BernoulliDetector(Detector):
         cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
-        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, adapt=True))
+        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb, adapt=True))
         #unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), subsample_size=psize, crop_border=cb))
 
         # TODO: Avoid the edge for the background model
@@ -592,7 +595,10 @@ class BernoulliDetector(Detector):
                                                              use_scale_prior=use_scale_prior,
                                                              cascade=cascade,
                                                              more_detections=more_detections,
-                                                             discard_weak=discard_weak)
+                                                             farming=farming,
+                                                             discard_weak=discard_weak,
+                                                             return_bounding_boxes=return_bounding_boxes,
+                                                             strides=strides)
 
         final_bbs = bbs
 
@@ -653,31 +659,53 @@ class BernoulliDetector(Detector):
             return llhs
     #}}}
 
+    def determine_scores(self, img, fileobj=None, mixcomps=None, one_centered=False):
+        """
+        This function is different from detect, since it does not try to arrange
+        an appropriate bounding box for each detection. Instead, it goes through
+        all windows exhausitvely and reports detection score. Instead of returning
+        DetectionBB objects, it simply returns a list of all scores.
+
+        The images are all assumed to be negatives, so no labels are returns either.
+        """
+        assert self.num_mixtures == 1, 'Only works with one mixcomp for now'
+        if mixcomps is None:
+            mixcomps = [0]
+
+        classify_stride = self.settings.get('classify_stride', 8)
+        subsample_size = self.descriptor.subsample_size
+        assert classify_stride % subsample_size[0] == 0 and classify_stride % subsample_size[1] == 0, 'subsample_size must divide classify_stride'
+        strides = (classify_stride // subsample_size[0], classify_stride // subsample_size[1])
+
+        if one_centered:
+            img = gv.img.crop(img, self.settings['image_size']) 
+            bbs0, resmap, bkgcomp, feats, img_resized = \
+                    self.detect_coarse_single_factor(img, 
+                                                     1.0, 
+                                                     mixcomps[0], 
+                                                     img_id=None, 
+                                                     use_padding=False, 
+                                                     use_scale_prior=False,
+                                                     return_bounding_boxes=False,
+                                                     strides=strides)
+
+            th = self.settings.get('classify_threshold', -np.inf)
+            scores = resmap.ravel()
+            windows_count = scores.size
+            scores = scores[scores > th]
+        else:
+            scores, windows_count = self.detect_coarse(img, fileobj=fileobj, mixcomps=mixcomps, use_scale_prior=False, return_scores_only=True, strides=strides)
+
+        return scores, windows_count
+
+
     def detect(self, img, fileobj=None, mixcomps=None, use_scale_prior=True):
         bbs = self.detect_coarse(img, fileobj=fileobj, mixcomps=mixcomps, use_scale_prior=use_scale_prior) 
 
         # This is just to cut down on memory load because of the detections
 
-        #{{{ Old code
-        if 0:
-            scales = np.asarray(map(lambda x: x.scale, bbs)) 
-            a = np.asarray([(scales == s).sum() for s in np.sort(np.unique(scales))])
-            try:
-                self.aa += a
-            except:
-                self.aa = a
-            print(self.aa.astype(np.float64) / self.aa.sum())
-        #}}}
         bbs = bbs[:20]
 
-        # Now, run it again and refine these probabilities
-        if 0:
-            for bbobj in bbs:
-                new_score = self.calc_score(img, bbobj, score=bbobj.confidence)
-                bbobj.confidence = new_score
-
-        #for bbobj in bbs:
-    
         return bbs
 
     #{{{ Old function
@@ -834,9 +862,11 @@ class BernoulliDetector(Detector):
         return final_bbs
     #}}}
 
-    def detect_coarse(self, img, fileobj=None, mixcomps=None, return_resmaps=False, use_padding=True, use_scale_prior=True, cascade=True, more_detections=False, discard_weak=False):
+    def detect_coarse(self, img, fileobj=None, mixcomps=None, return_resmaps=False, use_padding=True, use_scale_prior=True, cascade=True, more_detections=False, farming=False, discard_weak=False, return_scores_only=False, strides=(1, 1)):
         if mixcomps is None:
             mixcomps = range(self.num_mixtures)
+
+        prepare_resmaps = return_resmaps or return_scores_only
 
         # TODO: Temporary stuff
         # TODO: This does not use a Guassian pyramid, so it
@@ -864,6 +894,8 @@ class BernoulliDetector(Detector):
                 skips += 1
         num_levels = len(factors) + skips
 
+        # Number of windows processed
+        windows_count = 0
         bbs = []
         for i, factor in enumerate(factors):
             resmaps_factor = []
@@ -878,12 +910,16 @@ class BernoulliDetector(Detector):
                                                          use_scale_prior=use_scale_prior,
                                                          cascade=cascade,
                                                          more_detections=more_detections,
-                                                         discard_weak=discard_weak)
+                                                         farming=farming,
+                                                         discard_weak=discard_weak,
+                                                         return_bounding_boxes=not return_scores_only,
+                                                         strides=strides)
                 bbs += bbs0
-                if return_resmaps:
+                windows_count += np.prod(resmap.shape)
+                if prepare_resmaps:
                     resmaps_factor.append(resmap)
 
-            if return_resmaps:
+            if prepare_resmaps:
                 resmaps[factor] = resmaps_factor
 
     
@@ -894,10 +930,22 @@ class BernoulliDetector(Detector):
         if fileobj is not None:
             self.label_corrects(final_bbs, fileobj)
 
-        if return_resmaps:
-            return final_bbs, resmaps
+        ret = ()
+        if return_scores_only:
+            assert len(mixcomps) == 1, 'return_scores_only only works with 1 mixcomp for now'
+            th = self.settings.get('classify_threshold', -np.inf)
+            scores = np.concatenate([resmap[0][resmap[0] > th].ravel() for resmap in resmaps.values()]) 
+            ret += (scores, windows_count)
         else:
-            return final_bbs
+            ret += (final_bbs,)
+
+        if return_resmaps:
+            ret += (resmaps,)
+        
+        if len(ret) == 1:
+            return ret[0]
+        else:
+            return ret
 
     def param(self, default):
         if self._param is None:
@@ -918,7 +966,9 @@ class BernoulliDetector(Detector):
                                  use_padding=True,
                                  cascade=True,
                                  more_detections=False,
-                                 discard_weak=False):
+                                 discard_weak=False,
+                                 return_bounding_boxes=True,
+                                 strides=(1, 1)):
 
         if 0:
             self.standardization_info[mixcomp]['mean'] = self.extra['bkg_mixtures'][mixcomp]['mean']
@@ -929,7 +979,7 @@ class BernoulliDetector(Detector):
             sub_kernels = [[self.extra['bkg_mixtures'][i][j]['kern'] for j in xrange(1)] for i in xrange(self.num_mixtures)]
             spread_bkg = [[self.extra['bkg_mixtures'][i][j]['bkg'] for j in xrange(1)] for i in xrange(self.num_mixtures)]
 
-        resmap, bigger, weights, padding = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1, use_padding=use_padding)
+        resmap, bigger, weights, padding = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1, use_padding=use_padding, strides=strides)
 
         orig_resmap = resmap.copy()
 
@@ -1145,7 +1195,8 @@ class BernoulliDetector(Detector):
             G_mu0 = np.log(self.fixed_spread_bkg[0].mean(0).mean(0))
             B = np.linalg.solve(G_Sigma, G_mu1 - G_mu0)
 
-        if 1:
+        # Don't bother with this if we're not returning bounding boxes
+        if return_bounding_boxes:
             #import scipy.signal 
             #local_maxes = scipy.signal.convolve2d(resmap, np.ones((5, 5))
             
@@ -1825,10 +1876,10 @@ class BernoulliDetector(Detector):
             kp_only_weights[tuple(index)] = 1 
         return kp_only_weights
 
-    def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True, use_padding=True):
+    def response_map(self, sub_feats, sub_kernels, spread_bkg, mixcomp, level=0, standardize=True, use_padding=True, strides=(1, 1)):
         if np.min(sub_feats.shape) <= 1:
             return np.zeros((0, 0, 0)), None, None, None
-    
+
         # TODO: Temporary
         kern = sub_kernels[mixcomp]
         if self.settings.get('per_mixcomp_bkg') or True:
@@ -1878,9 +1929,9 @@ class BernoulliDetector(Detector):
             if self.indices is not None and len(self.indices[mixcomp]) > 0:
                 indices = self.indices[mixcomp].astype(np.int32)
                 from .fast import multifeature_correlate2d_with_indices
-                res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices)
+                res = multifeature_correlate2d_with_indices(bigger, weights.astype(np.float64), indices, strides=strides)
             else:
-                res = multifeature_correlate2d(bigger, weights.astype(np.float64))
+                res = multifeature_correlate2d(bigger, weights.astype(np.float64), strides=strides)
     
         lower, upper = gv.ndfeature.inner_frame(bigger, (weights.shape[0]/2, weights.shape[1]/2))
         res = gv.ndfeature(res, lower=lower, upper=upper)

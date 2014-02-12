@@ -24,34 +24,20 @@ ag.set_verbose(True)
 
 PER_IMAGE = 10 
 
-if 0:
-    def get_positives(detector, fns):
-        print("Processing {} files".format(len(fns)))
-        image_size = detector.settings['image_size']
-        pos_feats = []
-        for fn in fns:
-            try:
-                im = gv.img.asgray(gv.img.load_image(fn))
-            except IOError:
-                print("Error loading file: ", fn, file=sys.stderr)
-                sys.exit(1)
-            #pos_images.append(im)
-
-            if detector.settings.get('crop_image'):
-                im = gv.img.crop(im, image_size)
-
-            feat = detector.descriptor.extract_features(im)
-            pos_feats.append(feat)
-        return pos_feats 
-
 def get_fps(detector, i, fileobj, size):
     ag.info('{0} Initial processing {1}'.format(i, fileobj.img_id))
     gen = generate_random_patches([fileobj.path], size, per_image=PER_IMAGE)
     neg_feats = []
 
+    radii = detector.settings['spread_radii']
+    psize = detector.settings['subsample_size']
+    rotspread = detector.settings.get('rotation_spreading_radius', 0)
+    cb = detector.settings.get('crop_border')
+    setts = dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb)
+
     for neg in itr.islice(gen, PER_IMAGE):
         #images.append(neg)
-        feat = detector.descriptor.extract_features(neg)
+        feat = detector.descriptor.extract_features(neg, settings=setts)
         neg_feats.append(feat)
 
     return neg_feats
@@ -87,7 +73,7 @@ def get_strong_fps_single(detector, i, fileobj, threshold, mixcomp):
     img = gv.img.load_image(fileobj.path)
     grayscale_img = gv.img.asgray(img)
 
-    bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp], use_padding=False, use_scale_prior=False, cascade=True, discard_weak=True, more_detections=True)
+    bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp], use_padding=False, use_scale_prior=False, cascade=True, discard_weak=True, more_detections=True, farming=True)
     for bbobj in bbobjs:
         bbobj.img_id = fileobj.img_id
         if bbobj.confidence > threshold: 
@@ -226,7 +212,8 @@ if gv.parallel.main(__name__):
         feats = np.asarray(feats)
         labels = np.asarray(labels)
 
-        np.savez('training_data.npz', feats=feats, labels=labels)
+        with gv.Timer('Saving training data'):
+            np.savez('/var/tmp/d/training_data.npz', feats=feats, labels=labels)
 
         print("Training with {total} (pos = {pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1)))
         print("feats", feats.shape)
@@ -297,7 +284,8 @@ if gv.parallel.main(__name__):
             detector.svms[m] = svms[0]
             detector.kernel_sizes[m] = kernel_sizes[0]
 
-            np.savez('training_data-iter{}.npz'.format(loop), feats=feats, labels=labels)
+            with gv.Timer('Saving training data'):
+                np.savez('/var/tmp/d/training_data-iter{}.npz'.format(loop), feats=feats, labels=labels)
 
             if 0:
                 detectors.append(detector0) 

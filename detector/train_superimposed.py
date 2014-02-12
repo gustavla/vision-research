@@ -161,11 +161,8 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
 
     np.seterr(divide='raise')
 
-    try:
-        kern = kern.astype(np.float64) / totals
-        bkg = bkg.astype(np.float64) / totals
-    except:
-        import pdb; pdb.set_trace()
+    kern = kern.astype(np.float64) / totals
+    bkg = bkg.astype(np.float64) / totals
     
     #kern = kern.astype(np.float64) / total 
     #kern = np.clip(kern, eps, 1-eps)
@@ -1270,10 +1267,7 @@ def superimposed_model(settings, threading=True):
 
         detector.extra['svms'] = []
         for m in xrange(detector.num_mixtures):
-            try:
-                X = np.concatenate([all_pos_X0[m], all_neg_X0[m]])  
-            except:
-                import pdb; pdb.set_trace()
+            X = np.concatenate([all_pos_X0[m], all_neg_X0[m]])  
     
             # Flatten
             print(m, ':', X.shape)
