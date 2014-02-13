@@ -393,11 +393,12 @@ class BernoulliDetector(Detector):
         edges = self.descriptor.extract_features(image, dict(spread_radii=(0, 0), crop_border=self.settings.get('crop_border')))
         return edges
 
-    def extract_spread_features(self, image):
+    def extract_spread_features(self, image, must_preserve_size=False):
         edges = self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], 
                                                              subsample_size=self.settings['subsample_size'], 
                                                              crop_border=self.settings.get('crop_border'),
-                                                             rotation_spreading_radius=self.settings.get('rotation_spreading_radius', 0)))
+                                                             rotation_spreading_radius=self.settings.get('rotation_spreading_radius', 0)),
+                                                 must_preserve_size=must_preserve_size)
         return edges 
 
     @property
@@ -553,6 +554,7 @@ class BernoulliDetector(Detector):
                                     farming=False,
                                     discard_weak=False,
                                     return_bounding_boxes=True,
+                                    must_preserve_size=False,
                                     strides=(1, 1)):
         """
         TODO: Experimental changes under way!
@@ -569,7 +571,8 @@ class BernoulliDetector(Detector):
         cb = self.settings.get('crop_border')
 
         #spread_feats = self.extract_spread_features(img_resized)
-        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb, adapt=True))
+        spread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb, adapt=True), must_preserve_size=must_preserve_size)
+
         #unspread_feats = self.descriptor.extract_features(img_resized, dict(spread_radii=(0, 0), subsample_size=psize, crop_border=cb))
 
         # TODO: Avoid the edge for the background model
@@ -693,8 +696,25 @@ class BernoulliDetector(Detector):
             scores = resmap.ravel()
             windows_count = scores.size
             scores = scores[scores > th]
+
+
         else:
-            scores, windows_count = self.detect_coarse(img, fileobj=fileobj, mixcomps=mixcomps, use_scale_prior=False, return_scores_only=True, strides=strides)
+            scores, windows_count = self.detect_coarse(img, fileobj=fileobj, mixcomps=mixcomps, use_scale_prior=False, 
+                                                       #must_preserve_size=True,
+                                                       return_scores_only=True, strides=strides)
+            # Calculate windows count exactly
+            img_size = img.shape[:2]
+            count = 0
+            while True:
+                add = (max(0,int(img_size[0]-128+8)) // 8) * (max(0,int(img_size[1]-64+8)) // 8)
+                if add == 0:
+                    break
+                count += add
+                img_size = (img_size[0]//1.2, img_size[1]//1.2)
+
+            # Use this instead, to give a consistent total count. The actual negatives could
+            # perhaps vary a bit however.
+            windows_count = count
 
         return scores, windows_count
 
@@ -912,6 +932,7 @@ class BernoulliDetector(Detector):
                                                          more_detections=more_detections,
                                                          farming=farming,
                                                          discard_weak=discard_weak,
+                                                         must_preserve_size=True,
                                                          return_bounding_boxes=not return_scores_only,
                                                          strides=strides)
                 bbs += bbs0
@@ -966,6 +987,7 @@ class BernoulliDetector(Detector):
                                  use_padding=True,
                                  cascade=True,
                                  more_detections=False,
+                                 farming=False,
                                  discard_weak=False,
                                  return_bounding_boxes=True,
                                  strides=(1, 1)):

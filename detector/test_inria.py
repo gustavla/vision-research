@@ -72,8 +72,9 @@ if gv.parallel.main(__name__):
     print("Done.")
 
     # Temporary
-    neg_files = neg_files#[:100]
-    pos_files = pos_files#[:100]
+    if args.mini:
+        pos_files = pos_files[:200]
+        neg_files = neg_files[:40]
 
     FN = 0
     P = 0

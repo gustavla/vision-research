@@ -59,13 +59,17 @@ class RealDetector(BernoulliDetector):
             from sklearn import cross_validation
 
             if 0:
-                # Set penalty parameter with leave-out validation
-                Cs = np.array([1000.0, 500.0, 100.0, 50.0, 10.0, 5.0, 1.0, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
+                # Set penalty parameter with hold-out validation
+                #Cs = np.array([1000.0, 500.0, 100.0, 50.0, 10.0, 5.0, 1.0, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
+                Cs = 10**np.linspace(0, -3, 16)
+                #Cs = 10**np.linspace(2, -1, 16)
                 clfs = []
                 the_scores = np.zeros(len(Cs))
                 for i, C in enumerate(Cs):
                     clf = svm.LinearSVC(C=C)
-                    scores = cross_validation.cross_val_score(clf, flat_k_feats.astype(np.float64), k_labels, cv=5)
+                    #clf = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=400, shuffle=True)
+
+                    scores = cross_validation.cross_val_score(clf, flat_k_feats.astype(np.float64), k_labels, cv=3)
                     the_scores[i] = np.mean(scores)
                     clfs.append(clf)
                     print('C', C, 'score', np.mean(scores))
@@ -80,7 +84,8 @@ class RealDetector(BernoulliDetector):
 
             import scipy.sparse
 
-            svc = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=100, shuffle=True)
+            svc = svm.LinearSVC(C=C)
+            #svc = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=2000, shuffle=True)
             #X = scipy.sparse.csr_matrix(flat_k_feats)
             #svc.fit(X, k_labels)
 
@@ -124,12 +129,12 @@ class RealDetector(BernoulliDetector):
         return self.train_from_features(feats, labels)
 
 
-    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, discard_weak=False, farming=False, return_bounding_boxes=True, strides=(1, 1), *args, **kwargs):
+    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, discard_weak=False, farming=False, return_bounding_boxes=True, must_preserve_size=False, strides=(1, 1), *args, **kwargs):
         bb_bigger = (0, 0, img.shape[0], img.shape[1])
 
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
 
-        spread_feats = self.extract_spread_features(img_resized)
+        spread_feats = self.extract_spread_features(img_resized, must_preserve_size=must_preserve_size)
 
         bbs, resmap = self._detect_coarse_at_factor(spread_feats, 
                                                     factor, 

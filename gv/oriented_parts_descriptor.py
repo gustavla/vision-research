@@ -34,8 +34,8 @@ def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=Fa
     else:
         raise RuntimeError("No such edge type")
 
-def _extract_edges(bedges_settings, settings, image):
-    return _extract_many_edges(bedges_settings, settings, image[np.newaxis])[0]
+def _extract_edges(bedges_settings, settings, image, must_preserve_size=False):
+    return _extract_many_edges(bedges_settings, settings, image[np.newaxis], must_preserve_size=must_preserve_size)[0]
 
 def _get_patches(bedges_settings, settings, filename):
     samples_per_image = settings['samples_per_image']
@@ -533,13 +533,13 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         self._log_parts = np.log(self.parts)
         self._log_invparts = np.log(1-self.parts)
 
-    def extract_features(self, image, settings={}, dropout=None):
+    def extract_features(self, image, settings={}, must_preserve_size=False, dropout=None):
         sett = self.bedges_settings().copy()
         sett['radius'] = 0
         if 1:
             #unspread_edges = ag.features.bedges(image, **sett)
             #unspread_edges = gv.gradients.extract(image, orientations=8)
-            unspread_edges = _extract_edges(self.bedges_settings(), self.settings, image) 
+            unspread_edges = _extract_edges(self.bedges_settings(), self.settings, image, must_preserve_size=must_preserve_size) 
         else:
             # LEAVE-BEHIND: From multi-channel images
             unspread_edges = ag.features.bedges_from_image(image, **sett)

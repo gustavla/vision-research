@@ -26,8 +26,8 @@ class RealOrientedPartsDescriptor(RealDescriptor):
     def settings(self):
         return self._descriptor.settings
 
-    def extract_features(self, image, settings={}):
-        feats = self._descriptor.extract_features(image, settings=settings)
+    def extract_features(self, image, settings={}, *args, **kwargs):
+        feats = self._descriptor.extract_features(image, settings=settings, *args, **kwargs)
 
         #new_feats = feats.astype(np.float64)
         #new_feats.upper = feats.upper

@@ -16,7 +16,7 @@ class HOGDescriptor(RealDescriptor):
         
         self.settings.update(settings)
 
-    def extract_features(self, image, settings={}, raveled=True):
+    def extract_features(self, image, settings={}, must_preserve_size=False, raveled=True):
         sett = self.settings.copy()
         sett.update(settings)
 
