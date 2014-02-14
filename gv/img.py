@@ -52,7 +52,7 @@ def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
     else:
         im2 = im
 
-    assert im2.shape[:2] == tuple(new_size), "{0} != {1}".format(im2.shape, new_size)
+    assert im2.shape[:2] == tuple(new_size), "{0} != {1} (original size: {2})".format(im2.shape, new_size, im.shape)
      
     return im2
 

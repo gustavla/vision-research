@@ -155,9 +155,12 @@ if gv.parallel.main(__name__):
         #batches = np.array_split(files, len(files)//BATCH_SIZE)
         #args = itr.izip(itr.repeat(detector), batches)
 
-        argses = [(m, settings, list(np.where(comps == m)[0]), files) for m in range(detector.num_mixtures)]        
+        crop_image = detector.settings.get('crop_image')
+
+        argses = [(m, settings, list(np.where(comps == m)[0]), files, crop_image) for m in range(detector.num_mixtures)]        
+
         for m, new_pos_feats in gv.parallel.starmap_unordered(get_positives, argses):
-            all_pos_feats[m] += new_pos_feats 
+            all_pos_feats[m] += list(new_pos_feats)
 
     print('Finished')
     feats = []
@@ -212,8 +215,8 @@ if gv.parallel.main(__name__):
         feats = np.asarray(feats)
         labels = np.asarray(labels)
 
-        with gv.Timer('Saving training data'):
-            np.savez('/var/tmp/d/training_data.npz', feats=feats, labels=labels)
+        #with gv.Timer('Saving training data'):
+            #np.savez('/var/tmp/d/training_data.npz', feats=feats, labels=labels)
 
         print("Training with {total} (pos = {pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1)))
         print("feats", feats.shape)
@@ -241,8 +244,9 @@ if gv.parallel.main(__name__):
         for loop, (N, TOP) in enumerate(zip(farming_image_counts, farming_top_counts)): 
             feats = pos_feats + neg_feats
             labels = pos_labels + neg_labels
-            #th = -0.75
-            th = -np.inf 
+            # Set threshold at 0, so as to only collect false positives in the first detector
+            th = 0.0 
+            #th = -np.inf 
 
             neg_files_segment = itr.islice(gen, N)
 
@@ -284,8 +288,8 @@ if gv.parallel.main(__name__):
             detector.svms[m] = svms[0]
             detector.kernel_sizes[m] = kernel_sizes[0]
 
-            with gv.Timer('Saving training data'):
-                np.savez('/var/tmp/d/training_data-iter{}.npz'.format(loop), feats=feats, labels=labels)
+            #with gv.Timer('Saving training data'):
+                #np.savez('/var/tmp/d/training_data-iter{}.npz'.format(loop), feats=feats, labels=labels)
 
             if 0:
                 detectors.append(detector0) 
@@ -317,4 +321,5 @@ if gv.parallel.main(__name__):
     print('Counts', [x['count'] for x in detector.extra['cascades']])
     print('Th', [x['th'] for x in detector.extra['cascades']])
     print("Saved, exiting")
+    print('Cs', detector.extra['Cs'])
 

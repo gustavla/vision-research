@@ -223,7 +223,7 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, eps, bb, kern, bkg, ind
 
 
 
-def get_positives(mixcomp, settings, indices, files):
+def get_positives(mixcomp, settings, indices, files, crop=False):
     im_size = settings['detector']['image_size']
 
     # Use the same seed for all mixture components! That will make them easier to compare,
@@ -243,7 +243,11 @@ def get_positives(mixcomp, settings, indices, files):
     for index in indices: 
         ag.info("Fetching positives from image of index {0} and mixture component {1}".format(index, mixcomp))
         gray_im = gv.img.asgray(gv.img.load_image(files[index]))
-        gray_im = gv.img.resize(gray_im, im_size)
+        if crop:
+            gray_im = gv.img.crop(gray_im, im_size)
+        else:
+            gray_im = gv.img.resize(gray_im, im_size)
+        #gray_im = gv.img.resize(gray_im, im_size)
 
         feats = descriptor.extract_features(gray_im, settings=dict(spread_radii=radii, subsample_size=psize, rotation_spreading_radius=rotspread, crop_border=cb))
         all_feats.append(feats)
@@ -881,7 +885,9 @@ def superimposed_model(settings, threading=True):
         # Get a single background model for this one
         bkg = _get_background_model(settings, neg_files)
 
-        argses = [(m, settings, list(np.where(comps == m)[0]), files) for m in range(detector.num_mixtures)]        
+        crop_image = detector.settings.get('crop_image')
+        import pdb; pdb.set_trace()
+        argses = [(m, settings, list(np.where(comps == m)[0]), files, crop_image) for m in range(detector.num_mixtures)]        
         for m, pos_feats in gv.parallel.starmap(get_positives, argses):
             obj = pos_feats.mean(axis=0)
             all_pos_feats.append(pos_feats)

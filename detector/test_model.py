@@ -17,8 +17,6 @@ def detect_raw(detector, filt, fileobj):
 
     grayscale_img = gv.imfilter.apply_filter(grayscale_img, filt)
 
-    print('image size', grayscale_img.shape)
-    
     tp = tp_fp = tp_fn = 0
 
     # Count tp+fn
@@ -107,6 +105,7 @@ if gv.parallel.main(__name__):
     tot_tp = 0
     tot_tp_fp = 0
     tot_tp_fn = 0
+    num_images = 0
 
     detections = []
 
@@ -308,7 +307,7 @@ if gv.parallel.main(__name__):
 
     #fout = open("detections.txt", "w")
 
-
+    num_images = len(files)
     
     res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.repeat(detector), 
                                                              itr.repeat(args.filter),
@@ -570,7 +569,7 @@ if gv.parallel.main(__name__):
 
     p, r = gv.rescalc.calc_precision_recall(detections, tot_tp_fn)
     ap = gv.rescalc.calc_ap(p, r) 
-    np.savez(output_file, detections=detections, tp_fn=tot_tp_fn, tp_fn_dict=tp_fn_dict, ap=ap, contest=contest, obj_class=obj_class)
+    np.savez(output_file, detections=detections, tp_fn=tot_tp_fn, tp_fn_dict=tp_fn_dict, ap=ap, contest=contest, obj_class=obj_class, num_images=num_images)
 
     print('tp', tot_tp)
     print('tp+fp', tot_tp_fp)

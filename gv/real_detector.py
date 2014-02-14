@@ -3,6 +3,20 @@ from .real_descriptor import RealDescriptor
 from .detector import Detector, BernoulliDetector
 import numpy as np
 import gv
+import itertools as itr
+
+def _test_parameter(i, C, X_train, y_train, X_test, y_test):
+    from sklearn import svm
+    clf = svm.LinearSVC(C=C)
+    #clf = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=400, shuffle=True)
+
+    clf = svm.LinearSVC(C=C).fit(X_train, y_train)
+    score = clf.score(X_test, y_test)
+
+
+    #score = cross_validation.cross_val_score(clf, flat_k_feats.astype(np.float64), k_labels, cv=2).mean()
+    #clfs.append(clf)
+    return i, score
 
 @Detector.register('real')
 class RealDetector(BernoulliDetector):
@@ -58,25 +72,46 @@ class RealDetector(BernoulliDetector):
 
             from sklearn import cross_validation
 
-            if 0:
+            #svc = svm.LinearSVC(C=C)
+            X = flat_k_feats
+            if self.settings.get('sparsify'):
+                X = scipy.sparse.csr_matrix(X)
+            y = k_labels
+
+
+            if 1:
                 # Set penalty parameter with hold-out validation
                 #Cs = np.array([1000.0, 500.0, 100.0, 50.0, 10.0, 5.0, 1.0, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
-                Cs = 10**np.linspace(0, -3, 16)
+                Cs = 10**np.linspace(self.settings.get('svm_alpha_start', -1), self.settings.get('svm_alpha_end', -3), self.settings.get('svm_alpha_num', 31))
+
+                X_train, X_test, y_train, y_test = cross_validation.train_test_split(
+                                                        X, y, test_size=0.2, random_state=0)
+                
                 #Cs = 10**np.linspace(2, -1, 16)
                 clfs = []
                 the_scores = np.zeros(len(Cs))
+                argses = [(i, C, X_train, y_train, X_test, y_test) for i, C in enumerate(Cs)] 
+                clf = linear_model.SGDClassifier(loss='hinge', penalty='l2', n_iter=self.settings.get('svm_iter', 40), shuffle=True, warm_start=True)
                 for i, C in enumerate(Cs):
-                    clf = svm.LinearSVC(C=C)
-                    #clf = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=400, shuffle=True)
-
-                    scores = cross_validation.cross_val_score(clf, flat_k_feats.astype(np.float64), k_labels, cv=3)
-                    the_scores[i] = np.mean(scores)
-                    clfs.append(clf)
-                    print('C', C, 'score', np.mean(scores))
+                    clf.set_params(alpha=C)
+                    clf.fit(X_train, y_train)
+                    score = clf.score(X_test, y_test)
+                    the_scores[i] = score
+                    print('C', C, 'score', score)
+                    
+                if 0:
+                    for i, score in itr.starmap_unordered(_test_parameter, argses):
+                        the_scores[i] = score 
+                        print('C', Cs[i], 'score', score)
 
                 best_i = np.argmax(the_scores)
                 print('BEST C', Cs[best_i])
                 C = Cs[best_i]
+
+                if 'Cs' not in self.extra:
+                    self.extra['Cs'] = []
+
+                self.extra['Cs'].append((Cs, the_scores))
                 #svc = clfs[np.argmax(the_scores)] 
 
             else:
@@ -84,21 +119,16 @@ class RealDetector(BernoulliDetector):
 
             import scipy.sparse
 
-            svc = svm.LinearSVC(C=C)
-            #svc = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=2000, shuffle=True)
+            #svc = svm.LinearSVC(C=C)
+            svc = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=100, shuffle=True)
             #X = scipy.sparse.csr_matrix(flat_k_feats)
             #svc.fit(X, k_labels)
-
-            #svc = svm.LinearSVC(C=C)
-            X = flat_k_feats
-            if self.settings.get('sparsify'):
-                X = scipy.sparse.csr_matrix(X)
 
             #cl = flat_k_feats.clip(min=0.05, max=0.95)
             #from scipy.special import logit
             #coef = logit(flat_k_feats.mean(0).clip(min=0.05, max=0.95))
             #svc.fit(X, k_labels, coef_init=coef)
-            svc.fit(X, k_labels)
+            svc.fit(X, y)
             #svc.fit(flat_k_feats.astype(np.float64), k_labels) 
             #svc.fit(flat_k_feats.astype(np.float64), k_labels) 
 
@@ -211,10 +241,11 @@ class RealDetector(BernoulliDetector):
 
         import scipy.stats
         if farming:
-            percentile = 75 
+            #percentile = 50 
+            th = 0.0
         else:
             percentile = 75
-        th = scipy.stats.scoreatpercentile(resmap.ravel(), percentile) 
+            th = scipy.stats.scoreatpercentile(resmap.ravel(), percentile) 
         top_th = 200.0
         bbs = []
 
@@ -274,7 +305,7 @@ class RealDetector(BernoulliDetector):
             # Let's limit to five per level
             if farming:
                 bbs_sorted = sorted(bbs, reverse=True)
-                bbs_sorted = bbs_sorted[:100]
+                bbs_sorted = bbs_sorted[:300]
             else:
                 bbs_sorted = self.nonmaximal_suppression(bbs)
                 bbs_sorted = bbs_sorted[:15]
