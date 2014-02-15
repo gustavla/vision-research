@@ -71,6 +71,7 @@ class RealDetector(BernoulliDetector):
             flat_k_feats = k_feats.reshape((k_feats.shape[0], -1))        
 
             from sklearn import cross_validation
+            import scipy.sparse
 
             #svc = svm.LinearSVC(C=C)
             X = flat_k_feats
@@ -117,10 +118,9 @@ class RealDetector(BernoulliDetector):
             else:
                 C = self.settings.get('penalty_parameter', 1)
 
-            import scipy.sparse
 
             #svc = svm.LinearSVC(C=C)
-            svc = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=100, shuffle=True)
+            svc = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=self.settings.get('svm_final_iter', 100), shuffle=True)
             #X = scipy.sparse.csr_matrix(flat_k_feats)
             #svc.fit(X, k_labels)
 
