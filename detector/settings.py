@@ -20,6 +20,16 @@ def load_settings(fp):
                 d[section][k] = ev
     return d
 
+def change_settings(settings, settings_change_string):
+    # Change settings
+    for opt in filter(len, map(str.strip, settings_change_string.split(';'))):
+        vv = opt.split('=')
+        assert len(vv) == 2
+        k, v = map(str.strip, vv)
+        if k in ('train_dir_seed',):
+            settings['detector'][k] = eval(v)
+    return settings
+
 def argparse_settings(description):
     import argparse
     parser = argparse.ArgumentParser(description=description)

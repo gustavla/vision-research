@@ -26,9 +26,9 @@ originals = descriptor.visparts
 parts = descriptor.parts
 E = parts.shape[-1]
 
-diff = descriptor.parts.shape[0] / descriptor.num_true_parts
+diff = parts.shape[0] / descriptor.num_true_parts
 if args.all:
-    F = descriptor.parts.shape[0] 
+    F = parts.shape[0] 
 else:
     F = descriptor.num_true_parts
 

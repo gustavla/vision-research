@@ -746,17 +746,36 @@ def calc_bbs(detector):
 
     return bbs
 
-def superimposed_model(settings, threading=True):
-    offset = settings['detector'].get('train_offset', 0)
-    limit = settings['detector'].get('train_limit')
-    num_mixtures = settings['detector']['num_mixtures']
+def get_training_files(detector):
+    offset = detector.settings.get('train_offset', 0)
+    limit = detector.settings.get('train_limit')
     assert limit is not None, "Must specify limit in the settings file"
-    files = sorted(glob.glob(settings['detector']['train_dir']))[offset:offset+limit]
-    neg_files = sorted(glob.glob(settings['detector']['neg_dir']))
+    files = []
+    if detector.settings.get('train_dir_with_flip'):
+        for flip in xrange(2):
+            path = detector.settings['train_dir'].replace('[flip]', str(flip))
+            files0 = sorted(glob.glob(path))
+            seed = detector.settings.get('train_dir_seed')
+            if seed is not None:
+                rs = np.random.RandomState(seed)
+                rs.shuffle(files0)
+            files += files0[offset:offset+limit]
+    else:
+        files += sorted(glob.glob(detector.settings['train_dir']))[offset:offset+limit]
+    return files
+
+def superimposed_model(settings, threading=True):
+    num_mixtures = settings['detector']['num_mixtures']
 
     # Train a mixture model to get a clustering of the angles of the object
     descriptor = gv.load_descriptor(settings)
     detector = gv.BernoulliDetector(num_mixtures, descriptor, settings['detector'])
+
+    files = get_training_files(detector)
+    neg_files = sorted(glob.glob(settings['detector']['neg_dir']))
+
+    print(files)
+    import sys; sys.exit(0)
 
     print("Checkpoint 1")
 
@@ -1333,12 +1352,13 @@ def superimposed_model(settings, threading=True):
 ag.set_verbose(True)
 if gv.parallel.main(__name__): 
     import argparse
-    from settings import load_settings
+    from settings import load_settings, change_settings
         
     parser = argparse.ArgumentParser(description="Convert model to integrate background model")
     parser.add_argument('settings', metavar='<settings file>', type=argparse.FileType('r'), help='Filename of settings file')
     parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Model output file')
     parser.add_argument('--no-threading', action='store_true', default=False, help='Turn off threading')
+    parser.add_argument('--modify-settings', type=str, default='', help='Overwrite settings')
 
     args = parser.parse_args()
     settings_file = args.settings
@@ -1346,6 +1366,7 @@ if gv.parallel.main(__name__):
     threading = not args.no_threading
 
     settings = load_settings(settings_file)
+    settings = change_settings(settings, args.modify_settings)
     detector = superimposed_model(settings, threading=threading)
 
     #detector = gv.Detector(settings['detector']['num_mixtures'], descriptor, settings['detector'])
