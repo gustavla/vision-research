@@ -95,7 +95,7 @@ class PartsDescriptor(BinaryDescriptor):
         i_iter = iter(indices)
 
         E = edges.shape[-1]
-        th = _threshold_in_counts(settings, E)
+        th = _threshold_in_counts(self.settings, E)
 
         for sample in xrange(samples_per_image):
             for tries in xrange(20):
