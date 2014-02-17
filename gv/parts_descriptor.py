@@ -210,14 +210,14 @@ class PartsDescriptor(BinaryDescriptor):
         else:
             visparts = np.empty((self.num_parts,) + raw_originals.shape[1:])
 
-            self.extra['originals'] = []
+            #self.extra['originals'] = []
         
             # Improved visparts
             comps = mixture.mixture_components()
             for i in xrange(self.num_parts):
                 ims = raw_originals[comps == i].copy()
 
-                self.extra['originals'].append(ims)
+                #self.extra['originals'].append(ims)
 
                 # Stretch them all out
                 #for j in xrange(len(ims)):
@@ -239,8 +239,8 @@ class PartsDescriptor(BinaryDescriptor):
         # The parts to keep
         ok = (scores > 1) & (counts >= 10)
 
-        if 'originals' in self.extra:
-            self.extra['originals'] = list(itr.compress(self.extra['originals'], ok))
+        #if 'originals' in self.extra:
+            #self.extra['originals'] = list(itr.compress(self.extra['originals'], ok))
 
         scores = scores[ok]
         counts = counts[ok]
@@ -279,7 +279,7 @@ class PartsDescriptor(BinaryDescriptor):
 
         self.extra['scores'] = scores
         self.extra['counts'] = counts
-        self.extra['originals'] = [self.extra['originals'][ii] for ii in II]
+        #self.extra['originals'] = [self.extra['originals'][ii] for ii in II]
         
         # Now resort the parts according to this sorting
         self.orientations = self.orientations[II]
