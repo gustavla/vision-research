@@ -55,6 +55,7 @@ class PartsDescriptor(BinaryDescriptor):
         setts = self.settings['bedges'].copy()
         radius = setts['radius']
         setts['radius'] = 0
+        setts['preserve_size'] = True 
 
         # LEAVE-BEHIND
         if 1:
@@ -295,9 +296,10 @@ class PartsDescriptor(BinaryDescriptor):
         self._log_parts = np.log(self.parts)
         self._log_invparts = np.log(1-self.parts)
 
-    def extract_features(self, image, settings={}):
+    def extract_features(self, image, settings={}, must_preserve_size=False):
         sett = self.bedges_settings().copy()
         sett['radius'] = 0
+        sett['preserve_size'] = False or must_preserve_size
         if 1:
             unspread_edges = ag.features.bedges(image, **sett)
         else:

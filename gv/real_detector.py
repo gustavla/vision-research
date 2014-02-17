@@ -80,21 +80,25 @@ class RealDetector(BernoulliDetector):
             y = k_labels
 
 
-            if 1:
+            C = self.settings.get('penalty_parameter')
+            if C is None:
+            
                 # Set penalty parameter with hold-out validation
                 #Cs = np.array([1000.0, 500.0, 100.0, 50.0, 10.0, 5.0, 1.0, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
                 Cs = 10**np.linspace(self.settings.get('svm_alpha_start', -1), self.settings.get('svm_alpha_end', -3), self.settings.get('svm_alpha_num', 31))
 
                 X_train, X_test, y_train, y_test = cross_validation.train_test_split(
-                                                        X, y, test_size=0.2, random_state=0)
+                                                        X, y, test_size=0.20, random_state=0)
                 
                 #Cs = 10**np.linspace(2, -1, 16)
                 clfs = []
                 the_scores = np.zeros(len(Cs))
                 argses = [(i, C, X_train, y_train, X_test, y_test) for i, C in enumerate(Cs)] 
-                clf = linear_model.SGDClassifier(loss='hinge', penalty='l2', n_iter=self.settings.get('svm_iter', 40), shuffle=True, warm_start=True)
+                #clf = linear_model.SGDClassifier(loss='hinge', penalty='l2', n_iter=self.settings.get('svm_iter', 40), shuffle=True, warm_start=True)
+                clf = svm.LinearSVC(C=1.0)
                 for i, C in enumerate(Cs):
-                    clf.set_params(alpha=C)
+                    #clf.set_params(alpha=C)
+                    clf.set_params(C=C)
                     clf.fit(X_train, y_train)
                     score = clf.score(X_test, y_test)
                     the_scores[i] = score
@@ -115,12 +119,9 @@ class RealDetector(BernoulliDetector):
                 self.extra['Cs'].append((Cs, the_scores))
                 #svc = clfs[np.argmax(the_scores)] 
 
-            else:
-                C = self.settings.get('penalty_parameter', 1)
 
-
-            #svc = svm.LinearSVC(C=C)
-            svc = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=self.settings.get('svm_final_iter', 100), shuffle=True)
+            svc = svm.LinearSVC(C=C)
+            #svc = linear_model.SGDClassifier(loss='hinge', penalty='l2', alpha=C, n_iter=self.settings.get('svm_final_iter', 100), shuffle=True)
             #X = scipy.sparse.csr_matrix(flat_k_feats)
             #svc.fit(X, k_labels)
 
