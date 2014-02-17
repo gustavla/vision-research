@@ -26,15 +26,20 @@ def change_settings(settings, settings_change_string):
         vv = opt.split('=')
         assert len(vv) == 2
         k, v = map(str.strip, vv)
-        if k in ('train_dir_seed',):
+        if k in ('train_dir_seed', 'file'):
             settings['detector'][k] = eval(v)
+        elif k == 'oriented_parts_file':
+            settings['oriented-parts']['file'] = eval(v)
     return settings
 
 def argparse_settings(description):
     import argparse
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('settings', metavar='<settings file>', type=argparse.FileType('r'), help='Filename of settings file')
+    parser.add_argument('--modify-settings', type=str, default='', help='Overwrite settings')
 
     args = parser.parse_args()
     settings_file = args.settings
-    return load_settings(settings_file)
+    d = load_settings(settings_file)
+    d = change_settings(d, args.modify_settings)
+    return d

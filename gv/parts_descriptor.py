@@ -8,6 +8,12 @@ import math
 import itertools as itr
 from .binary_descriptor import BinaryDescriptor
 
+def _threshold_in_counts(settings, num_edges):
+    threshold = settings['threshold']
+    size = settings['part_size']
+    frame = settings['patch_frame']
+    return max(1, int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges))
+
 @BinaryDescriptor.register('parts')
 class PartsDescriptor(BinaryDescriptor):
     def __init__(self, patch_size, num_parts, settings={}):
@@ -37,6 +43,10 @@ class PartsDescriptor(BinaryDescriptor):
 
     @property
     def num_features(self):
+        return self.num_parts
+
+    @property
+    def num_true_parts(self):
         return self.num_parts
 
     @property
@@ -84,6 +94,9 @@ class PartsDescriptor(BinaryDescriptor):
         random.shuffle(indices)
         i_iter = iter(indices)
 
+        E = edges.shape[-1]
+        th = _threshold_in_counts(settings, E)
+
         for sample in xrange(samples_per_image):
             for tries in xrange(20):
                 #x, y = random.randint(0, w-1), random.randint(0, h-1)
@@ -91,14 +104,15 @@ class PartsDescriptor(BinaryDescriptor):
                 selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
                 selection_padded = [slice(x, x+radius*2+self.patch_size[0]), slice(y, y+radius*2+self.patch_size[1])]
                 # Return grayscale patch and edges patch
+                unspread_edgepatch = unspread_edges[selection]
                 edgepatch = edges[selection]
                 #edgepatch_nospread = edges_nospread[selection]
                 if fr == 0:
-                    avg = edgepatch.mean()
+                    tot = unspread_edgepatch.sum()
                 else:
-                    avg = edgepatch[fr:-fr,fr:-fr].mean()
+                    tot = unspread_edgepatch[fr:-fr,fr:-fr].mean()
 
-                if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
+                if th <= tot: 
                     the_patches.append(edgepatch)
                     #the_patches.append(edgepatch_nospread)
     

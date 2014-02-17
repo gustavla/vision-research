@@ -137,6 +137,7 @@ def _get_patches(bedges_settings, settings, filename):
             selection0 = [0, slice(x+minus_ps[0], x+plus_ps[0]), slice(y+minus_ps[1], y+plus_ps[1])]
 
             # Return grayscale patch and edges patch
+            unspread_edgepatch = all_unspread_edges[selection0]
             edgepatch = all_edges[selection0]
             #inv_edgepatch = inv_edges[selection]
 
@@ -147,12 +148,13 @@ def _get_patches(bedges_settings, settings, filename):
 
             # The inv edges could be incorproated here, but it shouldn't be that different.
             if fr == 0:
-                tot = edgepatch.sum()
+                tot = unspread_edgepatch.sum()
             else:
-                tot = edgepatch[fr:-fr,fr:-fr].sum()
+                tot = unspread_edgepatch[fr:-fr,fr:-fr].sum()
 
             #if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
             #print(th, tot)
+            #print 'th', th
             if th <= tot:
                 XY = np.matrix([x, y, 1]).T
                 # Now, let's explore all orientations
@@ -317,9 +319,10 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         II = [list(itr.product(PPi, RRi)) for PPi in cycles(PP) for RRi in cycles(RR)]
         lookup = dict(zip(itr.product(PP, RR), itr.count()))
         permutations = np.asarray([[lookup[ii] for ii in rows] for rows in II])
+        n_init = self.settings.get('n_init', 1)
         n_iter = self.settings.get('n_iter', 10)
         
-        mixture = LatentBernoulliMM(n_components=self._num_parts, permutations=permutations, n_iter=n_iter, random_state=0, min_probability=self.settings['min_probability'])
+        mixture = LatentBernoulliMM(n_components=self._num_parts, permutations=permutations, n_init=n_init, n_iter=n_iter, random_state=0, min_probability=self.settings['min_probability'])
         mixture.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
 
         ag.info("Done.")

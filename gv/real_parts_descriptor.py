@@ -19,6 +19,10 @@ class RealPartsDescriptor(RealDescriptor):
         return self._descriptor.num_parts
 
     @property
+    def num_true_parts(self):
+        return self._descriptor.num_parts
+
+    @property
     def subsample_size(self):
         return self.settings['subsample_size']
 
