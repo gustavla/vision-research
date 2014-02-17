@@ -317,8 +317,9 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         II = [list(itr.product(PPi, RRi)) for PPi in cycles(PP) for RRi in cycles(RR)]
         lookup = dict(zip(itr.product(PP, RR), itr.count()))
         permutations = np.asarray([[lookup[ii] for ii in rows] for rows in II])
-
-        mixture = LatentBernoulliMM(n_components=self._num_parts, permutations=permutations, n_iter=10, random_state=0, min_probability=self.settings['min_probability'])
+        n_iter = self.settings.get('n_iter', 10)
+        
+        mixture = LatentBernoulliMM(n_components=self._num_parts, permutations=permutations, n_iter=n_iter, random_state=0, min_probability=self.settings['min_probability'])
         mixture.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
 
         ag.info("Done.")
