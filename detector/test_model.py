@@ -101,9 +101,9 @@ if gv.parallel.main(__name__):
     #dataset = ['val', 'train'][mini]
     #dataset = 'val'
 
-    print("Loading files...")
+    ag.info("Loading files...")
     files, tot = gv.datasets.load_files(contest, obj_class)
-    print("Done.")
+    ag.info("Done.")
 
     tot_tp = 0
     tot_tp_fp = 0
@@ -500,7 +500,7 @@ if gv.parallel.main(__name__):
         p, r = gv.rescalc.calc_precision_recall(detarr, tot_tp_fn)
         ap = gv.rescalc.calc_ap(p, r) 
 
-        print("{ap:6.02f}% {loop} Testing file {img_id} (tp:{tp} tp+fp:{tp_fp} tp+fn:{tp_fn})".format(loop=loop, ap=100*ap, img_id=img_id, tp=tp, tp_fp=tp_fp, tp_fn=tp_fn))
+        ag.info("{ap:6.02f}% {loop} Testing file {img_id} (tp:{tp} tp+fp:{tp_fp} tp+fn:{tp_fn})".format(loop=loop, ap=100*ap, img_id=img_id, tp=tp, tp_fp=tp_fp, tp_fn=tp_fn))
 
         # If logging
 
@@ -574,10 +574,10 @@ if gv.parallel.main(__name__):
     ap = gv.rescalc.calc_ap(p, r) 
     np.savez(output_file, detections=detections, tp_fn=tot_tp_fn, tp_fn_dict=tp_fn_dict, ap=ap, contest=contest, obj_class=obj_class, num_images=num_images)
 
-    print('tp', tot_tp)
-    print('tp+fp', tot_tp_fp)
-    print('tp+fn', tot_tp_fn)
-    print('----------------')
+    ag.info('tp', tot_tp)
+    ag.info('tp+fp', tot_tp_fp)
+    ag.info('tp+fn', tot_tp_fn)
+    ag.info('----------------')
     #if tot_tp_fp:
     #    print('Precision', tot_tp / tot_tp_fp)
     #if tot_tp_fn:

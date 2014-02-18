@@ -157,7 +157,7 @@ def _create_kernel_for_mixcomp(mixcomp, settings, bb, indices, files, neg_files)
 
                 totals += 1
 
-    print('COUNTS', counts)
+    ag.info('COUNTS', counts)
 
     np.seterr(divide='raise')
 
@@ -292,7 +292,7 @@ def _get_background_model(settings, neg_files):
             factor = rs.uniform(0.2, 1.0)
             im = gv.img.resize_with_factor_new(im, factor)
 
-            print(im.shape)
+            ag.info(im.shape)
 
             feats = descriptor.extract_features(im, settings=sett)
 
@@ -481,7 +481,7 @@ def __process_one(index, mixcomp, files, im_size, bb, duplicates, neg_files, des
 
             C += 1
 
-            print('dist', best[0])
+            ag.info('dist', best[0])
             neg_im, neg_feats = best[1:3]
         else:
             neg_im = gen.next()
@@ -505,7 +505,7 @@ def _get_avg_positives(mixcomp, settings, bb, indices, files, neg_files, descrip
     """
 
     im_size = settings['detector']['image_size']
-    print("GETTING AVG")
+    ag.info("GETTING AVG")
     # Run it first once
     # TODO How many duplicates are needed for this? Probably not a lot.
     duplicates = 5
@@ -529,7 +529,7 @@ def _get_avg_positives(mixcomp, settings, bb, indices, files, neg_files, descrip
     psize = settings['detector']['subsample_size']
     support = arrange_support(alpha_maps.mean(0), obj_shape, psize)
 
-    print('pos', pos.shape)
+    ag.info('pos', pos.shape)
 
     den = np.apply_over_axes(np.mean, support[...,np.newaxis], [0, 1]).squeeze()
     P = np.apply_over_axes(np.mean, pos * support[...,np.newaxis], [1, 2]).squeeze() / den
@@ -542,10 +542,10 @@ def _get_avg_positives(mixcomp, settings, bb, indices, files, neg_files, descrip
     appeared = pos & ~neg
     disappeared = ~pos & neg
 
-    print('pos', pos.shape)
+    ag.info('pos', pos.shape)
 
     A = (appeared.mean(1) / (0.00001 + ((1 - neg).mean(1)))).mean(1).mean(1)
-    print('A', A.shape)
+    ag.info('A', A.shape)
     #avg = A.mean(0).mean(0)
     avg = A.mean(0)
     std = A.std(0)
@@ -594,7 +594,7 @@ def get_pos_and_neg(mixcomp, settings, bb, indices, files, neg_files, duplicates
 
     extra = {}
     if settings['detector'].get('selective_bkg'):
-        print("SELECTIVE!")
+        ag.info("SELECTIVE!")
         extra['selective'] = True
         extra['concentrations'] = _get_avg_positives(mixcomp, settings, bb, indices, files, neg_files, descriptor, sett)
 
@@ -679,12 +679,12 @@ def cluster(detector, files):
             #raw_im = gv.img.load_image(fn)
             #im = gv.img.asgray(raw_im)
             feat = detector.extract_spread_features(grayscale_img)
-            print(feat.shape)
+            ag.info(feat.shape)
             feats.append(feat)
             alpha_maps.append(alpha)
 
         alpha_maps = np.asarray(alpha_maps)
-        print('A', alpha_maps.shape)
+        ag.info('A', alpha_maps.shape)
         feats = np.asarray(feats)
         feats = feats.reshape((feats.shape[0], -1))
 
@@ -710,11 +710,11 @@ def cluster(detector, files):
         #detector.settings['bkg_type'] = bkg_type
         #detector.settings['testing_type'] = testing_type
 
-        print("Checkpoint 2")
+        ag.info("Checkpoint 2")
 
         #comps = detector.mixture.mixture_components()
 
-    print(detector.extra['bbs'])
+    ag.info(detector.extra['bbs'])
 
     return detector, comps
 
@@ -735,7 +735,7 @@ def calc_bbs(detector):
         bb = gv.bb.intersection(bb, max_bb)
         return bb
 
-    print("Checkpoint 5")
+    ag.info("Checkpoint 5")
 
     max_bb = (0, 0) + detector.settings['image_size']
 
@@ -774,10 +774,7 @@ def superimposed_model(settings, threading=True):
     files = get_training_files(detector)
     neg_files = sorted(glob.glob(settings['detector']['neg_dir']))
 
-    print(files)
-    import sys; sys.exit(0)
-
-    print("Checkpoint 1")
+    ag.info("Checkpoint 1")
 
     testing_type = detector.settings.get('testing_type')
 
@@ -788,15 +785,15 @@ def superimposed_model(settings, threading=True):
 
     ##############################################################################
 
-    print("Checkpoint 3")
+    ag.info("Checkpoint 3")
 
-    print("Checkpoint 4")
+    ag.info("Checkpoint 4")
 
     support = detector.support 
 
     kernels = []
 
-    #print("TODO, quitting")
+    #ag.info("TODO, quitting")
     #return detector
 
     # Determine bounding boxes
@@ -806,19 +803,19 @@ def superimposed_model(settings, threading=True):
 
     bbs = calc_bbs(detector)
 
-    print("Checkpoint 6")
+    ag.info("Checkpoint 6")
 
-    print("Checkpoint 7")
+    ag.info("Checkpoint 7")
 
     bkgs = []
     orig_sizes = []
     new_support = []
     im_size = settings['detector']['image_size']
 
-    print("Checkpoint 8")
+    ag.info("Checkpoint 8")
     all_negs = []
 
-    print("Checkpoint 9")
+    ag.info("Checkpoint 9")
 
     # Retrieve features and support 
     ##############################################################################
@@ -1116,7 +1113,7 @@ def superimposed_model(settings, threading=True):
                 grid.save(fn, scale=10)
                 os.chmod(fn, 0644)
 
-            print('sum', np.fabs(np.apply_over_axes(np.sum, weights, [0, 1])).sum())
+            ag.info('sum', np.fabs(np.apply_over_axes(np.sum, weights, [0, 1])).sum())
 
             # Instead, train model rigorously!!
             detector.extra['sturf'][m]['pos'] = all_pos_feats[m]
@@ -1154,7 +1151,7 @@ def superimposed_model(settings, threading=True):
             orig_sizes.append(orig_size)
             new_support.append(sup)
                     
-            print("Checkpoint 10")
+            ag.info("Checkpoint 10")
 
             detector.settings['per_mixcomp_bkg'] = True
     #}}}
@@ -1191,7 +1188,7 @@ def superimposed_model(settings, threading=True):
             these_indices = []
             weights = detector.extra['weights'][m]
 
-            print('Indices:', np.prod(weights.shape))
+            ag.info('Indices:', np.prod(weights.shape))
 
             # If not plain, we need even keypoints
             even = not detector.settings.get('plain')
@@ -1253,8 +1250,8 @@ def superimposed_model(settings, threading=True):
             for m in xrange(detector.num_mixtures):
                 top_bbs[m].extend(res[m])
 
-        print('- TOPS ------')
-        print(map(np.shape, top_bbs) )
+        ag.info('- TOPS ------')
+        ag.info(map(np.shape, top_bbs) )
         detector.extra['top_bbs_shape'] = map(np.shape, top_bbs) 
 
         # Save the strong negatives
@@ -1295,9 +1292,9 @@ def superimposed_model(settings, threading=True):
             X = np.concatenate([all_pos_X0[m], all_neg_X0[m]])  
     
             # Flatten
-            print(m, ':', X.shape)
+            ag.info(m, ':', X.shape)
             #X = phi(X, k)
-            print(m, '>', X.shape)
+            ag.info(m, '>', X.shape)
             y = np.concatenate([np.ones(len(all_pos_feats[m])), np.zeros(len(all_neg_X0[m]))])
 
             #detector.extra['data_x'].append(X)
@@ -1331,25 +1328,25 @@ def superimposed_model(settings, threading=True):
             del detector.extra['poss']
             del detector.extra['negs']
 
-    print('extra')
-    print(detector.extra.keys())
-    print('eps', detector.eps)
+    ag.info('extra')
+    ag.info(detector.extra.keys())
+    ag.info('eps', detector.eps)
 
-    #print("THIS IS SO TEMPORARY!!!!!")
+    #ag.info("THIS IS SO TEMPORARY!!!!!")
     if 'weights' in detector.extra:
         #detector.indices = None
 
-        print(detector.standardization_info)
+        ag.info(detector.standardization_info)
         #try:
         #    detector.standardization_info[0]['std'] = 1.0
         #except TypeError:
         #    detector.standardization_info = [dict(std=1.0, mean=0.0)]
-        print('corner2', detector.extra['weights'][0][0,0,:5])
+        ag.info('corner2', detector.extra['weights'][0][0,0,:5])
 
     return detector 
 
 
-ag.set_verbose(True)
+ag.set_verbose(False)
 if gv.parallel.main(__name__): 
     import argparse
     from settings import load_settings, change_settings

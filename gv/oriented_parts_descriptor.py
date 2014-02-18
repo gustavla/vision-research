@@ -491,7 +491,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         assert len(order_single) > 0, "No edges kept! Something probably went wrong"
 
         #self._num_parts = len(order_single)
-        self._num_parts = len(order_single) * int(P//2)
+        self._num_parts = len(order_single) * ORI 
         self._num_true_parts = len(order_single)
         print 'num_parts', self._num_parts
         print 'num_true_parts', self._num_true_parts
