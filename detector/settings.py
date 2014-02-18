@@ -26,7 +26,7 @@ def change_settings(settings, settings_change_string):
         vv = opt.split('=')
         assert len(vv) == 2
         k, v = map(str.strip, vv)
-        if k in ('train_dir_seed', 'file'):
+        if k in ('train_dir_seed', 'file', 'train_limit'):
             settings['detector'][k] = eval(v)
         elif k == 'seed':
             settings['oriented-parts']['seed'] = eval(v)
