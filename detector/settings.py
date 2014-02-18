@@ -28,6 +28,8 @@ def change_settings(settings, settings_change_string):
         k, v = map(str.strip, vv)
         if k in ('train_dir_seed', 'file'):
             settings['detector'][k] = eval(v)
+        elif k == 'seed':
+            settings['oriented-parts']['seed'] = eval(v)
         elif k == 'oriented_parts_file':
             settings['oriented-parts']['file'] = eval(v)
     return settings

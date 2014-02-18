@@ -81,6 +81,9 @@ class RealDetector(BernoulliDetector):
 
 
             C = self.settings.get('penalty_parameter')
+            if 'Cs' not in self.extra:
+                self.extra['Cs'] = []
+
             if C is None:
             
                 # Set penalty parameter with hold-out validation
@@ -112,9 +115,6 @@ class RealDetector(BernoulliDetector):
                 best_i = np.argmax(the_scores)
                 print('BEST C', Cs[best_i])
                 C = Cs[best_i]
-
-                if 'Cs' not in self.extra:
-                    self.extra['Cs'] = []
 
                 self.extra['Cs'].append((Cs, the_scores))
                 #svc = clfs[np.argmax(the_scores)] 

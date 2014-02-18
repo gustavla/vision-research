@@ -321,5 +321,5 @@ if gv.parallel.main(__name__):
     print('Counts', [x['count'] for x in detector.extra['cascades']])
     print('Th', [x['th'] for x in detector.extra['cascades']])
     print("Saved, exiting")
-    print('Cs', detector.extra['Cs'])
+    print('Cs', detector.extra.get('Cs'))
 
