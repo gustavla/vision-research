@@ -321,8 +321,9 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         permutations = np.asarray([[lookup[ii] for ii in rows] for rows in II])
         n_init = self.settings.get('n_init', 1)
         n_iter = self.settings.get('n_iter', 10)
+        seed = self.settings.get('seed', 0)
         
-        mixture = LatentBernoulliMM(n_components=self._num_parts, permutations=permutations, n_init=n_init, n_iter=n_iter, random_state=0, min_probability=self.settings['min_probability'])
+        mixture = LatentBernoulliMM(n_components=self._num_parts, permutations=permutations, n_init=n_init, n_iter=n_iter, random_state=seed, min_probability=self.settings['min_probability'])
         mixture.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
 
         ag.info("Done.")

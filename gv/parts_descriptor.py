@@ -95,7 +95,8 @@ class PartsDescriptor(BinaryDescriptor):
         i_iter = iter(indices)
 
         E = edges.shape[-1]
-        th = _threshold_in_counts(self.settings, E)
+        th = _threshold_in_counts(self.settings, 8)
+        print('th', th)
 
         for sample in xrange(samples_per_image):
             for tries in xrange(20):
@@ -110,7 +111,9 @@ class PartsDescriptor(BinaryDescriptor):
                 if fr == 0:
                     tot = unspread_edgepatch.sum()
                 else:
-                    tot = unspread_edgepatch[fr:-fr,fr:-fr].mean()
+                    tot = unspread_edgepatch[fr:-fr,fr:-fr].sum()
+
+                print('tot', tot)
 
                 if th <= tot: 
                     the_patches.append(edgepatch)
