@@ -3,6 +3,7 @@ import os
 import argparse
 import gv.datasets
 import sys
+import amitgroup as ag
 
 def detect_raw(detector, filt, fileobj):
     import os
@@ -37,6 +38,7 @@ def detect_raw(detector, filt, fileobj):
 
     return (tp, tp_fp, tp_fn, bbs, fileobj.img_id)
 
+ag.set_verbose(True)
 if gv.parallel.main(__name__):
     parser = argparse.ArgumentParser(description='Test response of model')
     parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')

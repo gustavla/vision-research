@@ -1346,7 +1346,7 @@ def superimposed_model(settings, threading=True):
     return detector 
 
 
-ag.set_verbose(False)
+ag.set_verbose(True)
 if gv.parallel.main(__name__): 
     import argparse
     from settings import load_settings, change_settings
