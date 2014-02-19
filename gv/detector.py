@@ -1149,6 +1149,9 @@ class BernoulliDetector(Detector):
 
         bkgcomp = np.zeros_like(resmap)
 
+        if resmap.size == 0:
+            return [], resmap, bkgcomp
+
         kern = sub_kernels[mixcomp]
 
         psize = self.settings['subsample_size']
@@ -1165,8 +1168,6 @@ class BernoulliDetector(Detector):
         sh = (full_sh[0]//psize[0], full_sh[1]//psize[1])
 
         from scipy.stats import scoreatpercentile
-        if resmap.size == 0:
-            return [], resmap, bkgcomp
 
         th = scoreatpercentile(resmap.ravel(), 50)
         #th = -0.1

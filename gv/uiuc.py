@@ -37,6 +37,11 @@ def _convert_line_to_file(line, single_scale=True, env='UIUC_DIR'):
             w = int(match.group(3))
             size = (int(_SIZE[0]/_SIZE[1] * w), w)
         bb = (pos[0], pos[1], pos[0]+size[0], pos[1]+size[1])
+        # Note! We are shrinking the bounding boxes a bit to make them tighter.
+        # The original ones contain non-car space around them, so this is making
+        # them closer to the Pascal VOC way, where they are tightly around the car.
+        bb = gv.bb.inflate(bb, -4)
+
         bbobj = gv.bb.DetectionBB(box=bb)
         bbs.append(bbobj)
 

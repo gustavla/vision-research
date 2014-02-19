@@ -4,6 +4,7 @@ import argparse
 import gv.datasets
 import sys
 import amitgroup as ag
+from settings import change_settings
 
 def detect_raw(detector, filt, fileobj):
     import os
@@ -54,7 +55,6 @@ if gv.parallel.main(__name__):
     parser.add_argument('--param', type=float, default=None)
     parser.add_argument('--filter', type=str, default=None, help='Add filter to make detection harder')
     parser.add_argument('--classifier', action='store_true', default=False, help='Run as classifier and not detector')
-    parser.add_argument('--settings', type=str, default='', help='Overwrite settings')
 
     args = parser.parse_args()
     model_file = args.model
@@ -90,7 +90,6 @@ if gv.parallel.main(__name__):
             sys.exit(1)
 
     detector = gv.Detector.load(model_file)
-        
 
     # TODO: New
     detector.TEMP_second = True
