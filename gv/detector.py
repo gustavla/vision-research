@@ -1824,10 +1824,14 @@ class BernoulliDetector(Detector):
         eps = settings.get('min_probability')
         if eps is None:
             import scipy.stats.mstats as ms
-            eps = ms.scoreatpercentile(model.ravel(), settings['min_probability_percentile'])
-            fallback_eps = settings.get('min_probability_fallback', 0.0001)
-            if eps < fallback_eps:
-                eps = fallback_eps
+            mult_avg = settings.get('min_probability_mult_avg')
+            if mult_avg is not None:
+                eps = model.mean() * mult_avg
+            else:
+                eps = ms.scoreatpercentile(model.ravel(), settings['min_probability_percentile'])
+                fallback_eps = settings.get('min_probability_fallback', 0.0001)
+                if eps < fallback_eps:
+                    eps = fallback_eps
             print(model.shape)
             print("EPS", eps)
             return eps
