@@ -87,7 +87,7 @@ class LatentBernoulliMM(object):
                 #normq = self.q / np.apply_over_axes(np.sum, self.q, [1, 2])
                 #self.q /= np.apply_over_axes(np.sum, self.q, [1, 2])
                 #q2 = np.exp(logq - logsumexp(logq.reshape((-1, logq.shape[-1])), axis=0)[...,np.newaxis,np.newaxis])
-                norm_logq = (logq - logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis])#.clip(min=-200)
+                norm_logq = (logq - logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis]).clip(min=-200)
                 q2 = np.exp(norm_logq)
                 self.q[:] = q2
 
