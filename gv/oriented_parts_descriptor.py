@@ -24,6 +24,7 @@ def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=Fa
 
     edge_type = settings.get('edge_type', 'yali')
     if edge_type == 'yali':
+        print(map(np.shape, images))
         return ag.features.bedges(images, **sett)
     elif edge_type == 'new':
         return np.asarray([gv.gradients.extract(image, 
@@ -72,7 +73,7 @@ def _get_patches(bedges_settings, settings, filename):
 
     angles = np.arange(0, 360, 360/ORI)
     radians = angles*np.pi/180
-    all_img = np.asarray([transform.rotate(img_padded, angle) for angle in angles])
+    all_img = np.asarray([transform.rotate(img_padded, angle, resize=False) for angle in angles])
     # Add inverted polarity too
     if POL == 2:
         all_img = np.concatenate([all_img, 1-all_img])

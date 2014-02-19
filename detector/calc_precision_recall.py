@@ -66,9 +66,10 @@ for i, results_file in enumerate(results_files):
         plt.ylim((0, 1))
 
 print('---------------')
-print('{t} avg={avg:.02f}, std={std:.02f}, min={min:.02f}, max={max:.02f}'.format(t=TYPE,
+print('{t} avg={avg:.02f}, std={std:.02f}, median={median:.02f}, min={min:.02f}, max={max:.02f}'.format(t=TYPE,
                                                                                  avg=transf(np.mean(all_ap)), 
-                                                                                 std=transf0(np.std(all_ap)),
+                                                                                 std=transf0(np.std(all_ap, ddof=1)),
+                                                                                 median=transf(np.median(all_ap)), 
                                                                                  min=transf(np.min(all_ap)),
                                                                                  max=transf(np.max(all_ap))))
 
