@@ -24,7 +24,6 @@ def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=Fa
 
     edge_type = settings.get('edge_type', 'yali')
     if edge_type == 'yali':
-        print(map(np.shape, images))
         return ag.features.bedges(images, **sett)
     elif edge_type == 'new':
         return np.asarray([gv.gradients.extract(image, 
