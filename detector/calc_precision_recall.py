@@ -74,7 +74,7 @@ print('{t} avg={avg:.02f}, std={std:.02f}, median={median:.02f}, min={min:.02f},
                                                                                  max=transf(np.max(all_ap))))
 
 print('---------------')
-print(all_ap)
+print(all_ap, ',')
 
 if 0:
     plt.legend(fontsize='xx-small', framealpha=0.2)

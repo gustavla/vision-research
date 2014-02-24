@@ -697,7 +697,7 @@ def cluster(detector, files):
             g.fit(feats)
             comps = g.predict(feats)
         else:
-            g = ag.stats.BernoulliMixture(detector.num_mixtures, feats)
+            g = ag.stats.BernoulliMixture(detector.num_mixtures, feats, n_init=10, init_seed=detector.settings.get('train_em_seed', 0))
             g.run_EM(1e-8, min_probability=0.025)
 
             comps = g.mixture_components()
@@ -761,7 +761,12 @@ def get_training_files(detector):
                 rs.shuffle(files0)
             files += files0[offset:offset+limit]
     else:
-        files += sorted(glob.glob(detector.settings['train_dir']))[offset:offset+limit]
+        files += sorted(glob.glob(detector.settings['train_dir']))
+        seed = detector.settings.get('train_dir_seed')
+        if seed is not None:
+            rs = np.random.RandomState(seed)
+            rs.shuffle(files)
+        files = files[offset:offset+limit]
     return files
 
 def superimposed_model(settings, threading=True):

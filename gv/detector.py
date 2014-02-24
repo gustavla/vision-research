@@ -1832,8 +1832,6 @@ class BernoulliDetector(Detector):
                 fallback_eps = settings.get('min_probability_fallback', 0.0001)
                 if eps < fallback_eps:
                     eps = fallback_eps
-            print(model.shape)
-            print("EPS", eps)
             return eps
         else:
             return eps 
@@ -1848,7 +1846,7 @@ class BernoulliDetector(Detector):
         return cls.build_weights(clipped_obj, clipped_bkg)
 
     def weights_shape(self, mixcomp):
-        return self.weights(0).shape
+        return self.weights(mixcomp).shape
 
     def lrt_weights(self, mixcomp):
         bkg = np.clip(self.fixed_spread_bkg[mixcomp], self.eps, 1 - self.eps)
