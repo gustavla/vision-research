@@ -41,8 +41,8 @@ all_llhs = all_llhs[:max_mixcomp+1]
 
 ra = (-1000, 8000)
 dt = 250
-ra = (-3, 8)
-dt = 0.25
+ra = (-3, 20)
+dt = 0.5
 
 print 'detections:', map(np.shape, all_llhs)
 
