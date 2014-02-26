@@ -24,9 +24,9 @@ def change_settings(settings, settings_change_string):
     # Change settings
     for opt in filter(len, map(str.strip, settings_change_string.split(';'))):
         vv = opt.split('=')
-        assert len(vv) == 2
+        assert len(vv) == 2, vv
         k, v = map(str.strip, vv)
-        if k in ('train_dir_seed', 'file', 'train_limit', 'inflate_bounding_box', 'scale_prior', 'indices_suppress_radius', 'spread_radii', 'scale_factor'):
+        if k in ('train_dir_seed', 'file', 'train_limit', 'inflate_bounding_box', 'scale_prior', 'indices_suppress_radius', 'spread_radii', 'scale_factor', 'scale_suppress_radius', 'selective_bkg'):
             settings['detector'][k] = eval(v)
         if k == 'scale_factor_invexp': 
             settings['detector']['scale_factor'] = 2**(1./float(v))

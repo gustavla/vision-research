@@ -1,14 +1,22 @@
 
 import numpy as np
 
-sh = (100, 30, 40, 50)
+import gv
 
-X = np.random.normal(size=sh[0])
-Y = np.random.normal(size=sh)
+def f(x, y):
+    return 2*y + x
 
-import gv.fast
+def starf(args):
+    return f(*args)
 
-res = gv.fast.correlate_abunch(X, Y)
-print res[0,0,0]
-print np.corrcoef(X, Y[:,0,0,0])
-print np.isnan(res).sum()
+N = 30
+
+if gv.parallel.main(__name__):
+    x = np.arange(N)
+    y = 4 * np.arange(N)
+    args = [(x[i], y[i]) for i in xrange(N)]
+    #for i, z in enumerate(gv.parallel.starmap(f, args)):
+    for i, z in enumerate(gv.parallel.imap(starf, args)):
+        print i, ':', 2*y[i] + x[i], z
+        assert 2*y[i] + x[i] == z
+        

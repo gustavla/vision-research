@@ -1832,9 +1832,7 @@ class BernoulliDetector(Detector):
                 fallback_eps = settings.get('min_probability_fallback', 0.0001)
                 if eps < fallback_eps:
                     eps = fallback_eps
-            return eps
-        else:
-            return eps 
+        return eps
 
     def prepare_eps(self, model):
         self._eps = self.calc_eps(model, self.settings)

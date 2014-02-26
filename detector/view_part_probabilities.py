@@ -17,6 +17,7 @@ import matplotlib.pylab as plt
 import amitgroup as ag
 import amitgroup.features
 import sys
+import os
 import gv
 
 #parts_dictionary = gv.PatchDictionary.load(part_file)
@@ -56,6 +57,7 @@ for f in xrange(F):
         grid.set_image(descriptor.parts[strides*f,...,e], f, 1+e, vmin=0, vmax=1, cmap=plt.cm.RdBu_r)
 
 grid.save(args.output, scale=3)
+os.chmod(args.output.name, 0644)
 #ag.plot.images(originals, zero_to_one=False)
 #plt.show()
 
