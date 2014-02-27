@@ -133,7 +133,7 @@ if gv.parallel.main(__name__):
         print('Fetching positives (background superimposed)')
         # The positives don't have background, superimpose onto random background
         argses = [(m, settings, bbs[m], list(np.where(comps == m)[0]), files, neg_files, settings['detector'].get('stand_multiples', 1)) for m in range(detector.num_mixtures)]        
-        for m, _, pos_feats_chunk, alpha_maps, extra in itr.starmap_unordered(get_pos_and_neg, argses):
+        for m, _, pos_feats_chunk, alpha_maps, extra in itr.starmap(get_pos_and_neg, argses):
             all_alphas[m] += alpha_maps
             all_pos_feats[m] += list(pos_feats_chunk)
             print('Chunk size', len(pos_feats_chunk), 'mixture', m)
