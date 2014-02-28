@@ -160,7 +160,7 @@ class RealDetector(BernoulliDetector):
         return self.train_from_features(feats, labels)
 
 
-    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, discard_weak=False, farming=False, return_bounding_boxes=True, must_preserve_size=False, strides=(1, 1), *args, **kwargs):
+    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, discard_weak=False, farming=False, return_bounding_boxes=True, must_preserve_size=False, strides=(1, 1), use_scale_prior=True, *args, **kwargs):
         bb_bigger = (0, 0, img.shape[0], img.shape[1])
 
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
@@ -171,6 +171,7 @@ class RealDetector(BernoulliDetector):
                                                     factor, 
                                                     mixcomp, 
                                                     bb_bigger, 
+                                                    use_scale_prior=use_scale_prior,
                                                     cascade=cascade, 
                                                     discard_weak=discard_weak, 
                                                     farming=farming,
@@ -219,13 +220,26 @@ class RealDetector(BernoulliDetector):
     def subsample_size(self):
         return self.descriptor.subsample_size
 
-    def _detect_coarse_at_factor(self, feats, factor, mixcomp, bb_bigger, cascade=True, farming=False, 
-                                 discard_weak=False, return_bounding_boxes=True, strides=(1, 1)):
+    def _detect_coarse_at_factor(self, 
+                                 feats, 
+                                 factor, 
+                                 mixcomp, 
+                                 bb_bigger, 
+                                 use_scale_prior=True, 
+                                 cascade=True, 
+                                 farming=False, 
+                                 discard_weak=False, 
+                                 return_bounding_boxes=True, 
+                                 strides=(1, 1)):
         # Get background level
         resmap, bigger, padding = self._response_map(feats, mixcomp, strides=strides)
 
         if np.min(resmap.shape) <= 1:
             return [], resmap
+
+        if use_scale_prior and farming is not True:
+            resmap += self.settings.get('scale_prior', 0.0) * factor
+
 
         kern = self.svms[mixcomp]['weights']
 

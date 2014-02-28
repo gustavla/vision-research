@@ -1005,7 +1005,7 @@ class BernoulliDetector(Detector):
 
         orig_resmap = resmap.copy()
 
-        if use_scale_prior:
+        if use_scale_prior and farming is not True:
             resmap += self.settings.get('scale_prior', 0.0) * factor
             #pass
 
