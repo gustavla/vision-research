@@ -1005,7 +1005,7 @@ class BernoulliDetector(Detector):
 
         orig_resmap = resmap.copy()
 
-        if use_scale_prior:
+        if use_scale_prior and farming is not True:
             resmap += self.settings.get('scale_prior', 0.0) * factor
             #pass
 
@@ -1832,11 +1832,7 @@ class BernoulliDetector(Detector):
                 fallback_eps = settings.get('min_probability_fallback', 0.0001)
                 if eps < fallback_eps:
                     eps = fallback_eps
-            print(model.shape)
-            print("EPS", eps)
-            return eps
-        else:
-            return eps 
+        return eps
 
     def prepare_eps(self, model):
         self._eps = self.calc_eps(model, self.settings)
@@ -1848,7 +1844,7 @@ class BernoulliDetector(Detector):
         return cls.build_weights(clipped_obj, clipped_bkg)
 
     def weights_shape(self, mixcomp):
-        return self.weights(0).shape
+        return self.weights(mixcomp).shape
 
     def lrt_weights(self, mixcomp):
         bkg = np.clip(self.fixed_spread_bkg[mixcomp], self.eps, 1 - self.eps)

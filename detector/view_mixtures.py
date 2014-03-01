@@ -22,8 +22,13 @@ def view_mixtures(detector, output_file=None):
 
     #import pdb; pdb.set_trace()
 
-    #ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}: max: {1:.02} (w: {2:.02})".format(i, im.max(), detector.mixture.weights[i]), show=False)
-    ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}: max: {1:.02} (w: {2:.02})".format(i, im.max(), 1.0))
+    try:
+        w = detector.mixture.weights[i]
+    except:
+        w = -1
+
+    #ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}: max: {1:.02f} (w: {2:.02f})".format(i, im.max(), w), show=False)
+    ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}".format(i))
     #ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "")
     if output_file is not None:
         plt.savefig(output_file)

@@ -1,5 +1,6 @@
 import sys
 import itertools as itr
+import numpy as np
 
 # Global set of workers - initialized when first called a map function
 _g_available_workers = None 
@@ -86,7 +87,10 @@ def imap(f, workloads, star=False):
             task = dict(func=f, input_data=workload, job_index=job_index, unpack=star)
             MPI.COMM_WORLD.send(task, dest=dest_rank, tag=10)
 
-    for i in indices:
+    #print results, indices
+    #return results[indices]
+    II = np.argsort(indices)  
+    for i in II:
         yield results[i]
 
 def starmap(f, workloads):

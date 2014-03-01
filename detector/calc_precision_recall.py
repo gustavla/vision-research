@@ -5,6 +5,7 @@ import argparse
 parser = argparse.ArgumentParser(description='Test response of model')
 parser.add_argument('results', metavar='<file>', nargs='+', type=argparse.FileType('rb'), help='Filename of results file')
 parser.add_argument('--captions', metavar='<caption>', nargs='*', type=str, help='Captions')
+parser.add_argument('-i', '--inverse', action='store_true', default=False)
 
 args = parser.parse_args()
 results_files = args.results
@@ -21,11 +22,15 @@ use_other_style = False
 all_ap = []
 
 TYPE = '1-AP'
-def transf(x):
-    return 100*(1 - x)
+if args.inverse:
+    def transf(x):
+        return 100*(1 - x)
+else:
+    def transf(x):
+        return 100*x
+
 def transf0(x):
     return 100*x
-
 for i, results_file in enumerate(results_files):
     try:
         data = np.load(results_file)
@@ -74,7 +79,7 @@ print('{t} avg={avg:.02f}, std={std:.02f}, median={median:.02f}, min={min:.02f},
                                                                                  max=transf(np.max(all_ap))))
 
 print('---------------')
-print(all_ap)
+print(all_ap, ',')
 
 if 0:
     plt.legend(fontsize='xx-small', framealpha=0.2)
