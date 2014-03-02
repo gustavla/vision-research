@@ -3,6 +3,7 @@ from __future__ import division
 import gv
 import os
 import numpy as np
+import math
 
 def view_mixtures(detector, output_file=None):
     import amitgroup as ag
@@ -27,7 +28,7 @@ def view_mixtures(detector, output_file=None):
 
     fig = plt.figure(figsize=(12, 6)) 
     for m, datapoint in enumerate(data):
-        ax = fig.add_subplot(2, len(data)//2, m+1)
+        ax = fig.add_subplot(2, math.ceil(len(data)/2), m+1)
         ax.set_axis_off()
         ax.imshow(datapoint, vmin=0, vmax=1, interpolation='nearest', cmap=plt.cm.gray)
         ax.set_title(str(m))
