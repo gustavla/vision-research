@@ -1,4 +1,4 @@
-
+from __future__ import print_function
 import ConfigParser
 import re
 import os
@@ -34,6 +34,8 @@ def change_settings(settings, settings_change_string):
             settings['oriented-parts']['seed'] = eval(v)
         elif k == 'oriented_parts_file':
             settings['oriented-parts']['file'] = eval(v)
+        else:
+            print('ERROR: Unhandled settings {}'.format(k))
     return settings
 
 def argparse_settings(description):
