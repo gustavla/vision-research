@@ -4,7 +4,21 @@ require 'sketchup.rb'
 
 Sketchup.send_action "showRubyPanel:"
 
-UI.menu("Plugins").add_item("Generate data") {
+def gaussian(mean, stddev)
+    if stddev == 0.0 then
+        return mean
+    end
+    theta = 2 * Math::PI * rand()
+    rho = Math.sqrt(-2 * Math.log(1 - rand()))
+    scale = stddev * rho
+    x = mean + scale * Math.cos(theta)
+    y = mean + scale * Math.sin(theta)
+    return [mean+stddev*2, [mean-stddev*2, x].max].min
+end
+
+
+
+UI.menu("Plugins").add_item("Generate bicycles") {
 
     #prompts = ['Name of this model?']
     #defaults = ['carN']
@@ -33,6 +47,8 @@ UI.menu("Plugins").add_item("Generate data") {
     end
 
     N = 40 
+    SAMPLES_PER_VIEW = 1 
+    SD = 0.0
 
     model.entities.each do |entity|
         if entity.is_a? Sketchup::Group
@@ -40,6 +56,7 @@ UI.menu("Plugins").add_item("Generate data") {
             entity.visible = true
             
             view = model.active_view
+            puts('view', view)
             si = 256 
 
             save_image = Proc.new { |viewname, i, altitude, azimuth, out_of_plane, target, dist0, focal_length|
@@ -55,8 +72,8 @@ UI.menu("Plugins").add_item("Generate data") {
                     Math.sin(out_of_plane) * Math.sin(azimuth + Math::PI / 2.0), 
                     Math.cos(out_of_plane)
                 ]
-                filename = "/Users/slimgee/git/data/xi3zao3-car-sides7/view%03d_%s.png" % [i, name]
-                #filename = "/Users/slimgee/git/data/bicycle-sharp/%s%03d_%s.png" % [viewname, i, name]
+                #filename = "/Users/slimgee/git/data/xi3zao3-car-sides7/view%03d_%s.png" % [i, name]
+                filename = "/Users/slimgee/git/data/sketchup-output/%s%03d_%s.png" % [viewname, i, name]
                 if x != 0 or y != 0 then
                     if not File.exists? filename then
                         camera = Sketchup::Camera.new eye, target, up
@@ -65,7 +82,7 @@ UI.menu("Plugins").add_item("Generate data") {
                         camera.focal_length = focal_length
                         #puts 'Camera focal length'
                         #puts camera.focal_length
-                        view.camera=camera
+                        view.camera = camera
                         keys = {
                             :filename => filename,
                             :width => si,
@@ -86,8 +103,9 @@ UI.menu("Plugins").add_item("Generate data") {
 
             range = (0..N).map { |i| -1 + 2.0 * i/N.to_f } 
             # step(0.1) does not work in SketchUp's Ruby version
-            dist = 300 
-            dist2 = 450 
+            dist = 500 
+            dist2 = 330  # car
+            dist3 = 450
             i = 0
 
             if false 
@@ -127,19 +145,31 @@ UI.menu("Plugins").add_item("Generate data") {
             # half-side cars
             if true 
                 #[[25, 3.5], [50, 25]].each do |angle, altitude0|
-                [[25, 3.5], [50, 13.5]].each do |angle, altitude0|
+                [[25, 3.5], [50, 13.5]].each_with_index do |(angle, altitude0), ai|
                     2.times do |flip1|
                         2.times do |flip2|
-                            1.times do |loop|
+                            SAMPLES_PER_VIEW.times do |loop|
                                 #angle = 15
                                 #[40, 65, 80].each do |focal_length|
-                                [50, 65, 75].each do |focal_length|
-                                    altitude = (altitude0 + (rand() - 0.5) * 7.0) * Math::PI / 180.0
+                                [65].each do |focal_length|
+                                    focal_length += gaussian(0, 8 * SD)
+                                    rand_altitude = gaussian(0, 3 * SD)
+                                    altitude = (altitude0 + rand_altitude) * Math::PI / 180.0
                                     #azimuth = (-45 + 90 * flip + (rand() - 0.5) * 7.5) * Math::PI / 180.0      #sides1
                                     #azimuth = (-45 + 90 * flip + (rand() - 0.5) * 20.0) * Math::PI / 180.0     #sides2
-                                    azimuth = (90 + angle * (2*flip1-1) + 180 * flip2 + (rand() - 0.5) * 0.0) * Math::PI / 180.0
-                                    out_of_plane = (rand() - 0.5) * 2.5 * Math::PI / 180.0
-                                    if save_image.call('half-side', i, altitude, azimuth, out_of_plane, [0.0, 0, 0], dist, focal_length)
+                                    rand_azimuth = gaussian(0, 10 * SD)
+                                    puts('flip1', flip1)
+                                    puts('flip2', flip2)
+                                    puts('altidue', altitude0)
+                                    puts('ai', ai)
+                                    puts('angle', angle)
+                                    puts('rand_azimuth', rand_azimuth)
+                                    azimuth = (90 + angle * (2*flip1-1) + 180 * flip2 + rand_azimuth) * Math::PI / 180.0
+                                    puts('AFTER')
+                                    vid = 2 + flip1 * 2 + ai 
+                                    rand_out_of_plane = gaussian(0, 2.5 * SD)
+                                    out_of_plane = rand_out_of_plane * Math::PI / 180.0
+                                    if save_image.call("#{vid}-half-side", i, altitude, azimuth, out_of_plane, [0.0, 0, 0], dist3, focal_length)
                                         i += 1
                                     end
                                 end
@@ -149,14 +179,18 @@ UI.menu("Plugins").add_item("Generate data") {
                 end
             end
 
+            # Profiles
             if true 
                 2.times do |flip|
-                    1.times do |loop|
+                    SAMPLES_PER_VIEW.times do |loop|
                         [65].each do |focal_length|
+                            focal_length += gaussian(0, 15 * SD)
                             altitude = rand() * 7.5 * Math::PI / 180.0
-                            azimuth = (180 * flip + (rand() - 0.5) * 7.5) * Math::PI / 180.0
-                            out_of_plane = (rand() - 0.5) * 2.5 * Math::PI / 180.0
-                            if save_image.call('benny', i, altitude, azimuth, out_of_plane, [2.5, 0, 0], dist, focal_length)
+                            rand_azimuth = gaussian(0, 10 * SD)
+                            azimuth = (180 * flip + rand_azimuth) * Math::PI / 180.0
+                            rand_out_of_plane = gaussian(0, 2.5 * SD)
+                            out_of_plane = rand_out_of_plane * Math::PI / 180.0
+                            if save_image.call('0-profile', i, altitude, azimuth, out_of_plane, [2.5, 0, 0], dist, focal_length)
                                 i += 1
                             end
                         end
@@ -165,13 +199,16 @@ UI.menu("Plugins").add_item("Generate data") {
             end
 
             # Save some specialized frontal shots
-            if false 
+            if true
                 2.times do |flip|
                     sgn = [1, -1][flip]
-                    1.times do |loop|
-                        [40, 65, 80].each do |focal_length|
+                    SAMPLES_PER_VIEW.times do |loop|
+                        [65].each do |focal_length|
+                            focal_length += gaussian(0, 15 * SD)
                             #if save_image.call(i, rand() * 15 * Math::PI / 180.0, (180.0 * flip + 90.0 + (rand() - 0.5) * 15) * Math::PI / 180.0, (rand() - 0.5) * 5 * Math::PI / 180.0, [0, sgn * 80, 0], dist2)
-                            if save_image.call('poppy', i, rand() * 5 * Math::PI / 180.0, (180.0 * flip + 90.0) * Math::PI / 180.0, (rand() - 0.5) * 0 * Math::PI / 180.0, [0, sgn * 80, 0], dist2, focal_length)
+                            rand_out_of_plane = gaussian(0, 2.5 * SD)
+                            rand_azimuth = gaussian(0, 10 * SD)
+                            if save_image.call('1-front', i, SD * rand() * 10 * Math::PI / 180.0, (180.0 * flip + 90.0 + rand_azimuth) * Math::PI / 180.0, rand_out_of_plane * Math::PI / 180.0, [0, 0, 0], dist2, focal_length)
                             #if save_image.call(i, rand() * 20 * Math::PI / 180.0, (180.0 * flip + 90.0 + (rand() - 0.5) * 20) * Math::PI / 180.0, (rand() - 0.5) * 10 * Math::PI / 180.0, [0, sgn * 80, 0], dist2)
                             #if save_image.call(i, rand() * 30 * Math::PI / 180.0, (180.0 * flip + 90.0 + (rand() - 0.5) * 30) * Math::PI / 180.0, (rand() - 0.5) * 10 * Math::PI / 180.0, [0, sgn * 80, 0], dist2)
                                 i += 1
@@ -182,30 +219,7 @@ UI.menu("Plugins").add_item("Generate data") {
             end
             entity.visible = false 
         end
-      #end
     end
-  end 
-
-
-  if false
-    2.times do |flip|
-      6.times do |loop|
-        if save_image.call(i, rand() * 7.5 * Math::PI / 180.0, (180 * flip + (rand() - 0.5) * 7.5) * Math::PI / 180.0, (rand() - 0.5) * 2.5 * Math::PI / 180.0, [2.5, 0, 0], dist)
-          i += 1
-        end
-      end
-    end
-  end
-
-  # Save some specialized frontal shots
-  2.times do |flip|
-    sgn = [1, -1][flip]
-    6.times do |loop|
-      if save_image.call(i, rand() * 15 * Math::PI / 180.0, (180.0 * flip + 90.0 + (rand() - 0.5) * 15) * Math::PI / 180.0, (rand() - 0.5) * 5 * Math::PI / 180.0, [0, sgn * 80, 0], dist2)
-        i += 1
-      end
-    end
-  end
-  UI.messagebox("Data saved! (#{i})")
+    UI.messagebox("Data saved!")
 }
 

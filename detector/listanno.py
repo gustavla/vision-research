@@ -6,12 +6,13 @@ import argparse
 parser = argparse.ArgumentParser(description='List files and number of annotations of a certain object')
 parser.add_argument('object', type=str, help='Object class to list')
 parser.add_argument('-a', '--all', action='store_true', help='List all')
+parser.add_argument('--dataset', type=str, default='test')
 
 args = parser.parse_args()
 object_class = args.object
 listall = args.all
 
-fileobjs, tot = gv.voc.load_files(object_class, dataset='test')
+fileobjs, tot = gv.voc.load_files(object_class, dataset=args.dataset)
 
 print("<filename> <number of boxes> (<number of which are difficult>)")
 for f in fileobjs:

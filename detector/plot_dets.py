@@ -15,7 +15,7 @@ def plot_detection_histograms(detections, detector, score_name='confidence', out
 
     #bins = np.arange(0.0, 0.2, 0.01)
     if score_name == 'confidence':
-        bins = np.arange(-2, 2, 0.05)
+        bins = np.arange(-20, 20, 0.5)
     else:
         bins = np.arange(-8, 20, 0.5)
 
