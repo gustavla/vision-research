@@ -26,7 +26,7 @@ def change_settings(settings, settings_change_string):
         vv = opt.split('=')
         assert len(vv) == 2, vv
         k, v = map(str.strip, vv)
-        if k in ('train_dir_seed', 'file', 'train_limit', 'inflate_bounding_box', 'inflate_feature_frame', 'scale_prior', 'indices_suppress_radius', 'spread_radii', 'scale_factor', 'scale_suppress_radius', 'selective_bkg', 'image_size', 'min_probability_mult_avg', 'penalty_parameter'):
+        if k in ('train_dir_seed', 'file', 'train_limit', 'inflate_bounding_box', 'inflate_feature_frame', 'scale_prior', 'indices_suppress_radius', 'spread_radii', 'scale_factor', 'scale_suppress_radius', 'selective_bkg', 'image_size', 'min_probability_mult_avg', 'penalty_parameter', 'num_mixtures'):
             settings['detector'][k] = eval(v)
         if k == 'scale_factor_invexp': 
             settings['detector']['scale_factor'] = 2**(1./float(v))
