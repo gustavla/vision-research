@@ -938,3 +938,42 @@ def find_zeros_when_mcmc_training(np.ndarray[ndim=3,dtype=np.float64_t] Xbar,
 
                     w_mv[l0,l1,f] = mi 
     return w
+
+cdef int _area(int bb0, int bb1, int bb2, int bb3):
+    return int_max(0, (bb2 - bb0)) * int_max(0, (bb3 - bb1))
+
+def best_bounding_box(np.ndarray[ndim=2,dtype=np.int64_t] contendors, np.ndarray[ndim=2,dtype=np.int64_t] bbs):
+    cdef:
+        int N = contendors.shape[0]
+        int M = bbs.shape[0]
+        int i, j, inflate
+
+        np.ndarray[ndim=1,dtype=np.float64_t] scores = np.zeros(N)
+        np.float64_t[:] scores_mv = scores
+
+        np.int64_t[:,:] contendors_mv = contendors
+        np.int64_t[:,:] bbs_mv = bbs 
+
+        int bb0, bb1, bb2, bb3, area1, area2, area_union, area_intersection, ok
+        float metric, score
+
+    for i in xrange(N):
+        # Calculate score
+        score = 0.0
+
+        for j in xrange(M):
+            bb0 = int_max(contendors_mv[i,0], bbs_mv[j,0])
+            bb1 = int_max(contendors_mv[i,1], bbs_mv[j,1])
+            bb2 = int_min(contendors_mv[i,2], bbs_mv[j,2])
+            bb3 = int_min(contendors_mv[i,3], bbs_mv[j,3])
+
+            area1 = _area(contendors_mv[i,0], contendors_mv[i,1], contendors_mv[i,2], contendors_mv[i,3])
+            area2 = _area(bbs_mv[j,0], bbs_mv[j,1], bbs_mv[j,2], bbs_mv[j,3])
+            area_intersection = _area(bb0, bb1, bb2, bb3)
+            area_union = area1 + area2 - area_intersection
+
+            metric = <float>area_intersection / (<float>area_union + 0.001)
+            score += -<float>(metric > 0.5) - 0.01 * metric
+
+        scores_mv[i] = score
+    return np.argmin(scores)

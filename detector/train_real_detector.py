@@ -18,7 +18,7 @@ import amitgroup as ag
 import random
 import itertools as itr
 from copy import deepcopy
-from train_superimposed import generate_random_patches, cluster, calc_bbs, get_positives, get_pos_and_neg, arrange_support
+from train_superimposed import generate_random_patches, cluster, calc_bbs, get_positives, get_pos_and_neg, arrange_support, get_training_files
 
 ag.set_verbose(True)
 
@@ -91,11 +91,8 @@ if gv.parallel.main(__name__):
     descriptor = gv.load_descriptor(settings)
     detector = gv.RealDetector(descriptor, dsettings)
 
-    all_files = sorted(glob.glob(os.path.expandvars(dsettings['train_dir'])))
-    assert len(all_files) > 0, 'No files'
-    random.seed(0)
-    random.shuffle(all_files)
-    files = all_files[:dsettings.get('train_limit')]
+    files = get_training_files(detector)
+
     neg_files = sorted(glob.glob(os.path.expandvars(dsettings['neg_dir'])))[:dsettings.get('neg_limit')]
     #pos_images = []
     image_size = detector.settings['image_size']

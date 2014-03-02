@@ -347,10 +347,10 @@ class BernoulliDetector(Detector):
 
             #def score(bb):
                 #return sum()
-            def loss(bb):
-                return -np.mean([gv.bb.fraction_metric(bb, bbi) for bbi in bbs])
             #def loss(bb):
-                #return -np.mean([(gv.bb.fraction_metric(bb, bbi) > 0.5) for bbi in bbs])
+                #return -np.mean([gv.bb.fraction_metric(bb, bbi) for bbi in bbs])
+            def loss(bb):
+                return -np.mean([(gv.bb.fraction_metric(bb, bbi) > 0.5) for bbi in bbs]) - np.mean([gv.bb.fraction_metric(bb, bbi) for bbi in bbs]) * 0.01
 
             from scipy.optimize import minimize
 
@@ -359,12 +359,22 @@ class BernoulliDetector(Detector):
             for inflate in xrange(7):
                 print('CP 4', inflate)
                 for bbi in bbs:
-                    contendors.add(gv.bb.inflate(bbi, inflate))
+                    contendors.add(gv.bb.inflate(bbi, inflate)) 
+            #import pdb; pdb.set_trace()
 
             contendors = list(contendors)
 
-            print('CP 5')
-            bb0 = contendors[np.argmin([loss(bbi) for bbi in contendors])]
+            print('CP 5', len(contendors))
+            #best0 = np.argmin([loss(bbi) for bbi in contendors])
+            from gv.fast import best_bounding_box
+
+            contendors = np.asarray(contendors).astype(np.int64)
+            bbs = np.asarray(bbs).astype(np.int64)
+
+            best = best_bounding_box(contendors, bbs)
+            print('Best', best, best//len(bbs))
+            bb0 = contendors[best]
+            print('CP 6')
 
             #{{{ Old code
             # Initialize with the first one
@@ -1005,9 +1015,8 @@ class BernoulliDetector(Detector):
 
         orig_resmap = resmap.copy()
 
-        if use_scale_prior and farming is not True:
+        if use_scale_prior and not farming:
             resmap += self.settings.get('scale_prior', 0.0) * factor
-            #pass
 
         #{{{ Old experiments
         elif 0:

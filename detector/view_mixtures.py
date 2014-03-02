@@ -2,10 +2,12 @@ from __future__ import division
 
 import gv
 import os
+import numpy as np
 
 def view_mixtures(detector, output_file=None):
     import amitgroup as ag
     import matplotlib.pylab as plt
+    from matplotlib.patches import Rectangle
     data = None
     if detector.support is None:
         return
@@ -18,18 +20,21 @@ def view_mixtures(detector, output_file=None):
         data = detector.support
         zero_to_one = True
 
-    #print zero_to_one
-
-    #import pdb; pdb.set_trace()
-
     try:
         w = detector.mixture.weights[i]
     except:
         w = -1
 
-    #ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}: max: {1:.02f} (w: {2:.02f})".format(i, im.max(), w), show=False)
-    ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "{0}".format(i))
-    #ag.plot.images(data, zero_to_one=True, caption=lambda i, im: "")
+    fig = plt.figure(figsize=(12, 6)) 
+    for m, datapoint in enumerate(data):
+        ax = fig.add_subplot(2, len(data)//2, m+1)
+        ax.set_axis_off()
+        ax.imshow(datapoint, vmin=0, vmax=1, interpolation='nearest', cmap=plt.cm.gray)
+        ax.set_title(str(m))
+
+        bb = np.multiply(detector.boundingboxes[m], np.tile(detector.settings['subsample_size'], 2))
+        ax.add_patch(Rectangle((bb[1], bb[0]), bb[3]-bb[1], bb[2]-bb[0], facecolor='none', edgecolor='cyan', alpha=0.4, linewidth=2.0))
+
     if output_file is not None:
         plt.savefig(output_file)
         plt.close()

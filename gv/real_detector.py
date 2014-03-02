@@ -237,7 +237,7 @@ class RealDetector(BernoulliDetector):
         if np.min(resmap.shape) <= 1:
             return [], resmap
 
-        if use_scale_prior and farming is not True:
+        if use_scale_prior and not farming: 
             resmap += self.settings.get('scale_prior', 0.0) * factor
 
 

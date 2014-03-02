@@ -697,7 +697,7 @@ def cluster(detector, files):
             g.fit(feats)
             comps = g.predict(feats)
         else:
-            g = ag.stats.BernoulliMixture(detector.num_mixtures, feats, n_init=10, init_seed=detector.settings.get('train_em_seed', 0))
+            g = ag.stats.BernoulliMixture(detector.num_mixtures, feats, n_init=settings.get('train_em_init', 5), init_seed=detector.settings.get('train_em_seed', 0))
             g.run_EM(1e-8, min_probability=0.025)
 
             comps = g.mixture_components()
