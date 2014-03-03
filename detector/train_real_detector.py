@@ -218,7 +218,7 @@ if gv.parallel.main(__name__):
         print("Training with {total} (pos = {pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1)))
         print("feats", feats.shape)
         with gv.Timer('Training SVM'):
-            svms, kernel_sizes = detector.train_from_features(feats, labels, save=False)
+            svms, kernel_sizes = detector.train_from_features(feats, labels, save=False, level=0)
 
         detector.svms[m] = svms[0]
         detector.kernel_sizes[m] = kernel_sizes[0]
@@ -242,8 +242,8 @@ if gv.parallel.main(__name__):
             feats = pos_feats + neg_feats
             labels = pos_labels + neg_labels
             # Set threshold at 0, so as to only collect false positives in the first detector
-            th = 0.0 
-            #th = -np.inf 
+            #th = 0.0 
+            th = -np.inf 
 
             neg_files_segment = itr.islice(gen, N)
 
@@ -259,10 +259,13 @@ if gv.parallel.main(__name__):
             # Maybe a different th0 for each component?
             #th0 = float(scoreatpercentile(confs, 75))
 
-            if len(confs) >= TOP: 
-                th0 = confs[-TOP]
-            else:
-                th0 = confs[0]
+            try:
+                if len(confs) >= TOP: 
+                    th0 = confs[-TOP]
+                else:
+                    th0 = confs[0]
+            except:
+                import pdb; pdb.set_trace()
 
             negs = []
             print("Starting...")
@@ -277,7 +280,7 @@ if gv.parallel.main(__name__):
             detector0 = cur_detector
             print("Training with {total} ({pos})".format(total=len(feats), pos=np.sum(np.asarray(labels)==1)))
             with gv.Timer('Training SVM'):
-                svms, kernel_sizes = detector0.train_from_features(feats, labels, save=False)
+                svms, kernel_sizes = detector0.train_from_features(feats, labels, save=False, level=loop+1)
 
             count = np.sum(np.asarray(labels)==0)
 

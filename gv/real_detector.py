@@ -30,7 +30,7 @@ class RealDetector(BernoulliDetector):
     def _load_img(self, fn):
         return gv.img.asgray(gv.img.load_image(fn))
 
-    def train_from_features(self, feats, labels, save=True):
+    def train_from_features(self, feats, labels, save=True, level=0):
         assert len(feats) == len(labels), '{0} != {1}'.format(len(feats), len(labels))
         labels = np.asarray(labels)
         feats = np.asarray(feats)
@@ -81,6 +81,9 @@ class RealDetector(BernoulliDetector):
 
 
             C = self.settings.get('penalty_parameter')
+            if isinstance(C, tuple):
+                C = C[level]
+
             if 'Cs' not in self.extra:
                 self.extra['Cs'] = []
 
@@ -233,6 +236,8 @@ class RealDetector(BernoulliDetector):
                                  strides=(1, 1)):
         # Get background level
         resmap, bigger, padding = self._response_map(feats, mixcomp, strides=strides)
+
+        print('max response', resmap.max())
 
         if np.min(resmap.shape) <= 1:
             return [], resmap
