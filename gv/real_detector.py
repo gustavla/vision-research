@@ -237,8 +237,6 @@ class RealDetector(BernoulliDetector):
         # Get background level
         resmap, bigger, padding = self._response_map(feats, mixcomp, strides=strides)
 
-        print('max response', resmap.max())
-
         if np.min(resmap.shape) <= 1:
             return [], resmap
 
@@ -261,11 +259,11 @@ class RealDetector(BernoulliDetector):
 
         import scipy.stats
         if farming:
-            #percentile = 50 
-            th = 0.0
+            percentile = 75 
+            #th = 0.0
         else:
             percentile = 75
-            th = scipy.stats.scoreatpercentile(resmap.ravel(), percentile) 
+        th = scipy.stats.scoreatpercentile(resmap.ravel(), percentile) 
         top_th = 200.0
         bbs = []
 
@@ -325,10 +323,12 @@ class RealDetector(BernoulliDetector):
             # Let's limit to five per level
             if farming:
                 bbs_sorted = sorted(bbs, reverse=True)
-                bbs_sorted = bbs_sorted[:300]
+                bbs_sorted = bbs_sorted[:100]
             else:
                 bbs_sorted = self.nonmaximal_suppression(bbs)
                 bbs_sorted = bbs_sorted[:15]
+
+        #print('response', factor, resmap.min(), resmap.max(), len(bbs_sorted), 'th', th)
 
         return bbs_sorted, resmap
         

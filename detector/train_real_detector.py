@@ -256,16 +256,15 @@ if gv.parallel.main(__name__):
 
             confs = np.sort(confs)
 
+            print('confs', len(confs))
+
             # Maybe a different th0 for each component?
             #th0 = float(scoreatpercentile(confs, 75))
 
-            try:
-                if len(confs) >= TOP: 
-                    th0 = confs[-TOP]
-                else:
-                    th0 = confs[0]
-            except:
-                import pdb; pdb.set_trace()
+            if len(confs) >= TOP: 
+                th0 = confs[-TOP]
+            else:
+                th0 = confs[0]
 
             negs = []
             print("Starting...")
