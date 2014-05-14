@@ -5,6 +5,7 @@ parser = argparse.ArgumentParser(description='Train mixture model on edge data')
 parser.add_argument('parts', metavar='<parts file>', type=argparse.FileType('rb'), help='Filename of parts file')
 parser.add_argument('-i', dest='inspect', nargs=1, default=[None], metavar='INDEX', type=int, help='Run and inspect a single part (zero-based index)')
 parser.add_argument('--plot-prevalence', action='store_true', help='Plot the prevalence of each part')
+parser.add_argument('-o', '--output', type=argparse.FileType('wb'), help='Filename of output image')
 
 args = parser.parse_args()
 parts_file = args.parts
@@ -12,11 +13,14 @@ inspect_component = args.inspect[0]
 plot_prevalence = args.plot_prevalence
 
 import numpy as np
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pylab as plt
 import amitgroup as ag
 import amitgroup.features
 import sys
 import gv
+import os
 
 
 #parts_dictionary = gv.PatchDictionary.load(part_file)
@@ -44,9 +48,12 @@ else:
         arr = np.asarray(arr)
         import matplotlib.pylab as plt
         plt.plot(arr[...,0])
-        plt.show()
     else:
-        ag.plot.images(originals, zero_to_one=False)
+        ag.plot.images(originals, zero_to_one=False, show=False)
 
 
-#ag.plot.images(np.rollaxis(parts[9], axis=2))
+if args.output is None:
+    plt.show()
+else:
+    plt.savefig(args.output.name)
+    os.chmod(args.output.name, 0644)

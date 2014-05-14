@@ -207,6 +207,7 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, eps, bb, kern, bkg, ind
     if weight_indices is not None:
         for index in weight_indices:
             part = index[-1]
+            # TODO: Should this really be clipped before averaging?
             mvalue = clipped_bkg[...,part].mean()
 
             llh_mean += mvalue * weights[tuple(index)]
@@ -220,8 +221,6 @@ def _calc_standardization_for_mixcomp(mixcomp, settings, eps, bb, kern, bkg, ind
     info['std'] = np.sqrt(llh_var)
 
     return info 
-
-
 
 def get_positives(mixcomp, settings, indices, files, crop=False):
     im_size = settings['detector']['image_size']
@@ -638,6 +637,21 @@ def get_strong_fps(detector, i, fileobj):
                 topsy[m].append(bbobj)
 
     return topsy
+
+def get_strong_fps_single(detector, i, fileobj, threshold, mixcomp):
+    topsy = []
+    ag.info('{0} Getting strong FPs from {1}'.format(i, fileobj.img_id))
+    img = gv.img.load_image(fileobj.path)
+    grayscale_img = gv.img.asgray(img)
+
+    bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp], use_padding=False, use_scale_prior=False, cascade=True, discard_weak=True, more_detections=True, farming=True)
+    for bbobj in bbobjs:
+        bbobj.img_id = fileobj.img_id
+        if bbobj.confidence > threshold: 
+            topsy.append(bbobj)
+
+    return topsy
+
 
 
 def cluster(detector, files):
@@ -1211,9 +1225,41 @@ def superimposed_model(settings, threading=True):
     if testing_type in ('fixed', 'non-parametric'):
         detector.standardization_info = []
         if testing_type == 'fixed':
-            argses = [(m, settings, detector.eps, bbs[m], kernels[m], bkgs[m], None, None, None, detector.indices[m] if INDICES else None, 3) for m in xrange(detector.num_mixtures)]
+            if detector.settings.get('standardize_with_samples'):
+                detector.standardization_info = [dict(mean=0, std=1)] * detector.num_mixtures
+                info = []
+                source = detector.settings.get('standardize_negative_source', 'neg-dir')
+                N = detector.settings.get('standardize_num_images', 50)
+                if source.startswith('voc-train-non-'):
+                    obj_class = source.split('-')[-1] 
+                    print('Taking negatives from voc train, without class', obj_class)
+                    gen = gv.voc.gen_negative_files(obj_class, 'train')
+                    #print('negatives', len([im for im in gen]))
+                else:
+                    print('Taking negatives from neg_dir')
+                    gen = itr.cycle(gv.datasets.ImgFile(path=fn, img_id=os.path.basename(fn)) for fn in neg_files)
+                    
+                gen = itr.cycle(gen)
+                gen = itr.islice(gen, N)
+                gens = itr.tee(gen, detector.num_mixtures)
 
-            detector.standardization_info = list(gv.parallel.starmap(_calc_standardization_for_mixcomp, argses))
+                th = -np.inf
+                for m in xrange(detector.num_mixtures):
+                    neg_files_segment = gens[m]
+                    argses = [(detector, i, fileobj, th, m) for i, fileobj in enumerate(neg_files_segment)] 
+                    topsy = list(gv.parallel.starmap_unordered(get_strong_fps_single, argses))
+                    confs = np.asarray([bbobj.confidence for topsy_m in topsy for bbobj in topsy_m])
+
+                    info.append(dict(mean=confs.mean(), std=confs.std())) 
+                    #for m in xrange(detector.num_mixtures):
+                    
+                detector.standardization_info = info      
+
+            else:
+
+                argses = [(m, settings, detector.eps, bbs[m], kernels[m], bkgs[m], None, None, None, detector.indices[m] if INDICES else None, 3) for m in xrange(detector.num_mixtures)]
+
+                detector.standardization_info = list(gv.parallel.starmap(_calc_standardization_for_mixcomp, argses))
         else:
             raise Exception("Unknown testing type")
 

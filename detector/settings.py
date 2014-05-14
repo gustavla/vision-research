@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import division, print_function, absolute_import
 import ConfigParser
 import re
 import os
@@ -7,17 +7,32 @@ def load_settings(fp):
     conf = ConfigParser.ConfigParser(dict_type=dict)
     conf.readfp(fp)
     d = {}
+    class Group(object):
+        def __init__(self, name):
+            self.name = name
+
     for section in conf.sections():
         d[section] = {}
         for k, v in conf.items(section):
             match = re.match(r"^\s*\[\s*([A-Za-z0-9_]+)\s*\]\s*$", v.split('#')[0])
             if match is not None:
-                d[section][k] = d[match.group(1)]
+                #print(section)
+                #print(k)
+                #print(match.group(1))
+                #d[section][k] = Group d[match.group(1)]
+                d[section][k] = Group(match.group(1))
             else:
                 ev = eval(v)
                 if isinstance(ev, str):
                     ev = os.path.expandvars(ev)
                 d[section][k] = ev
+
+    # Replace the Group objects with the referenced info
+    for section, info in d.items():
+        for k, v in info.items():
+            if isinstance(v, Group):
+                info[k] = d[v.name]
+        
     return d
 
 def change_settings(settings, settings_change_string):

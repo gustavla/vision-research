@@ -31,7 +31,7 @@ use_other_style = False
 figsize = (8, 8)
 if args.background is not None:
     backim = gv.img.load_image(args.background)
-    figsize = (11, 8)
+    #figsize = (11, 8)
     
 fig = plt.figure(figsize=figsize)
 ax = fig.add_subplot(111)
@@ -86,7 +86,7 @@ if args.background is None:
     ax.grid()
 else:
     box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.65, box.height])
+    #ax.set_position([box.x0, box.y0, box.width * 0.65, box.height])
 
     if 'car' in args.background.name:
         data = [('Oxford', 0.432, 'black', 'solid'),
@@ -124,7 +124,8 @@ else:
     for label, score, color, linestyle in data:
         ax.plot([0], [0], label=format_label(label, score), color=color, linestyle=linestyle)
 
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    #ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax.legend()
 
 if args.title is not None:
     ax.set_title(args.title)

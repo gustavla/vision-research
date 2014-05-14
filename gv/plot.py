@@ -16,6 +16,10 @@ class ImageGrid(object):
 
         self._data = np.ones(self._fullsize + (3,), dtype=np.float64)
 
+    @property
+    def image(self):
+        return self._data
+
     def set_image(self, image, row, col, vmin=None, vmax=None, cmap=None):
         import matplotlib as mpl
         import matplotlib.pylab as plt

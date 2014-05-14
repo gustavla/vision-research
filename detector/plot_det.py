@@ -1,5 +1,4 @@
-from __future__ import division
-from __future__ import print_function
+from __future__ import division, print_function, absolute_import
 import argparse
 
 parser = argparse.ArgumentParser(description='Test response of model')

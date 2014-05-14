@@ -59,5 +59,5 @@ if __name__ == '__main__':
     # Load detector
     detector = gv.Detector.load(model_file)
 
-    view_mixtures(detector, output_file=args.output)
+    view_mixtures(detector, output_file=args.output.name)
     os.chmod(args.output.name, 0644)

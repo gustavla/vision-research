@@ -11,8 +11,8 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
     #kern = np.clip(kern, eps, 1 - eps)
     #bkg = np.clip(bkg, eps, 1 - eps)
     #weights = np.log(kern / (1 - kern) * ((1 - bkg) / bkg))
-    print('Keypointing -------')
-    print('Even', even)
+    #print('Keypointing -------')
+    #print('Even', even)
 
 
     suppress_radii = np.array([1, 2, 1])
@@ -99,7 +99,7 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
                         new_indices[L*f + l] = (l0, l1, f)
                         break
 
-    print('Indices:', len(new_indices))
+    #print('Indices:', len(new_indices))
     return new_indices
 
     if 0:

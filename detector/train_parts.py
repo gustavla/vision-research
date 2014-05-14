@@ -25,5 +25,6 @@ if gv.parallel.main(__name__):
     cls = gv.BinaryDescriptor.getclass(sett['detector']['descriptor'])
     codebook = cls(psettings['part_size'], psettings['num_parts'], settings=psettings) 
     codebook.train_from_images(files[:psettings['num_images']])
+    print('num parts', codebook.num_parts)
     codebook.save(psettings['file'])
 

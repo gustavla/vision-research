@@ -472,8 +472,8 @@ class PartsDescriptor(BinaryDescriptor):
         obj = cls(patch_size, num_parts)
         obj.parts = d['parts']
         # TODO: Experimental
-        obj.unspread_parts = d['unspread_parts']
-        obj.unspread_parts_padded = d['unspread_parts_padded']
+        obj.unspread_parts = d.get('unspread_parts')
+        obj.unspread_parts_padded = d.get('unspread_parts_padded')
         obj.visparts = d['visparts']
         obj.settings = d['settings']
         obj.orientations = d.get('orientations')

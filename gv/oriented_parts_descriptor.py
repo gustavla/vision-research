@@ -469,7 +469,8 @@ class OrientedPartsDescriptor(BinaryDescriptor):
 
         self.parts = self.parts.reshape((self.parts.shape[0] * P,) + self.parts.shape[2:])
 
-        order_single = np.argsort(means / sigmas)
+        #order_single = np.argsort(means / sigmas)
+        order_single = np.argsort(means)
         new_order_single = []
         for f in order_single: 
             part = self.parts[P*f] 
