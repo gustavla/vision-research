@@ -8,7 +8,11 @@ from .unraveled_hog import unraveled_hog
 @RealDescriptor.register('binary-tree-parts')
 class RealBinaryTreePartsDescriptor(RealDescriptor):
     def __init__(self, patch_size, num_parts, settings={}):
-        self._descriptor = BinarTreePartsDescriptor(patch_size, num_parts, settings=settings)
+        self._descriptor = BinaryTreePartsDescriptor(patch_size, num_parts, settings=settings)
+
+    @property
+    def patch_size(self):
+        return self._descriptor.patch_size
 
     @property
     def num_features(self):
@@ -41,7 +45,7 @@ class RealBinaryTreePartsDescriptor(RealDescriptor):
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = RealPartsDescriptor(None, None)
+        obj = RealBinaryTreePartsDescriptor(d['patch_size'], d['num_parts'])
         obj._descriptor = BinaryTreePartsDescriptor.load_from_dict(d)
         return obj
 
