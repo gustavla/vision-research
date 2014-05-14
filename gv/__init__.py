@@ -34,7 +34,7 @@ from . import binary_hog_descriptor
 from .real_descriptor import *
 from . import hog_descriptor
 from . import real_parts_descriptor
-from . import real_binary_tree_descriptor
+from . import real_binary_tree_parts_descriptor
 from . import real_polarity_parts_descriptor
 from . import real_oriented_parts_descriptor
 

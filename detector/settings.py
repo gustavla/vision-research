@@ -49,6 +49,8 @@ def change_settings(settings, settings_change_string):
             settings['oriented-parts']['seed'] = eval(v)
         elif k == 'oriented_parts_file':
             settings['oriented-parts']['file'] = eval(v)
+        elif k == 'binary_tree_parts_file':
+            settings['binary-tree-parts']['file'] = eval(v)
         else:
             print('ERROR: Unhandled settings {}'.format(k))
     return settings
