@@ -1,7 +1,7 @@
 
 import argparse
 
-parser = argparse.ArgumentParser(description='Train mixture model on edge data')
+parser = argparse.ArgumentParser()
 parser.add_argument('parts', metavar='<parts file>', type=argparse.FileType('rb'), help='Filename of parts file')
 parser.add_argument('--all', action='store_true', default=False)
 parser.add_argument('-o', '--output', type=argparse.FileType('wb'), help='Filename of output image')

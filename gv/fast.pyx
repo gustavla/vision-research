@@ -977,3 +977,65 @@ def best_bounding_box(np.ndarray[ndim=2,dtype=np.int64_t] contendors, np.ndarray
 
         scores_mv[i] = score
     return np.argmin(scores)
+
+
+cdef inline void _checkedge(np.float64_t[:,:,:] images, 
+                            np.float64_t[:,:,:] amps,
+                            np.uint8_t[:,:,:,:] ret, 
+                            int ii, int vi, int z0, int z1, int v0, int v1, int w0, int w1, int k, 
+                            double minimum_contrast_multiple, int displace) nogil:
+    cdef int y0 = z0 + v0
+    cdef int y1 = z1 + v1
+    cdef np.float64_t m
+    cdef np.float64_t Iy = images[ii, y0, y1] 
+    cdef np.float64_t Iz = images[ii, z0, z1] 
+    
+    cdef np.float64_t d = fabs(Iy - Iz)
+    cdef int num_edges = <int>(d > fabs(images[ii, z0+w0, z1+w1] - Iz)) + \
+                         <int>(d > fabs(images[ii, y0+w0, y1+w1] - Iy)) + \
+                         <int>(d > fabs(images[ii, z0-w0, z1-w1] - Iz)) + \
+                         <int>(d > fabs(images[ii, y0-w0, y1-w1] - Iy)) + \
+                         <int>(d > fabs(images[ii, z0-v0, z1-v1] - Iz)) + \
+                         <int>(d > fabs(images[ii, y0+v0, y1+v1] - Iy))
+
+    if num_edges >= k and d > amps[ii, y0, y1] * minimum_contrast_multiple: 
+        ret[ii, vi + displace*<int>(Iy > Iz), z0, z1] = 1 
+
+def adaptive_array_bedges(np.ndarray[np.float64_t, ndim=3] images, 
+                          np.ndarray[np.float64_t, ndim=3] amps,
+                          k, minimum_contrast_multiple, contrast_insensitive):
+    assert(images.dtype == np.float64)
+    cdef int N = images.shape[0]
+    cdef int rows = images.shape[1]
+    cdef int cols = images.shape[2] 
+    cdef np.float64_t[:,:,:] images_mv = images
+    cdef np.float64_t[:,:,:] amps_mv = amps 
+    cdef Py_ssize_t i
+    cdef int z0
+    cdef int z1
+    cdef int int_k = <int>k
+    cdef double double_minimum_contrast_multiple = <double>minimum_contrast_multiple
+    cdef int displace = 0
+    cdef int binary_features = 8
+
+    if contrast_insensitive:
+        displace = 0
+        binary_features = 4
+    else:
+        displace = 4 
+        binary_features = 8
+
+    cdef np.ndarray[np.uint8_t, ndim=4] ret = np.zeros((N, binary_features, rows, cols), dtype=np.uint8)
+    cdef np.uint8_t[:,:,:,:] ret_mv = ret
+    
+    #for i in prange(N, nogil=True):
+    with nogil:
+        for i in xrange(N):
+            for z0 in range(2, rows-2):
+                for z1 in range(2, cols-2):
+                    _checkedge(images_mv, amps_mv, ret_mv, i, 0, z0, z1, 1, 0, 0, -1, int_k, double_minimum_contrast_multiple, displace)
+                    _checkedge(images_mv, amps_mv, ret_mv, i, 1, z0, z1, 1, 1, 1, -1, int_k, double_minimum_contrast_multiple, displace)
+                    _checkedge(images_mv, amps_mv, ret_mv, i, 2, z0, z1, 0, 1, 1, 0, int_k, double_minimum_contrast_multiple, displace)
+                    _checkedge(images_mv, amps_mv, ret_mv, i, 3, z0, z1, -1, 1, 1, 1, int_k, double_minimum_contrast_multiple, displace)
+
+    return ret
