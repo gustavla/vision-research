@@ -6,7 +6,7 @@ import sys
 import amitgroup as ag
 from settings import change_settings
 
-def detect_raw(detector, filt, fileobj):
+def detect_raw(detector, filt, fileobj, seed=0):
     import os
     import textwrap
     import gv
@@ -17,7 +17,7 @@ def detect_raw(detector, filt, fileobj):
     img = gv.img.load_image(fileobj.path)
     grayscale_img = gv.img.asgray(img)
 
-    grayscale_img = gv.imfilter.apply_filter(grayscale_img, filt)
+    grayscale_img = gv.imfilter.apply_filter(grayscale_img, filt, seed=seed)
 
     tp = tp_fp = tp_fn = 0
 
@@ -315,7 +315,8 @@ if gv.parallel.main(__name__):
     
     res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.repeat(detector), 
                                                              itr.repeat(args.filter),
-                                                             files))
+                                                             files,
+                                                             itr.count(0)))
 
 
     tp_fn_dict = {}
