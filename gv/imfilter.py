@@ -2,10 +2,10 @@ from __future__ import division
 import numpy as np
 
 def filter_names():
-    return ['none', 'low-noise', 'mid-noise', 'high-noise', 'low-gamma', 'high-gamma']
+    return ['none', 'low-noise', 'mid-noise', 'high-noise', 'low-gamma', 'high-gamma', 'random-gamma']
 
 def apply_filter(im, imfilter, seed=0):
-    if imfilter is None or imfilter == 'none':
+    if imfilter is None or imfilter.startswith('none'):
         return im
     elif imfilter.endswith('-noise'):
         sigma = dict(low=0.01, mid=0.05, high=0.1)[imfilter.split('-')[0]]

@@ -2,7 +2,7 @@ from __future__ import division, print_function, absolute_import
 import numpy as np
 import amitgroup as ag
 
-def adaptive_bedges(images, k=6, spread='box', radius=1, minimum_contrast_multiple=0.0, contrast_insensitive=False, first_axis=False, preserve_size=True, pre_blurring=None, blur_size=1):
+def adaptive_bedges(images, k=6, spread='box', radius=1, minimum_contrast_multiple=0.0, minimum_contrast=None, contrast_insensitive=False, first_axis=False, preserve_size=True, pre_blurring=None, blur_size=1):
     single = len(images.shape) == 2
     if single:
         images = images[np.newaxis]

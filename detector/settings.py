@@ -43,12 +43,16 @@ def change_settings(settings, settings_change_string):
         k, v = map(str.strip, vv)
         if k in ('train_dir_seed', 'file', 'train_limit', 'inflate_bounding_box', 'inflate_feature_frame', 'scale_prior', 'indices_suppress_radius', 'spread_radii', 'scale_factor', 'scale_suppress_radius', 'selective_bkg', 'image_size', 'min_probability_mult_avg', 'penalty_parameter', 'num_mixtures', 'train_em_seed'):
             settings['detector'][k] = eval(v)
+        elif k in ('blur_size', 'minimum_contrast_multiple'):
+            settings['edges'][k] = eval(v)
         elif k == 'scale_factor_invexp': 
             settings['detector']['scale_factor'] = 2**(1./float(v))
         elif k == 'seed':
             settings['oriented-parts']['seed'] = eval(v)
         elif k == 'oriented_parts_file':
             settings['oriented-parts']['file'] = eval(v)
+        elif k == 'oriented_parts_edge_type':
+            settings['oriented-parts']['edge_type'] = eval(v)
         elif k == 'binary_tree_parts_file':
             settings['binary-tree-parts']['file'] = eval(v)
         else:

@@ -15,7 +15,11 @@ use_other_style = False
 
 tots = []
 for i, results_file in enumerate(results_files):
-    data = np.load(results_file)
+    try:
+        data = np.load(results_file)
+    except IOError:
+        print(results_file.name, "[skipping]")
+        continue
     
     try:
         num_images = data['num_images']
@@ -29,4 +33,13 @@ for i, results_file in enumerate(results_files):
 
     tots.append(summary)
 
+
+    N = 40
+    n1 = int(summary*N)
+    n2 = N - n1 
+    bar = '#'*n1 + ' '*n2
+
+    print('{name:80s} {bar}: {ap:.02f}%'.format(ap=summary, name=results_file.name, bar=bar))
+
+print('mean', np.mean(tots))
 print(tots, ',')

@@ -27,9 +27,8 @@ def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=Fa
         return ag.features.bedges(images, **sett)
     elif edge_type == 'adaptive':
         assert images.ndim == 3
-        from gv.fast import bedges_adaptive
-
-        return bedges_adaptive(images, **sett)
+        from gv.adaptive_bedges import adaptive_bedges
+        return adaptive_bedges(images, **sett)
     elif edge_type == 'new':
         return np.asarray([gv.gradients.extract(image, 
                                     orientations=8, 
@@ -123,7 +122,7 @@ def _get_patches(bedges_settings, settings, filename):
     # These indices represent the center of patches
     indices = list(itr.product(xrange(pad[0]+avoid_edge, pad[0]+img.shape[0]-avoid_edge), xrange(pad[1]+avoid_edge, pad[1]+img.shape[1]-avoid_edge)))
     random.shuffle(indices)
-    i_iter = iter(indices)
+    i_iter = itr.cycle(iter(indices))
 
     minus_ps = [-ps[i]//2 for i in xrange(2)]
     plus_ps = [minus_ps[i] + ps[i] for i in xrange(2)]
