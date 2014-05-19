@@ -346,8 +346,6 @@ if gv.parallel.main(__name__):
 
         queued[list(processed_img_ids)] = False 
 
-        print('queued', np.where(queued)[0])
-
         res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.compress(itr.count(0), queued),
                                                                  itr.repeat(detector), 
                                                                  itr.repeat(args.filter),
