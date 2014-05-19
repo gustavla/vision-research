@@ -73,7 +73,7 @@ def get_strong_fps_single(detector, i, fileobj, threshold, mixcomp):
     img = gv.img.load_image(fileobj.path)
     grayscale_img = gv.img.asgray(img)
 
-    bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp], use_padding=False, use_scale_prior=False, cascade=True, discard_weak=True, more_detections=True, farming=True)
+    bbobjs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp], use_padding=False, use_scale_prior=False, cascade=True, discard_weak=True, more_detections=True, farming=True, save_samples=True)
     for bbobj in bbobjs:
         bbobj.img_id = fileobj.img_id
         if bbobj.confidence > threshold: 

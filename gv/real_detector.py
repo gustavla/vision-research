@@ -163,7 +163,7 @@ class RealDetector(BernoulliDetector):
         return self.train_from_features(feats, labels)
 
 
-    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, discard_weak=False, farming=False, return_bounding_boxes=True, must_preserve_size=False, strides=(1, 1), use_scale_prior=True, *args, **kwargs):
+    def detect_coarse_single_factor(self, img, factor, mixcomp, img_id=0, cascade=True, discard_weak=False, farming=False, return_bounding_boxes=True, must_preserve_size=False, strides=(1, 1), use_scale_prior=True, save_samples=False, *args, **kwargs):
         bb_bigger = (0, 0, img.shape[0], img.shape[1])
 
         img_resized = gv.img.resize_with_factor_new(gv.img.asgray(img), 1/factor) 
@@ -179,7 +179,8 @@ class RealDetector(BernoulliDetector):
                                                     discard_weak=discard_weak, 
                                                     farming=farming,
                                                     return_bounding_boxes=return_bounding_boxes,
-                                                    strides=strides)
+                                                    strides=strides,
+                                                    save_samples=save_samples)
 
         final_bbs = bbs
 
@@ -233,7 +234,8 @@ class RealDetector(BernoulliDetector):
                                  farming=False, 
                                  discard_weak=False, 
                                  return_bounding_boxes=True, 
-                                 strides=(1, 1)):
+                                 strides=(1, 1),
+                                 save_samples=False):
         # Get background level
         resmap, bigger, padding = self._response_map(feats, mixcomp, strides=strides)
 
@@ -315,7 +317,11 @@ class RealDetector(BernoulliDetector):
 
                         index_pos = (i-padding[0], j-padding[1])
 
-                        dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=0)
+                        theX = None
+                        if save_samples:
+                            theX = X.copy()
+
+                        dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=0, X=theX)
 
                         if gv.bb.area(bb) > 0:
                             bbs.append(dbb)

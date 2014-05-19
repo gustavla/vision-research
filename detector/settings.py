@@ -51,10 +51,20 @@ def change_settings(settings, settings_change_string):
             settings['oriented-parts']['seed'] = eval(v)
         elif k == 'oriented_parts_file':
             settings['oriented-parts']['file'] = eval(v)
+        elif k == 'oriented_parts_part_size':
+            settings['oriented-parts']['part_size'] = eval(v)
         elif k == 'oriented_parts_edge_type':
             settings['oriented-parts']['edge_type'] = eval(v)
+        elif k == 'oriented_parts_patch_frame':
+            settings['oriented-parts']['patch_frame'] = eval(v)
         elif k == 'binary_tree_parts_file':
             settings['binary-tree-parts']['file'] = eval(v)
+        elif k == 'edge_spread_radius':
+            settings['edges']['radius'] = eval(v)
+        elif k == 'edge_orientations':
+            settings['edges']['edge_orientations'] = eval(v)
+        elif k == 'edge_spread_type':
+            settings['edges']['spread'] = eval(v)
         else:
             print('ERROR: Unhandled settings {}'.format(k))
     return settings

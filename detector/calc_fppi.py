@@ -27,9 +27,13 @@ for i, results_file in enumerate(results_files):
         num_images = 741
     detections = data['detections']
     tp_fn = int(data['tp_fn'])
-    fppi, miss_rate = gv.rescalc.calc_fppi_miss_rate(detections, tp_fn, num_images)
+    try:
+        fppi, miss_rate = gv.rescalc.calc_fppi_miss_rate(detections, tp_fn, num_images)
+        summary = gv.rescalc.calc_fppi_summary(fppi, miss_rate) 
+    except IndexError:
+        print(results_file.name, "[skipping]")
+        continue
 
-    summary = gv.rescalc.calc_fppi_summary(fppi, miss_rate) 
 
     tots.append(summary)
 
@@ -39,7 +43,7 @@ for i, results_file in enumerate(results_files):
     n2 = N - n1 
     bar = '#'*n1 + ' '*n2
 
-    print('{name:80s} {bar}: {ap:.02f}%'.format(ap=summary, name=results_file.name, bar=bar))
+    print('{name:80s} {bar}: {ap:.02f}%'.format(ap=summary * 100, name=results_file.name, bar=bar))
 
 print('mean', np.mean(tots))
 print(tots, ',')

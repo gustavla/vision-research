@@ -565,7 +565,8 @@ class BernoulliDetector(Detector):
                                     discard_weak=False,
                                     return_bounding_boxes=True,
                                     must_preserve_size=False,
-                                    strides=(1, 1)):
+                                    strides=(1, 1),
+                                    save_samples=False):
         """
         TODO: Experimental changes under way!
         """
@@ -611,7 +612,8 @@ class BernoulliDetector(Detector):
                                                              farming=farming,
                                                              discard_weak=discard_weak,
                                                              return_bounding_boxes=return_bounding_boxes,
-                                                             strides=strides)
+                                                             strides=strides,
+                                                             save_samples=save_samples)
 
         final_bbs = bbs
 
@@ -892,7 +894,7 @@ class BernoulliDetector(Detector):
         return final_bbs
     #}}}
 
-    def detect_coarse(self, img, fileobj=None, mixcomps=None, return_resmaps=False, use_padding=True, use_scale_prior=True, cascade=True, more_detections=False, farming=False, discard_weak=False, return_scores_only=False, strides=(1, 1)):
+    def detect_coarse(self, img, fileobj=None, mixcomps=None, return_resmaps=False, use_padding=True, use_scale_prior=True, cascade=True, more_detections=False, farming=False, discard_weak=False, return_scores_only=False, strides=(1, 1), save_samples=False):
         if mixcomps is None:
             mixcomps = range(self.num_mixtures)
 
@@ -944,7 +946,8 @@ class BernoulliDetector(Detector):
                                                          discard_weak=discard_weak,
                                                          must_preserve_size=True,
                                                          return_bounding_boxes=not return_scores_only,
-                                                         strides=strides)
+                                                         strides=strides,
+                                                         save_samples=save_samples)
                 bbs += bbs0
                 windows_count += np.prod(resmap.shape)
                 if prepare_resmaps:
@@ -1000,7 +1003,8 @@ class BernoulliDetector(Detector):
                                  farming=False,
                                  discard_weak=False,
                                  return_bounding_boxes=True,
-                                 strides=(1, 1)):
+                                 strides=(1, 1),
+                                 save_samples=False):
 
         if 0:
             self.standardization_info[mixcomp]['mean'] = self.extra['bkg_mixtures'][mixcomp]['mean']

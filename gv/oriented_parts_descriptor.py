@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division
+from __future__ import division, print_function, absolute_import
 import random
 import copy
 import amitgroup as ag
@@ -24,17 +24,23 @@ def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=Fa
 
     edge_type = settings.get('edge_type', 'yali')
     if edge_type == 'yali':
-        return ag.features.bedges(images, **sett)
+        X = ag.features.bedges(images, **sett)
+        return X
     elif edge_type == 'adaptive':
         assert images.ndim == 3
         from gv.adaptive_bedges import adaptive_bedges
         return adaptive_bedges(images, **sett)
     elif edge_type == 'new':
-        return np.asarray([gv.gradients.extract(image, 
-                                    orientations=8, 
+        X = np.asarray([gv.gradients.extract(image, 
+                                    orientations=settings.get('edge_orientations', 8), 
                                     threshold=settings.get('threshold2', 0.001),
                                     eps=settings.get('eps', 0.001), 
                                     blur_size=settings.get('blur_size', 10)) for image in images])
+
+        if sett.get('contrast_insensitive'):
+            D = X.shape[-1]
+            X = (X[...,:D//2] + X[...,D//2:]).clip(max=1)
+        return X
     else:
         raise RuntimeError("No such edge type")
 
@@ -57,7 +63,7 @@ def _get_patches(bedges_settings, settings, filename):
 
     ORI = settings.get('orientations', 1)
     POL = settings.get('polarities', 1)
-    assert POL in (1, 2), "Polarity must be 1 or 2"
+    assert POL in (1, 2), "Polarities must be 1 or 2"
     #assert ORI%2 == 0, "Orientations must be even, so that opposite can be collapsed"
 
     # LEAVE-BEHIND
@@ -157,8 +163,6 @@ def _get_patches(bedges_settings, settings, filename):
                 tot = unspread_edgepatch[fr:-fr,fr:-fr].sum()
 
             #if self.settings['threshold'] <= avg <= self.settings.get('max_threshold', np.inf): 
-            #print(th, tot)
-            #print 'th', th
             if th <= tot:
                 XY = np.matrix([x, y, 1]).T
                 # Now, let's explore all orientations
@@ -200,7 +204,7 @@ def _get_patches(bedges_settings, settings, filename):
                 break
 
             if tries == 99:
-                print "100 tries!"
+                print("100 tries!")
 
     return the_patches, the_originals 
 
@@ -336,10 +340,10 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         counts = np.bincount(comps[:,0], minlength=self.num_features)
         self.extra['counts'] = counts
 
-        print counts
-        print 'Total', np.sum(counts)
+        print(counts)
+        print('Total', np.sum(counts))
         from scipy.stats.mstats import mquantiles
-        print mquantiles(counts)
+        print(mquantiles(counts))
 
 
         llhs = np.zeros(len(raw_patches))
@@ -498,8 +502,8 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         #self._num_parts = len(order_single)
         self._num_parts = len(order_single) * ORI 
         self._num_true_parts = len(order_single)
-        print 'num_parts', self._num_parts
-        print 'num_true_parts', self._num_true_parts
+        print('num_parts', self._num_parts)
+        print('num_true_parts', self._num_true_parts)
 
         order = np.zeros(len(order_single) * P, dtype=int) 
         for f in xrange(len(order_single)):
@@ -667,7 +671,6 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         return self.extract_partprobs_from_edges(edges, edges_unspread)
 
     def extract_parts(self, edges, edges_unspread, settings={}, dropout=None):
-        #print 'strides', self.settings.get('strides', 1)
         if 'indices' in self.extra:
             feats = ag.features.code_parts_as_features_INDICES(edges, 
                                                        edges_unspread,
