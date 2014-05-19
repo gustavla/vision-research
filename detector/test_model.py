@@ -340,16 +340,25 @@ if gv.parallel.main(__name__):
         tot_tp_fp = data['tp_fp'] 
         tot_tp_fn = data['tp_fn']
 
-        queued = np.ones(len(files), dtype=bool)
+        #queued = np.ones(len(files), dtype=bool)
 
         processed_img_ids = data['processed_img_ids'].flat[0]
 
-        queued[list(processed_img_ids)] = False 
+        #queued[list(processed_img_ids)] = False 
 
-        res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.compress(itr.count(0), queued),
+
+        new_files = []
+        sample_ids = []
+        for i, fileobj in enumerate(files):
+            if fileobj.img_id not in processed_img_ids:
+                new_files.append(fileobj)
+                sample_ids.append(i)
+
+
+        res = gv.parallel.starmap_unordered(detect_raw, itr.izip(sample_ids,
                                                                  itr.repeat(detector), 
                                                                  itr.repeat(args.filter),
-                                                                 itr.compress(files, queued)))
+                                                                 new_files))
 
     except IOError:
         detections = np.array([], dtype=TYPES)
@@ -579,7 +588,7 @@ if gv.parallel.main(__name__):
         import shutil
         shutil.move(tmp_partial_output_file, partial_output_file)
 
-        if kill_after is not None and loop >= kill_after:
+        if kill_after is not None and loop+1 >= kill_after:
             import sys; sys.exit(0)
 
         #per_file_dets.append(dets)
