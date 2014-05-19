@@ -6,18 +6,21 @@ import sys
 import amitgroup as ag
 from settings import change_settings
 
-def detect_raw(detector, filt, fileobj, seed=0):
+TYPES = [('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', '|S32'), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)]
+
+
+def detect_raw(sample_id, detector, filt, fileobj):
     import os
     import textwrap
     import gv
     import amitgroup as ag
     import numpy as np
 
-    detections = []
+    #detections = []
     img = gv.img.load_image(fileobj.path)
     grayscale_img = gv.img.asgray(img)
 
-    grayscale_img = gv.imfilter.apply_filter(grayscale_img, filt, seed=seed)
+    grayscale_img = gv.imfilter.apply_filter(grayscale_img, filt, seed=sample_id)
 
     tp = tp_fp = tp_fn = 0
 
@@ -32,7 +35,24 @@ def detect_raw(detector, filt, fileobj, seed=0):
     
     for bbobj in bbs:
         #print("{0:06d} {1} {2} {3} {4} {5}".format(fileobj.img_id, bbobj.confidence, int(bbobj.box[0]), int(bbobj.box[1]), int(bbobj.box[2]), int(bbobj.box[3])), file=fout)
-        detections.append((bbobj.confidence, bbobj.scale, bbobj.score0, bbobj.score1, bbobj.plusscore, bbobj.correct, bbobj.mixcomp, bbobj.bkgcomp, fileobj.img_id, int(bbobj.box[1]), int(bbobj.box[0]), int(bbobj.box[3]), int(bbobj.box[2]), bbobj.index_pos[0], bbobj.index_pos[1]))
+        if 0:
+            detseg = np.array([(bbobj.confidence, 
+                                bbobj.scale, 
+                                bbobj.score0, 
+                                bbobj.score1, 
+                                bbobj.plusscore, 
+                                bbobj.correct, 
+                                bbobj.mixcomp, 
+                                bbobj.bkgcomp, 
+                                fileobj.img_id, 
+                                int(bbobj.box[1]), 
+                                int(bbobj.box[0]), 
+                                int(bbobj.box[3]), 
+                                int(bbobj.box[2]), 
+                                bbobj.index_pos[0], 
+                                bbobj.index_pos[1])], dtype=TYPES)
+
+            detections = np.concatenate([detections, detseg])
         #fout.flush()
         if bbobj.correct and not bbobj.difficult:
             tp += 1
@@ -44,7 +64,7 @@ if gv.parallel.main(__name__):
     parser = argparse.ArgumentParser(description='Test response of model')
     parser.add_argument('model', metavar='<model file>', type=argparse.FileType('rb'), help='Filename of model file')
     parser.add_argument('obj_class', metavar='<object class>', type=str, help='Object class')
-    parser.add_argument('output', metavar='<output file>', type=argparse.FileType('wb'), help='Filename of output file')
+    parser.add_argument('output', metavar='<output file>', type=str, help='Filename of output file')
     parser.add_argument('--limit', type=int, default=None)
     parser.add_argument('--offset', type=int, default=0)
     parser.add_argument('--mini', action='store_true', default=False)
@@ -55,6 +75,7 @@ if gv.parallel.main(__name__):
     parser.add_argument('--param', type=float, default=None)
     parser.add_argument('--filter', type=str, default=None, help='Add filter to make detection harder')
     parser.add_argument('--classifier', action='store_true', default=False, help='Run as classifier and not detector')
+    parser.add_argument('--kill-after', type=int, default=None) 
 
     args = parser.parse_args()
     model_file = args.model
@@ -67,6 +88,10 @@ if gv.parallel.main(__name__):
     contest = args.contest
     logdir = args.log
     logging = args.log is not None
+    kill_after = args.kill_after
+
+    partial_output_file = '.partial.' + output_file
+    tmp_partial_output_file = '.tmp.partial.' + output_file
 
     if logging:
         import matplotlib
@@ -106,13 +131,6 @@ if gv.parallel.main(__name__):
     files, tot = gv.datasets.load_files(contest, obj_class)
     ag.info("Done.")
 
-    tot_tp = 0
-    tot_tp_fp = 0
-    tot_tp_fn = 0
-    num_images = 0
-
-    detections = []
-
     if mini:
         files = filter(lambda x: len(x.boxes) > 0, files)
     upper_limit = limit
@@ -125,6 +143,7 @@ if gv.parallel.main(__name__):
     LOG_ALL = True 
 
     # Log the features and the model first
+    #{{{
     if logging:
         # Log features
         if LOG_ALL:
@@ -307,16 +326,48 @@ if gv.parallel.main(__name__):
                         ax_svm.set_title('SVM weights')
                     fig.savefig(os.path.join(mixture_kernel_dir, 'part{}.png'.format(f)))
                     plt.close()
-
+    #}}}
 
     #fout = open("detections.txt", "w")
 
     num_images = len(files)
-    
-    res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.repeat(detector), 
-                                                             itr.repeat(args.filter),
-                                                             files,
-                                                             itr.count(0)))
+
+    try:
+        data = np.load(partial_output_file)
+        detections = data['detections']
+
+        tot_tp = data['tp'] 
+        tot_tp_fp = data['tp_fp'] 
+        tot_tp_fn = data['tp_fn']
+
+        queued = np.ones(len(files), dtype=bool)
+
+        processed_img_ids = data['processed_img_ids'].flat[0]
+
+        queued[list(processed_img_ids)] = False 
+
+        print('queued', np.where(queued)[0])
+
+        res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.compress(itr.count(0), queued),
+                                                                 itr.repeat(detector), 
+                                                                 itr.repeat(args.filter),
+                                                                 itr.compress(files, queued)))
+
+    except IOError:
+        detections = np.array([], dtype=TYPES)
+
+        tot_tp = 0
+        tot_tp_fp = 0
+        tot_tp_fn = 0
+        num_images = 0
+
+        processed_img_ids = set()
+
+
+        res = gv.parallel.starmap_unordered(detect_raw, itr.izip(itr.count(0),
+                                                                 itr.repeat(detector), 
+                                                                 itr.repeat(args.filter),
+                                                                 files))
 
 
     tp_fn_dict = {}
@@ -348,11 +399,29 @@ if gv.parallel.main(__name__):
         tot_tp_fp += tp_fp
         tot_tp_fn += tp_fn
         tp_fn_dict[img_id] = tp_fn
+        processed_img_ids.add(img_id)
         for bbobj in bbs:
-            detections.append((bbobj.confidence, bbobj.scale, bbobj.score0, bbobj.score1, bbobj.plusscore, bbobj.correct, bbobj.mixcomp, bbobj.bkgcomp, str(img_id), int(bbobj.box[1]), int(bbobj.box[0]), int(bbobj.box[3]), int(bbobj.box[2]), bbobj.index_pos[0], bbobj.index_pos[1]))
+            detset = np.array([(bbobj.confidence, 
+                                bbobj.scale, 
+                                bbobj.score0, 
+                                bbobj.score1, 
+                                bbobj.plusscore,
+                                bbobj.correct, 
+                                bbobj.mixcomp, 
+                                bbobj.bkgcomp, 
+                                str(img_id), 
+                                int(bbobj.box[1]), 
+                                int(bbobj.box[0]), 
+                                int(bbobj.box[3]), 
+                                int(bbobj.box[2]), 
+                                bbobj.index_pos[0], 
+                                bbobj.index_pos[1])], dtype=TYPES)
+
+            detections = np.concatenate([detections, detset])
         #detections.extend(dets)
 
         # Log all positives
+        #{{{
         if logging:
             active_weights_bins = np.linspace(-8, 8, 50)
             svm_active_weights_bins = np.linspace(-0.01, 0.01, 50)
@@ -493,18 +562,27 @@ if gv.parallel.main(__name__):
                     # Save image
                     fig.savefig(os.path.join(directory, 'base{score:05.02f}-final{final:06.02f}-{mixcomp}.png'.format(score=bbobj.score0, final=bbobj.confidence, mixcomp=bbobj.mixcomp)))
                     plt.close()
-                            
+        #}}}                    
 
                  
         # Get a snapshot of the current precision recall
-        detarr = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', '|S32'), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
-        detarr.sort(order='confidence')
-        p, r = gv.rescalc.calc_precision_recall(detarr, tot_tp_fn)
+        #detarr = np.array(detections, dtype=TYPES)
+        detections.sort(order='confidence')
+        p, r = gv.rescalc.calc_precision_recall(detections, tot_tp_fn)
         ap = gv.rescalc.calc_ap(p, r) 
 
         ag.info("{ap:6.02f}% {loop} Testing file {img_id} (tp:{tp} tp+fp:{tp_fp} tp+fn:{tp_fn})".format(loop=loop, ap=100*ap, img_id=img_id, tp=tp, tp_fp=tp_fp, tp_fn=tp_fn))
 
-        # If logging
+
+        # Save to temporary file first, in case the process gets interrupted
+        np.savez(tmp_partial_output_file, detections=detections, tp=tot_tp, tp_fp=tot_tp_fp, tp_fn=tot_tp_fn, tp_fn_dict=tp_fn_dict, ap=ap, contest=contest, obj_class=obj_class, num_images=num_images, processed_img_ids=processed_img_ids)
+
+        # Now swap out
+        import shutil
+        shutil.move(tmp_partial_output_file, partial_output_file)
+
+        if kill_after is not None and loop >= kill_after:
+            import sys; sys.exit(0)
 
         #per_file_dets.append(dets)
 
@@ -521,11 +599,12 @@ if gv.parallel.main(__name__):
         plt.savefig('detvis.png')
 
 
-    detections = np.array(detections, dtype=[('confidence', float), ('scale', float), ('score0', float), ('score1', float), ('plusscore', float), ('correct', bool), ('mixcomp', int), ('bkgcomp', int), ('img_id', '|S32'), ('left', int), ('top', int), ('right', int), ('bottom', int), ('index_pos0', int), ('index_pos1', int)])
+    #detections = np.array(detections, dtype=TYPES)
     detections.sort(order='confidence')
 
 
     # Finalize some of the data aggregation and plot them
+    #{{{
     if logging:
         parts_help /= averages_counts.mean(axis=0)[:,np.newaxis] + np.finfo(float).eps
         parts_net_help = parts_help[1] - parts_help[0]
@@ -570,11 +649,14 @@ if gv.parallel.main(__name__):
                                       output_file=os.path.join(detections_dir, 'good-hist.png'))
             plot_detection_histograms(svm_detections, detector, score_name='confidence2', 
                                       output_file=os.path.join(detections_dir, 'svm-hist.png'))
-
+    #}}}
 
     p, r = gv.rescalc.calc_precision_recall(detections, tot_tp_fn)
     ap = gv.rescalc.calc_ap(p, r) 
-    np.savez(output_file, detections=detections, tp_fn=tot_tp_fn, tp_fn_dict=tp_fn_dict, ap=ap, contest=contest, obj_class=obj_class, num_images=num_images)
+    np.savez(output_file, detections=detections, tp=tot_tp, tp_fp=tot_tp_fp, tp_fn=tot_tp_fn, tp_fn_dict=tp_fn_dict, ap=ap, contest=contest, obj_class=obj_class, num_images=num_images)
+
+    # Now remove temporary files
+    os.remove(partial_output_file)
 
     ag.info('tp', tot_tp)
     ag.info('tp+fp', tot_tp_fp)
