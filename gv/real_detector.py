@@ -276,7 +276,7 @@ class RealDetector(BernoulliDetector):
                 for j in xrange(resmap.shape[1]):
                     score = resmap[i,j]
                     if score >= th:
-                        X = bigger[i:i+sh0[0], j:j+sh0[1]].copy()
+                        X = bigger[i:i+sh0[0], j:j+sh0[1]]
                         ok = True
             
                         # Cascade
@@ -315,7 +315,7 @@ class RealDetector(BernoulliDetector):
 
                         index_pos = (i-padding[0], j-padding[1])
 
-                        dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=0, X=X)
+                        dbb = gv.bb.DetectionBB(score=score, box=bb, index_pos=index_pos, confidence=conf, scale=factor, mixcomp=mixcomp, bkgcomp=0)
 
                         if gv.bb.area(bb) > 0:
                             bbs.append(dbb)
