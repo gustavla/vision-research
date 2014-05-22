@@ -26,6 +26,10 @@ class RealOrientedPartsDescriptor(RealDescriptor):
     def settings(self):
         return self._descriptor.settings
 
+    @property
+    def bedges_settings(self):
+        return self._descriptor.bedges_settings
+
     def extract_features(self, image, settings={}, *args, **kwargs):
         feats = self._descriptor.extract_features(image, settings=settings, *args, **kwargs)
 

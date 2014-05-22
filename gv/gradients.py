@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function, absolute_import
 import numpy as np
 import scipy.signal
 import amitgroup as ag
@@ -22,7 +22,6 @@ def orientations(im, orientations=8):
     amps = np.sqrt(gr_x**2 + gr_y**2)
 
     w = np.min(theta.shape) // 4
-    print theta.shape, w
     theta = theta[theta.shape[0]//2-w:theta.shape[0]//2+w, theta.shape[1]//2-w:theta.shape[1]//2+w]
     amps = amps[theta.shape[0]//2-w:theta.shape[0]//2+w, theta.shape[1]//2-w:theta.shape[1]//2+w]
 

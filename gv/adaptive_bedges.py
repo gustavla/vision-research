@@ -2,26 +2,33 @@ from __future__ import division, print_function, absolute_import
 import numpy as np
 import amitgroup as ag
 
+def box_blur_multi(im, S):
+    cumsum_im = im.cumsum(1).cumsum(2) / S**2
+    hS = S // 2
+    padded = ag.util.border_value_pad(cumsum_im, (0, hS+1, hS+1))
+    dim0, dim1 = im.shape[1:3]
+    blurred_im = padded[:,S:S+dim0,S:S+dim1] - padded[:,0:0+dim0,S:S+dim1] - padded[:,S:S+dim0,0:0+dim1] + padded[:,0:0+dim0,0:0+dim1]
+    return blurred_im
+
 def adaptive_bedges(images, k=6, spread='box', radius=1, minimum_contrast_multiple=0.0, minimum_contrast=None, contrast_insensitive=False, first_axis=False, preserve_size=True, pre_blurring=None, blur_size=1):
-    single = len(images.shape) == 2
+    single = images.ndim == 2
     if single:
         images = images[np.newaxis]
 
     from gv.fast import adaptive_array_bedges
-    from gv.gradients import box_blur
 
     kern = np.array([[-1, 0, 1]]) / np.sqrt(2)
 
     im_padded = ag.util.zeropad(images, (0, 1, 1))
-    gr_x = (im_padded[1:-1,:-2] - im_padded[1:-1,2:]) / np.sqrt(2)
-    gr_y = (im_padded[:-2,1:-1] - im_padded[2:,1:-1]) / np.sqrt(2)
+    gr_x = (im_padded[:,1:-1,:-2] - im_padded[:,1:-1,2:]) / np.sqrt(2)
+    gr_y = (im_padded[:,:-2,1:-1] - im_padded[:,2:,1:-1]) / np.sqrt(2)
 
     #theta = (orientations - np.round(orientations * (np.arctan2(gr_y, gr_x) + 1.5*np.pi) / (2 * np.pi)).astype(np.int32)) % orientations 
     amps = np.sqrt(gr_x**2 + gr_y**2)
 
-    blurred_amps = box_blur(amps, blur_size)
+    blurred_amps = box_blur_multi(amps, blur_size)
 
-    features = adaptive_array_bedges(images, amps, k, minimum_contrast_multiple, contrast_insensitive) 
+    features = adaptive_array_bedges(images, blurred_amps, k, minimum_contrast_multiple, contrast_insensitive) 
 
     # Spread the feature
     features = ag.features.bspread(features, radius=radius, spread=spread, first_axis=True)
