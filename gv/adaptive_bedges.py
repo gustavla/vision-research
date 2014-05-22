@@ -26,9 +26,12 @@ def adaptive_bedges(images, k=6, spread='box', radius=1, minimum_contrast_multip
     #theta = (orientations - np.round(orientations * (np.arctan2(gr_y, gr_x) + 1.5*np.pi) / (2 * np.pi)).astype(np.int32)) % orientations 
     amps = np.sqrt(gr_x**2 + gr_y**2)
 
-    blurred_amps = box_blur_multi(amps, blur_size)
+    #blurred_amps = box_blur_multi(amps, blur_size)
+    import scipy.ndimage.filters
 
-    features = adaptive_array_bedges(images, blurred_amps, k, minimum_contrast_multiple, contrast_insensitive) 
+    blurred_amps = scipy.ndimage.filters.percentile_filter(amps, minimum_contrast_multiple, (1, blur_size, blur_size))
+
+    features = adaptive_array_bedges(images, blurred_amps, k, contrast_insensitive) 
 
     # Spread the feature
     features = ag.features.bspread(features, radius=radius, spread=spread, first_axis=True)
