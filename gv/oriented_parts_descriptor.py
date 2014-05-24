@@ -10,11 +10,14 @@ import scipy
 import scipy.stats
 from .binary_descriptor import BinaryDescriptor
 
-def _threshold_in_counts(settings, num_edges):
+def _threshold_in_counts(settings, num_edges, contrast_insensitive):
     threshold = settings['threshold']
     size = settings['part_size']
     frame = settings['patch_frame']
-    return max(1, int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges))
+    if not contrast_insensitive:
+        num_edges //= 2
+    th = max(1, int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges))
+    return th
 
 def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=False):
     """Extract edges of many images (must be the same size)"""
@@ -134,7 +137,7 @@ def _get_patches(bedges_settings, settings, filename):
     plus_ps = [minus_ps[i] + ps[i] for i in xrange(2)]
 
     E = all_edges.shape[-1]
-    th = _threshold_in_counts(settings, E)
+    th = _threshold_in_counts(settings, E, bedges_settings['contrast_insensitive'])
 
     rs = np.random.RandomState(0)
 
@@ -564,8 +567,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         # TODO Temporary
         #sett['preserve_size'] = True
         #unspread_edges = ag.features.bedges(image, **sett)
-
-        th = self.threshold_in_counts(self.settings['threshold'], edges.shape[-1])
+        th = self.threshold_in_counts(self.settings['threshold'], edges.shape[-1], sett['contrast_insensitive'])
 
         # TODO : Since we're using a hard-coded tau
         if self.settings.get('tau', 0) == 0:
@@ -650,17 +652,24 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         return gv.ndfeature(feats, lower=lower, upper=upper)
 
     # How could it know num_edges without inputting it? 
-    def threshold_in_counts(self, threshold, num_edges):
+    def threshold_in_counts(self, threshold, num_edges, contrast_insensitive=True):
         size = self.settings['part_size']
         frame = self.settings['patch_frame']
-        return max(1, int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges))
+
+        if not contrast_insensitive:
+            num_edges //= 2
+
+        th = max(1, int(threshold * (size[0] - 2*frame) * (size[1] - 2*frame) * num_edges))
+        return th
 
     def extract_partprobs_from_edges(self, edges, edges_unspread):
+        bsett = self.bedges_settings()
         partprobs = ag.features.code_parts(edges, 
                                            edges_unspread,
                                            self._log_parts, self._log_invparts, 
-                                           self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'],
-                                           max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
+                                           self.threshold_in_counts(self.settings['threshold'], edges.shape[-1], bsett['contrast_insensitive']), 
+                                           self.settings['patch_frame'],
+                                           max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1], bsett['contrast_insensitive']))
         return partprobs
 
     def extract_partprobs(self, image):
@@ -671,15 +680,16 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         return self.extract_partprobs_from_edges(edges, edges_unspread)
 
     def extract_parts(self, edges, edges_unspread, settings={}, dropout=None):
+        bsett = self.bedges_settings()
         if 'indices' in self.extra:
             feats = ag.features.code_parts_as_features_INDICES(edges, 
                                                        edges_unspread,
                                                        self._log_parts, self._log_invparts, 
                                                        self.extra['indices'],
-                                                       self.threshold_in_counts(self.settings['threshold'], edges.shape[-1]), self.settings['patch_frame'], 
+                                                       self.threshold_in_counts(self.settings['threshold'], edges.shape[-1], bsett['contrast_insensitive']), self.settings['patch_frame'], 
                                                        strides=self.settings.get('strides', 1), 
                                                        tau=self.settings.get('tau', 0.0),
-                                                       max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
+                                                       max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1], bsett['contrast_insensitive']))
         elif 0:
             feats = ag.features.code_parts_as_features(edges, 
                                                        edges_unspread,
@@ -689,6 +699,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
                                                        tau=self.settings.get('tau', 0.0),
                                                        max_threshold=self.threshold_in_counts(self.settings.get('max_threshold', 1.0), edges.shape[-1]))
         else:
+            print("THIS IS THE ONE")
             partprobs = ag.features.code_parts(edges,
                                                edges_unspread,
                                                self._log_parts, self._log_invparts, 
