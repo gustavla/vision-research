@@ -18,7 +18,7 @@
 	</size>
 	<segmented>0</segmented>
 	<object>
-		<name>bicycle</name>
+		<name>car</name>
 		<pose></pose>
 		<truncated>0</truncated>
 		<difficult>0</difficult>

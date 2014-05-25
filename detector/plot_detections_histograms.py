@@ -41,13 +41,15 @@ all_llhs = all_llhs[:max_mixcomp+1]
 
 ra = (-1000, 8000)
 dt = 250
-ra = (-3, 20)
-dt = 0.25
+#ra = (-3, 20)
+#dt = 0.25
+ra = (-1.5, 1.5)
+dt = 0.05
 
 print 'detections:', map(np.shape, all_llhs)
 
 for i, llhs in enumerate(all_llhs):
-    subplot(3, 2, 1+i)
+    subplot(len(all_llhs)//2, 2, 1+i)
     hist(llhs, normed=True, bins=np.arange(ra[0], ra[1], dt))
     xlim(ra)
     mu, sigma = np.mean(llhs), np.std(llhs)

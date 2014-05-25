@@ -3,12 +3,16 @@ import gv
 import numpy as np
 import matplotlib.pylab as plt
 
-def plot_image(fileobj, filename=None, show_corrects=False):
+def plot_image(fileobj, filename=None, show_corrects=False, bare=False):
     img = gv.img.load_image(fileobj.path)
 
-    plt.clf()
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
     s = dict(cmap=plt.cm.gray) if img.ndim == 2 else {} 
-    plt.imshow(img, **s)
+    ax.imshow(img, **s)
+    if bare:
+        ax.set_xticks([])
+        ax.set_yticks([])
 
     for bbobj in fileobj.boxes:
         bb = bbobj.box
@@ -23,9 +27,13 @@ def plot_image(fileobj, filename=None, show_corrects=False):
             else:
                 color = 'lightgreen'
         plt.gca().add_patch(plt.Rectangle((bb[1], bb[0]), bb[3]-bb[1], bb[2]-bb[0], facecolor='none', edgecolor=color, linewidth=2.0))
-        plt.text(bb[1], bb[0], "{0:.2f}".format(bbobj.confidence), color='white', size=6, ha='left', va='bottom')
+        if not bare:
+            plt.text(bb[1], bb[0], "{0:.2f}".format(bbobj.confidence), color='white', size=6, ha='left', va='bottom')
         #plt.gca().add_patch(plt.Rectangle((bb[0], bb[1]), bb[2]-bb[0], bb[3]-bb[1], facecolor='none', edgecolor='lightgreen', linewidth=2.0))
-    plt.title("img_id = {0}".format(fileobj.img_id))
+    if not bare:    
+        ax.set_title("img_id = {0}".format(fileobj.img_id))
+    else:
+        plt.tight_layout()
 
     if filename is not None:
         plt.savefig(filename)

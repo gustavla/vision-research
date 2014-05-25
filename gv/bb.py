@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function, absolute_import 
 from collections import namedtuple
 import numpy as np
 
@@ -70,13 +70,23 @@ def inflate2(bb, amounts):
 def center(bb):
     return ((bb[0]+bb[2])//2, (bb[1]+bb[3])//2)
 
+def rescale(bb, scale):
+    c = center(bb)
+    s = size(bb)
+    return (c[0] - scale * s[0]/2, c[1] - scale * s[1]/2, 
+            c[0] + scale * s[0]/2, c[1] + scale * s[1]/2)
+
+def move(bb, delta):
+    return (bb[0] + delta[0], bb[1] + delta[1],
+            bb[2] + delta[0], bb[3] + delta[1])
+
 def create(center=None, size=None):
     assert size is not None
     if center is None:
         center = (0, 0)
     half_size = [s//2 for s in size]
     return (center[0]-half_size[0], center[1]-half_size[1],
-            center[1]-half_size[0]+size[0], center[1]-half_size[1]+size[1])
+            center[0]-half_size[0]+size[0], center[1]-half_size[1]+size[1])
 
 def expand_to_square(bb):
     """Expands a bounding box to square"""

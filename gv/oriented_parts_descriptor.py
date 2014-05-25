@@ -584,7 +584,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             P = ORI * POL 
             H = P // 2
 
-            if POL == 2:
+            if POL == 2 and not self.settings.get('no_collapse', False):
                 part_to_feature = np.zeros(self.parts.shape[0], dtype=np.int64)
                 for f in xrange(part_to_feature.shape[0]):
                     thepart = f // P

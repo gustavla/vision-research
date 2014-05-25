@@ -59,6 +59,8 @@ UI.menu("Plugins").add_item("Generate bicycles") {
             puts('view', view)
             si = 256 
 
+            azimuth_offset = 15.0 * Math::PI / 180.0
+
             save_image = Proc.new { |viewname, i, altitude, azimuth, out_of_plane, target, dist0, focal_length|
                 dist = dist0 * focal_length / 67.0
                 #rotation = outofplane_index * 6.0 * Math::PI / 180.0
@@ -169,7 +171,7 @@ UI.menu("Plugins").add_item("Generate bicycles") {
                                     vid = 2 + flip1 * 2 + ai 
                                     rand_out_of_plane = gaussian(0, 2.5 * SD)
                                     out_of_plane = rand_out_of_plane * Math::PI / 180.0
-                                    if save_image.call("#{vid}-half-side", i, altitude, azimuth, out_of_plane, [0.0, 0, 0], dist3, focal_length)
+                                    if save_image.call("#{vid}-half-side", i, altitude, azimuth + azimuth_offset, out_of_plane, [0.0, 0, 0], dist3, focal_length)
                                         i += 1
                                     end
                                 end
@@ -190,7 +192,7 @@ UI.menu("Plugins").add_item("Generate bicycles") {
                             azimuth = (180 * flip + rand_azimuth) * Math::PI / 180.0
                             rand_out_of_plane = gaussian(0, 2.5 * SD)
                             out_of_plane = rand_out_of_plane * Math::PI / 180.0
-                            if save_image.call('0-profile', i, altitude, azimuth, out_of_plane, [2.5, 0, 0], dist, focal_length)
+                            if save_image.call('0-profile', i, altitude, azimuth + azimuth_offset, out_of_plane, [2.5, 0, 0], dist, focal_length)
                                 i += 1
                             end
                         end
@@ -208,7 +210,7 @@ UI.menu("Plugins").add_item("Generate bicycles") {
                             #if save_image.call(i, rand() * 15 * Math::PI / 180.0, (180.0 * flip + 90.0 + (rand() - 0.5) * 15) * Math::PI / 180.0, (rand() - 0.5) * 5 * Math::PI / 180.0, [0, sgn * 80, 0], dist2)
                             rand_out_of_plane = gaussian(0, 2.5 * SD)
                             rand_azimuth = gaussian(0, 10 * SD)
-                            if save_image.call('1-front', i, SD * rand() * 10 * Math::PI / 180.0, (180.0 * flip + 90.0 + rand_azimuth) * Math::PI / 180.0, rand_out_of_plane * Math::PI / 180.0, [0, 0, 0], dist2, focal_length)
+                            if save_image.call('1-front', i, SD * rand() * 10 * Math::PI / 180.0, (180.0 * flip + 90.0 + rand_azimuth) * Math::PI / 180.0 + azimuth_offset, rand_out_of_plane * Math::PI / 180.0, [0, 0, 0], dist2, focal_length)
                             #if save_image.call(i, rand() * 20 * Math::PI / 180.0, (180.0 * flip + 90.0 + (rand() - 0.5) * 20) * Math::PI / 180.0, (rand() - 0.5) * 10 * Math::PI / 180.0, [0, sgn * 80, 0], dist2)
                             #if save_image.call(i, rand() * 30 * Math::PI / 180.0, (180.0 * flip + 90.0 + (rand() - 0.5) * 30) * Math::PI / 180.0, (rand() - 0.5) * 10 * Math::PI / 180.0, [0, sgn * 80, 0], dist2)
                                 i += 1

@@ -5,6 +5,40 @@ from xml.dom.minidom import parse
 import gv
 from .datasets import ImgFile
 
+XML_TEMPLATE = """<annotation>
+	<folder>VOC2007</folder>
+	<filename>{filename}</filename>
+	<source>
+		<database>CAD Project Generation</database>
+		<annotation>CAD Project</annotation>
+		<image>generated</image>
+		<flickrid>?</flickrid>
+	</source>
+	<owner>
+		<flickrid>?</flickrid>
+		<name>?</name>
+	</owner>
+	<size>
+		<width>{width}</width>
+		<height>{height}</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>car</name>
+		<pose></pose>
+		<truncated>{truncated}</truncated>
+		<difficult>{difficult}</difficult>
+		<bndbox>
+			<xmin>{xmin}</xmin>
+			<ymin>{ymin}</ymin>
+			<xmax>{xmax}</xmax>
+			<ymax>{ymax}</ymax>
+		</bndbox>
+	</object>
+</annotation>
+"""
+
 def _get_text(nodelist):
     rc = []
     for node in nodelist:
@@ -29,35 +63,58 @@ def gen_negative_files(excluding_class, contest='train'):
         if int(s) == -1:
             yield load_file(excluding_class, int(img_id), load_boxes=False)
 
-def load_file(class_name, img_id, load_boxes=True, poses=None):
+def load_xml_file(xml_path, class_name=None, poses=None):
+    dom = parse(xml_path)
+
+    # Get image size info
+    sizetag = dom.getElementsByTagName('size')[0]
+
+    width = int(_get_text(sizetag.getElementsByTagName('width')[0].childNodes))
+    height = int(_get_text(sizetag.getElementsByTagName('height')[0].childNodes))
+
+    # Get all objects
+    objs = dom.getElementsByTagName('object')
+    bbs = []
+    for obj in objs:
+        # Check what kind of object
+        name = _get_text(obj.getElementsByTagName('name')[0].childNodes)
+        pose = _get_text(obj.getElementsByTagName('pose')[0].childNodes)
+        pose_ok = poses is None or pose in poses
+        if (name == class_name or class_name is None) and pose_ok:
+            truncated = bool(int(_get_text(obj.getElementsByTagName('truncated')[0].childNodes)))
+            difficult = bool(int(_get_text(obj.getElementsByTagName('difficult')[0].childNodes)))
+            bndbox_obj = obj.getElementsByTagName('bndbox')[0] 
+            # Note: -1 is taken because they use 1-base indexing
+            bb = tuple([float(_get_text(bndbox_obj.getElementsByTagName(s)[0].childNodes)) - 1 \
+                    for s in ('ymin', 'xmin', 'ymax', 'xmax')])
+            bbobj = gv.bb.DetectionBB(box=bb, difficult=difficult, truncated=truncated)
+            bbs.append(bbobj)
+    return bbs, (height, width)
+
+
+def load_file(class_name, img_id, load_boxes=True, poses=None, image_dir=None, anno_dir=None):
+    if image_dir is None:
+        image_dir = os.path.join(os.environ['VOC_DIR'], 'JPEGImages')
+    if anno_dir is None:
+        anno_dir = os.path.join(os.environ['VOC_DIR'], 'Annotations')
+
     img_id = int(img_id)
-    img_path = os.path.join(os.environ['VOC_DIR'], 'JPEGImages', '{0:06}.jpg'.format(img_id))
+    for ext in 'jpg', 'png': 
+        img_path = os.path.join(image_dir, '{0:06}.{1}'.format(img_id, ext))
+        if os.path.isfile(img_path):
+            break
     bbs = []
     if load_boxes: 
         # Load bounding boxes of object
-        xml_path = os.path.join(os.environ['VOC_DIR'], 'Annotations', '{0:06}.xml'.format(img_id))
-        dom = parse(xml_path)
-        # Get all objects
-        objs = dom.getElementsByTagName('object')
-        for obj in objs:
-            # Check what kind of object
-            name = _get_text(obj.getElementsByTagName('name')[0].childNodes)
-            pose = _get_text(obj.getElementsByTagName('pose')[0].childNodes)
-            pose_ok = poses is None or pose in poses
-            if (name == class_name or class_name is None) and pose_ok:
-                truncated = bool(int(_get_text(obj.getElementsByTagName('truncated')[0].childNodes)))
-                difficult = bool(int(_get_text(obj.getElementsByTagName('difficult')[0].childNodes)))
-                bndbox_obj = obj.getElementsByTagName('bndbox')[0] 
-                # Note: -1 is taken because they use 1-base indexing
-                bb = tuple([int(_get_text(bndbox_obj.getElementsByTagName(s)[0].childNodes)) - 1 \
-                        for s in ('ymin', 'xmin', 'ymax', 'xmax')])
-                bbobj = gv.bb.DetectionBB(box=bb, difficult=difficult, truncated=truncated)
-                bbs.append(bbobj)
+        xml_path = os.path.join(anno_dir, '{0:06}.xml'.format(img_id))
+        bbs, img_size = load_xml_file(xml_path, class_name=class_name, poses=poses)
+    else:
+        img_size = None
 
-    fileobj = ImgFile(path=img_path, boxes=bbs, img_id=img_id)
+    fileobj = ImgFile(path=img_path, boxes=bbs, img_id=img_id, img_size=img_size)
     return fileobj
 
-def load_specific_files(class_name, img_ids, has_objects=None, padding=0, poses=None):
+def load_specific_files(class_name, img_ids, has_objects=None, padding=0, poses=None, image_dir=None, anno_dir=None):
     """img_ids and has_objects should be lists of equal length"""
     N = len(img_ids) 
 
@@ -67,7 +124,7 @@ def load_specific_files(class_name, img_ids, has_objects=None, padding=0, poses=
         img_id = img_ids[i]
         if has_objects is not None:
             hasobject = has_objects[i] 
-        fileobj = load_file(class_name, img_id, load_boxes=(hasobject == 1), poses=poses)
+        fileobj = load_file(class_name, img_id, load_boxes=(hasobject == 1), poses=poses, image_dir=image_dir, anno_dir=anno_dir)
         files.append(fileobj)
 
     # Get the total count
@@ -111,25 +168,25 @@ _VOC_SIDES = [
     3033, 3046, 3055, 3070, 3109, 3143, 3276, 3306, 3348, 3357, 3364, 3375
 ]
 
-def load_files(class_name, dataset='train', poses=None):
+def load_files(class_name, dataset='train', poses=None, image_dir=None, anno_dir=None):
     if dataset == 'profile':
-        return load_specific_files(class_name, _VOC_PROFILES, poses=poses)
+        return load_specific_files(class_name, _VOC_PROFILES, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
     elif dataset == 'profile2':
-        return load_specific_files(class_name, _VOC_PROFILES2, poses=poses)
+        return load_specific_files(class_name, _VOC_PROFILES2, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
     elif dataset == 'profile3':
-        return load_specific_files(class_name, _VOC_PROFILES3, poses=poses)
+        return load_specific_files(class_name, _VOC_PROFILES3, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
     elif dataset == 'profile4':
-        return load_specific_files(class_name, _VOC_PROFILES4, poses=poses)
+        return load_specific_files(class_name, _VOC_PROFILES4, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
     elif dataset == 'profile5':
-        return load_specific_files(class_name, _VOC_PROFILES5, poses=poses)
+        return load_specific_files(class_name, _VOC_PROFILES5, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
     elif dataset == 'easy':
-        return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPROFILES, poses=poses)
+        return load_specific_files(class_name, _VOC_PROFILES + _VOC_EASY_NONPROFILES, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
     elif dataset == 'fronts':
-        return load_specific_files(class_name, _VOC_FRONTBACKS, poses=poses)
+        return load_specific_files(class_name, _VOC_FRONTBACKS, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
     elif dataset == 'fronts-negs':
-        return load_specific_files(class_name, _VOC_FRONTBACKS_NEGS, poses=poses)
+        return load_specific_files(class_name, _VOC_FRONTBACKS_NEGS, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
     elif dataset == 'sides':
-        return load_specific_files(class_name, _VOC_SIDES, poses=poses)
+        return load_specific_files(class_name, _VOC_SIDES, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
 
     path = os.path.join(os.environ['VOC_DIR'], 'ImageSets', 'Main', '{0}_{1}.txt'.format(class_name, dataset))
 
@@ -137,7 +194,7 @@ def load_files(class_name, dataset='train', poses=None):
     N = f.shape[0]
     img_ids = f[:,0]
     has_objects = f[:,1] 
-    return load_specific_files(class_name, img_ids, has_objects, poses=poses)
+    return load_specific_files(class_name, img_ids, has_objects, poses=poses, image_dir=image_dir, anno_dir=anno_dir)
 
 def _load_images(objfiles, tot, size, padding=0):
     bbs = []
@@ -216,7 +273,30 @@ def load_object_images_of_size(class_name, size, dataset='train'):
     objfiles, tot = load_files(class_name, dataset=dataset)
     return _load_images(objfiles, tot, size)
 
-                 
+def save_file(path, fileobj):
+    fn = '{}.png'.format(fileobj.img_id)
+    assert len(fileobj.boxes) == 1, 'Can only save files with one object'
+    bbobj = fileobj.boxes[0]
+    bb = bbobj.box
+
+    content = XML_TEMPLATE.format(
+        filename=fn,
+        width=fileobj.img_size[1],
+        height=fileobj.img_size[0],
+        xmin=int(bb[1]+1),
+        ymin=int(bb[0]+1),
+        xmax=int(bb[3]+1),
+        ymax=int(bb[2]+1),
+        truncated=int(bbobj.truncated),
+        difficult=int(bbobj.difficult),
+    )
+
+    open(os.path.join(path, '{}.xml'.format(fileobj.img_id)), 'w').write(content)
+
+
+def save_files(path, fileobjs):
+    for fileobj in fileobjs:
+        save_file(path, fileobj)
 
 if __name__ == '__main__':
     pass

@@ -21,16 +21,17 @@ def view_mixtures(detector, output_file=None):
         data = detector.support
         zero_to_one = True
 
-    try:
-        w = detector.mixture.weights[i]
-    except:
-        w = -1
-
     fig = plt.figure(figsize=(12, 6)) 
     for m, datapoint in enumerate(data):
+        try:
+            w = detector.mixture.weights[m]
+        except:
+            w = -1
+
         ax = fig.add_subplot(2, math.ceil(len(data)/2), m+1)
         ax.set_axis_off()
         ax.imshow(datapoint, vmin=0, vmax=1, interpolation='nearest', cmap=plt.cm.gray)
+        #ax.set_title('{:.02f}'.format(w))
         ax.set_title(str(m))
 
         bb = np.multiply(detector.boundingboxes[m], np.tile(detector.settings['subsample_size'], 2))
@@ -59,5 +60,6 @@ if __name__ == '__main__':
     # Load detector
     detector = gv.Detector.load(model_file)
 
-    view_mixtures(detector, output_file=args.output.name)
-    os.chmod(args.output.name, 0644)
+    view_mixtures(detector, output_file=args.output)
+    if args.output is not None:
+        os.chmod(args.output.name, 0644)

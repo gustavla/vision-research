@@ -3,20 +3,22 @@ from collections import namedtuple
 import amitgroup.util
 from functools import partial
 
-ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id'])
+ImgFile = namedtuple('ImgFile', ['path', 'boxes', 'img_id', 'img_size'])
 #ImgFile.__new__ = partial(ImgFile.__new__, path=None, boxes=[], img_id='(none)')
-ImgFile.__new__.__defaults__ = (None, [], '(none)')
+ImgFile.__new__.__defaults__ = (None, [], '(none)', None)
 
 def contests():
     return ('voc-val', 'voc-train', 'voc-trainval', 'voc-test', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-profile5', 
             'voc-easy', 'voc-fronts', 'voc-fronts-negs', 'voc-sides', 'voc-val-profile', 'voc-test-profile',
             'uiuc', 'uiuc-multiscale', 'rot-uiuc',
             'inria-test',
-            'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks')
+            'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks',
+            'voc-traingen')
 
 def datasets():
     return ('none', 'voc', 'uiuc', 'uiuc-multiscale', 'rot-uiuc', 'inria',
-            'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks')
+            'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks',
+            'voc-traingen')
 
 def load_files(contest, obj_class):
     import gv.voc
@@ -62,6 +64,8 @@ def load_files(contest, obj_class):
     elif contest.startswith('custom'):
         name = contest[len('custom-'):]
         files, tot = gv.custom.load_testing_files(name)
+    if contest == 'voc-traingen':
+        files, tot = gv.voc.load_files(obj_class, dataset='traingen')
     else:
         raise ValueError("Contest does not exist: {0}".format(contest))
     return files, tot
@@ -82,7 +86,7 @@ def load_file(contest, img_id, obj_class=None, path=None):
         return gv.custom.load_testing_file(name, img_id)
     elif contests == 'none':
         assert path is not None 
-        return ImgFile(path=path, boxes=[], img_id=-1)
+        return ImgFile(path=path, boxes=[], img_id=-1, img_size=None)
 
 # This function could leave an edge if the image is not big enough
 def extract_image_from_bbobj(bbobj, detector, contest, obj_class, kernel_shape):

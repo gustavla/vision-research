@@ -33,4 +33,4 @@ if __name__ == '__main__':
     else:
         fileobj = gv.datasets.load_file(contest, imagename, obj_class=obj_class)
         print(fileobj)
-        plot_image(fileobj)
+        plot_image(fileobj, bare=True)

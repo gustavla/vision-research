@@ -46,8 +46,8 @@ def multirange(*args):
 
 
 class SlicesClass(object):
-    def __getitem__(self, *args):
-        return args
+    def __getitem__(self, index):
+        return index 
 slices = SlicesClass() 
 
 import time

@@ -20,6 +20,7 @@ import os.path
 import glob
 import itertools
 import amitgroup as ag
+import gv
 from PIL import Image, ExifTags
 
 for d, name in [(src, 'Source'), (dst, 'Destination'), (img_output_dir, 'Image output'), (anno_output_dir, 'Annotation output')]:
@@ -33,12 +34,12 @@ for d, name in [(src, 'Source'), (dst, 'Destination'), (img_output_dir, 'Image o
 src_filenames = glob.glob(os.path.join(src, '*.png'))
 dst_filenames = glob.glob(os.path.join(dst, '*'))
 
-print "Training mixture model"
-from mixture import mixture_from_files
-mixture, images, originals = mixture_from_files(src_filenames, 4)
+#print "Training mixture model"
+#from mixture import mixture_from_files
+#mixture, images, originals = mixture_from_files(src_filenames, 4)
 
 #lists = mixture.indices_lists()
-mix_comps = mixture.mixture_components()
+#mix_comps = mixture.mixture_components()
 
 #templates = mixture.remix(originals)
 #ag.plot.images(templates)
@@ -108,7 +109,7 @@ def find_bounding_box(im):
     first = True 
     pixels = im.getdata()
     bounding_box = [np.inf, np.inf, -np.inf, -np.inf]
-    for x, y in itertools.product(*map(xrange, im.size)):
+    for x, y in gv.multirange(*im.size):
         p = pixels[y * im.size[0] + x]
         if p[3] > 0:
             bounding_box[0] = min(x, bounding_box[0])
@@ -120,12 +121,13 @@ def find_bounding_box(im):
         
     return tuple(bounding_box)
 
-size = (128, 128)
+size = (300, 300)
 gen = patch_generator(dst_filenames, size)
 xml_template = open(SETTINGS['xml_template']).read()
 idcodes = []
 for i, fn in enumerate(src_filenames):
     src_im = Image.open(fn)
+    src_im = src_im.resize((300, 300), Image.ANTIALIAS)
     # Now superimpose it onto the dst_im
     try:
         dst_im = gen.next()
@@ -136,7 +138,7 @@ for i, fn in enumerate(src_filenames):
     bnd_box = find_bounding_box(src_im)
     print bnd_box
 
-    index = i + mix_comps[i] * 1000
+    index = i# + mix_comps[i] * 1000
     
     pos = ((size[0]-src_im.size[0])//2, (size[1]-src_im.size[1])//2)
     alpha_composite(src_im, dst_im, pos)

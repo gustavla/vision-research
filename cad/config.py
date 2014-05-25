@@ -15,13 +15,14 @@ if 0:
     )
 else: 
     SETTINGS = dict( 
-        patches_dir='/Users/slimgee/Desktop/stuff/VOC2007/VOCdevkit/VOC2007/JPEGImages',
-        src_dir='/Users/slimgee/git/data/newbike',
-        src_tight_dir='/Users/slimgee/git/data/newbiketight',
-        dst_dir='/Users/slimgee/git/data/afew',
-        posed_dir='/Users/slimgee/git/data/posed_bikes',
-        img_output_dir='/Users/slimgee/git/data/output/images',
-        anno_output_dir='/Users/slimgee/git/data/output/annotations',
+        src_dir=os.path.expandvars('$DATA_DIR/ncad01'),
+        #src_tight_dir='/Users/slimgee/git/data/newbiketight',
+        #dst_dir=os.path.expandvars('$DATA_DIR/generated/images'),# '/Users/slimgee/git/data/afew',
+        dst_dir=os.path.expandvars('$VOC_DIR/JPEGImages'),
+        #posed_dir='/Users/slimgee/git/data/posed_bikes',
+        img_output_dir=os.path.expandvars('$DATA_DIR/generated/images'),
+        anno_output_dir=os.path.expandvars('$DATA_DIR/generated/anno'),
         xml_template=rel('template.xml'),
-        index_file='/Users/slimgee/git/data/output/traingen.txt'
+        #index_file='/Users/slimgee/git/data/output/traingen.txt'
+        index_file=os.path.expandvars('$DATA_DIR/generated/traingen.txt'),
     )

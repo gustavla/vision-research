@@ -35,6 +35,24 @@ def resize_with_factor(im, factor, preserve_aspect_ratio=True, prefilter=True):
     new_size = [int(im.shape[i] * factor) for i in xrange(2)]
     return resize(im, new_size, preserve_aspect_ratio=preserve_aspect_ratio, prefilter=prefilter)
 
+def resize_to_box(im, size):
+    """
+    Resizes image to fit inside box while preserving aspect ratio.
+
+    If this image already fits inside the box, it will not be upscaled.
+
+    TODO: Can be a pixel off.
+    """
+    #mx = np.max(im.shape[:2])
+
+    factors = [size[i]/im.shape[i] for i in xrange(2)]
+
+    f = np.min(factors)
+    if f < 1.0:
+        return resize_with_factor_new(im, f)
+    else:
+        return im
+
 def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
     """
     This is a not-very-rigorous function to do image resizing, with
@@ -89,7 +107,7 @@ def crop(im, size):
     return im2
 
 def crop_to_bounding_box(im, bb):
-    im2 = im[bb[0]:bb[2], bb[1]:bb[3]]
+    im2 = im[max(bb[0], 0):min(bb[2], im.shape[0]-1), max(bb[1], 0):min(bb[3], im.shape[1]-1)]
     return im2
 
 #from PIL import Image
@@ -197,3 +215,59 @@ def bounding_box_as_binary_map(alpha):
     x = np.zeros(alpha.shape, dtype=np.uint8)
     x[bb[0]:bb[2], bb[1]:bb[3]] = 1
     return x 
+
+def generate_random_patches(filenames, size, seed=0, per_image=1):
+    """
+    Extract random patches from images. This is a generator
+    that will keep cycling the filenames indefinitely.
+
+    TODO: Remove duplicate in train_superimposed.py
+    """
+    from copy import copy
+    import itertools as itr
+
+    filenames = copy(filenames)
+    randgen = np.random.RandomState(seed)
+    randgen.shuffle(filenames)
+    failures = 0
+    for fn in itr.cycle(filenames):
+        img = asgray(load_image(fn))
+
+        for l in xrange(per_image):
+            # Random position
+            x_to = img.shape[0]-size[0]+1
+            y_to = img.shape[1]-size[1]+1
+
+            if x_to >= 1 and y_to >= 1:
+                x = randgen.randint(x_to) 
+                y = randgen.randint(y_to)
+                yield img[x:x+size[0], y:y+size[1]]
+                
+                failures = 0
+            else:
+                failures += 1
+
+            # The images are too small, let's stop iterating
+            if failures >= 30:
+                return
+
+def draw_rect(im, rect, linewidth=2, color=(0.0, 1.0, 0.4)):
+    """Draws a rectangle in place"""
+    color = np.asarray(color)
+    def clip0(x):
+        return np.clip(x, 0, im.shape[0])
+    def clip1(x):
+        return np.clip(x, 0, im.shape[1])
+
+    im[clip0(rect[0]-linewidth):clip0(rect[0]), 
+       clip1(rect[1]-linewidth):clip1(rect[3]+linewidth)] = color 
+
+    im[clip0(rect[2]):clip0(rect[2]+linewidth), 
+       clip1(rect[1]-linewidth):clip1(rect[3]+linewidth)] = color 
+
+    im[clip0(rect[0]):clip0(rect[2]), 
+       clip1(rect[1]-linewidth):clip1(rect[1])] = color 
+
+    im[clip0(rect[0]):clip0(rect[2]), 
+       clip1(rect[3]):clip1(rect[3]+linewidth)] = color 
+
