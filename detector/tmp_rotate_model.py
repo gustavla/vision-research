@@ -20,11 +20,11 @@ def main():
 
     assert len(d.kernel_templates) == 1, "Can only rotate a model that has a single component to begin with"
 
-    deg = d.descriptor.degrees_per_step
-    ROT = d.settings.get('orientations', 1)
-    print('degrees per step', deg)
+    deg_per_step = d.descriptor.degrees_per_step
+    ROT = d.descriptor.settings.get('orientations', 1)
+    print('degrees per step', deg_per_step)
 
-    rots = [-1, 1]
+    rots = [-ROT//4, ROT//4]
     new_components = []
 
     #kern = d.kernel_templates[0]
@@ -34,13 +34,16 @@ def main():
     weights = [w0]
 
     bbs = copy(d.extra['bbs'])
+    bb0 = bbs[0]
     supports = copy(d.support)
     kernel_sizes = copy(d.kernel_sizes)
 
     for rot in rots:
+        deg = rot * deg_per_step
+        print('deg', deg)
         slices = []
         for f in xrange(w0.shape[-1]):
-            rotted = (rotate(w0[...,f] / 10 + 0.5, rot * deg, resize=True, cval=0.5) - 0.5) * 10
+            rotted = (rotate(w0[...,f] / 10 + 0.5, deg, resize=True, cval=0.5) - 0.5) * 10
 
             slices.append(rotted)
 
@@ -68,7 +71,10 @@ def main():
 
         weights.append(slices)
 
-        bbs.append(d.extra['bbs'][0])
+        
+
+        bb = gv.bb.create(center=gv.bb.center(bb0), size=gv.bb.rotate_size(gv.bb.size(bb0), deg))
+        bbs.append(bb)
         supports.append(d.support[0])
         kernel_sizes.append(d.kernel_sizes[0])
 
@@ -87,6 +93,7 @@ def main():
     d.indices = indices
     d.extra['weights'] = weights
     d.extra['bbs'] = bbs
+    print('bbs', bbs)
     d.support = supports
     d.kernel_sizes = kernel_sizes
     print('d.TEMP_second', d.TEMP_second)

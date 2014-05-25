@@ -94,7 +94,7 @@ else:
         print('score', bbs[0].score)
         print("Elapsed:", (time.time() - start))
     else:
-        bbs = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp]) 
+        bbs, res_map = detector.detect_coarse(grayscale_img, fileobj=fileobj, mixcomps=[mixcomp], return_resmaps=True) 
         
 
     if bb_limit is not None:
@@ -106,7 +106,8 @@ else:
         print('max score: ', bbs[0].score)
         tot = sum([bb.correct for bb in bbs])
         print("Total: ", tot)
-    plot_results(detector, img, None, None, mixcomp, bbs)
+    print('res_map', res_map.values()[0][0].shape)
+    plot_results(detector, img, res_map.values()[0][0], None, mixcomp, bbs)
 
 #print('kernel sum', np.fabs(detector.kernels[mixcomp] - 0.5).sum())
 

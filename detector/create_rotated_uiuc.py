@@ -10,10 +10,12 @@ if gv.parallel.main(__name__):
     parser = argparse.ArgumentParser()
     parser.add_argument('output', type=str, help='Directory where to store the results')
     parser.add_argument('--angle', type=float, default=10.0, help='The most extreme angle')
+    parser.add_argument('--duplicates', type=int, default=1)
 
     args = parser.parse_args()
 
     rad = args.angle * np.pi / 180.0
+    duplicates = args.duplicates
 
     root_path = args.output
     img_path = os.path.join(root_path, 'TestImages')
@@ -28,46 +30,60 @@ if gv.parallel.main(__name__):
 
     max_img_id = np.max([fileobj.img_id for fileobj in files])
 
-    all_new_centers = [[] for _ in xrange(max_img_id+1)] 
+    all_bbs = [[] for _ in xrange(max_img_id+1)] 
 
     #matrices = [_translation_matrix(size/2, size/2) * _rotation_matrix(a) * _translation_matrix(-size/2, -size/2) for a in radians]
 
     rs = np.random.RandomState(0)
 
     for fileobj in files:
-        im = gv.img.load_image(fileobj.path)
-        size = im.shape
-        #print(fileobj)
+        for dup in xrange(duplicates):
+            im = gv.img.load_image(fileobj.path)
+            size = im.shape
+            #print(fileobj)
 
-        a = rs.uniform(-rad, rad)
-        A = gv.matrix.translation(size[0]/2, size[1]/2) * gv.matrix.rotation(a) * gv.matrix.translation(-size[0]/2, -size[1]/2)
+            a = rs.uniform(-rad, rad)
+            A = gv.matrix.translation(size[0]/2, size[1]/2) * gv.matrix.rotation(a) * gv.matrix.translation(-size[0]/2, -size[1]/2)
 
-        # Rotate the image 
-        rot_im = transform.rotate(im, a * 180.0 / np.pi)
+            # Rotate the image 
+            deg = a * 180.0 / np.pi
+            rot_im = transform.rotate(im, deg, resize=True)
 
-        fn = os.path.basename(fileobj.path)
-        new_path = os.path.join(img_path, fn)
+            # How much do we need to adjust the position because of padding
+            pad = ((rot_im.shape[0] - im.shape[0]) / 2, (rot_im.shape[1] - im.shape[1]) / 2)
 
-        gv.img.save_image(new_path, rot_im)
+            fn = os.path.basename(fileobj.path)
+            name, ext = os.path.splitext(fn)
+            new_path = os.path.join(img_path, '{}.png'.format(name))
 
-        new_centers = []
+            gv.img.save_image(new_path, rot_im)
 
-        # Save rotated file
+            new_centers = []
 
-        # Rotate the centers of the bounding boxes
-        for bbobj in fileobj.boxes:
-            center = gv.bb.center(bbobj.box)
-            x = np.matrix([center[0], center[1], 1]).T
-            rot_x = A * x
-            irot_x = [int(round(rot_x[i])) for i in xrange(2)]
+            # Save rotated file
 
-            half_size = (gv.bb.size(bbobj.box)[0]//2, gv.bb.size(bbobj.box)[1]//2)
+            # Rotate the centers of the bounding boxes
+            for bbobj in fileobj.boxes:
+                center = gv.bb.center(bbobj.box)
+                x = np.matrix([center[0], center[1], 1]).T
+                rot_x = A * x
+                rot_x[:2] += np.asmatrix(pad).T
+                #irot_x = [int(round(rot_x[i])) for i in xrange(2)]
 
-            corner = (irot_x[0] - half_size[0], irot_x[1] - half_size[1])
+                #half_size = (gv.bb.size(bbobj.box)[0]//2, gv.bb.size(bbobj.box)[1]//2)
 
-            all_new_centers[fileobj.img_id].append(corner)
+
+                #bb = (irot_x[0] - half_size[0], irot_x[1]
+
+                bb = gv.bb.create(center=np.asarray(rot_x).ravel()[:2], size=gv.bb.rotate_size(gv.bb.size(bbobj.box), deg))
+                bb = [int(round(bbi)) for bbi in bb]
+
+                #corner = (irot_x[0] - half_size[0], irot_x[1] - half_size[1])
+                #print(bb)
+                all_bbs[fileobj.img_id].append(bb)
             
     with open(labels_path, 'w') as f:
-        for img_id, centers in enumerate(all_new_centers):
-            s = ' '.join('({},{})'.format(*x) for x in centers)
+        for img_id, bbs in enumerate(all_bbs):
+            print(bbs)
+            s = ' '.join('({},{},{},{})'.format(*bb) for bb in bbs)
             print('{img_id}: {centers}'.format(img_id=img_id, centers=s), file=f)

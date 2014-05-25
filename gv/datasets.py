@@ -10,13 +10,13 @@ ImgFile.__new__.__defaults__ = (None, [], '(none)', None)
 def contests():
     return ('voc-val', 'voc-train', 'voc-trainval', 'voc-test', 'voc-profile', 'voc-profile2', 'voc-profile3', 'voc-profile4', 'voc-profile5', 
             'voc-easy', 'voc-fronts', 'voc-fronts-negs', 'voc-sides', 'voc-val-profile', 'voc-test-profile',
-            'uiuc', 'uiuc-multiscale', 'rot-uiuc',
+            'uiuc', 'uiuc-multiscale', 'rot-uiuc', 'rot360-uiuc',
             'inria-test',
             'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks',
             'voc-traingen')
 
 def datasets():
-    return ('none', 'voc', 'uiuc', 'uiuc-multiscale', 'rot-uiuc', 'inria',
+    return ('none', 'voc', 'uiuc', 'uiuc-multiscale', 'rot-uiuc', 'rot360-uiuc', 'inria',
             'custom-cad-profile', 'custom-cad-all', 'custom-cad-all-shuffled', 'custom-tmp-frontbacks',
             'voc-traingen')
 
@@ -53,11 +53,13 @@ def load_files(contest, obj_class):
     elif contest == 'voc-sides':
         files, tot = gv.voc.load_files(obj_class, dataset='sides')
     elif contest == 'uiuc':
-        files, tot = gv.uiuc.load_testing_files()
+        files, tot = gv.uiuc.load_testing_files(anno_format='single')
     elif contest == 'uiuc-multiscale':
-        files, tot = gv.uiuc.load_testing_files(single_scale=False)
+        files, tot = gv.uiuc.load_testing_files(anno_format='scale')
     elif contest == 'rot-uiuc':
-        files, tot = gv.uiuc.load_testing_files(env='ROT_UIUC_DIR')
+        files, tot = gv.uiuc.load_testing_files(anno_format='single', env='ROT_UIUC_DIR')
+    elif contest == 'rot360-uiuc':
+        files, tot = gv.uiuc.load_testing_files(anno_format='free', env='ROT360_UIUC_DIR')
     elif contest == 'inria-test' or contest == 'inria':
         assert obj_class == 'person', "INRIA only has person class"
         files, tot = gv.inria.load_files(obj_class, dataset='test')
@@ -74,9 +76,11 @@ def load_file(contest, img_id, obj_class=None, path=None):
     import gv.voc
     import gv.custom
     if contest.startswith('uiuc'):
-        return gv.uiuc.load_testing_file(img_id, single_scale=(contest=='uiuc'))
+        return gv.uiuc.load_testing_file(img_id, anno_format={'uiuc': 'single', 'uiuc-multiscale': 'scale'}[contest])
     if contest.startswith('rot-uiuc'):
-        return gv.uiuc.load_testing_file(img_id, single_scale=(contest=='rot-uiuc'), env='ROT_UIUC_DIR')
+        return gv.uiuc.load_testing_file(img_id, anno_format='single', env='ROT_UIUC_DIR')
+    if contest.startswith('rot360-uiuc'):
+        return gv.uiuc.load_testing_file(img_id, anno_format='free', env='ROT360_UIUC_DIR')
     elif contest.startswith('voc'):
         return gv.voc.load_file(obj_class, img_id) 
     elif contest == 'inria':

@@ -1,6 +1,7 @@
 from __future__ import division, print_function, absolute_import 
 from collections import namedtuple
 import numpy as np
+from gv import matrix
 
 def _repr(tup):
     return "("+(", ".join(["{"+str(i)+":0.1f}" for i in xrange(4)])).format(*tup)+")"
@@ -79,6 +80,19 @@ def rescale(bb, scale):
 def move(bb, delta):
     return (bb[0] + delta[0], bb[1] + delta[1],
             bb[2] + delta[0], bb[3] + delta[1])
+
+def rotate_size(size, rot):
+    """
+    This takes a size (tuple of size 2) and rotates it ``rot`` degrees. Imagine
+    the resulting rectangle tightly put inside a larger rectangle. The size of
+    the larger rectangle is what is returned by this function.
+    """
+    p1 = np.matrix([size[0]/2, size[1]/2, 1]).T
+    p2 = np.matrix([-size[0]/2, size[1]/2, 1]).T
+    A = matrix.rotation(rot * np.pi / 180)
+    b1 = np.asarray(A * p1).ravel()
+    b2 = np.asarray(A * p2).ravel()
+    return 2 * np.maximum(np.fabs(b1), np.fabs(b2))[:2]
 
 def create(center=None, size=None):
     assert size is not None
