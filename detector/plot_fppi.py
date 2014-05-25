@@ -31,6 +31,10 @@ for i, results_file in enumerate(results_files):
         num_images = data['num_images']
     except:
         num_images = 741
+
+    if num_images == 0:
+        num_images = 741
+
     detections = data['detections']
     tp_fn = int(data['tp_fn'])
     fppi, miss_rate = gv.rescalc.calc_fppi_miss_rate(detections, tp_fn, num_images)
@@ -54,6 +58,8 @@ for i, results_file in enumerate(results_files):
     ax.set_xscale('log')
     ax.set_yscale('log')
 
+    print('fppi', fppi)
+    print('miss-rate', miss_rate)
     ax.plot(fppi, miss_rate, '-',label=caption)
     ax.set_xlabel('FPPI')
     ax.set_ylabel('Miss rate')
