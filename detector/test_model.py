@@ -117,7 +117,7 @@ if gv.parallel.main(__name__):
     detector = gv.Detector.load(model_file)
 
     # TODO: New
-    detector.TEMP_second = True
+    #detector.TEMP_second = True
     detector._param = args.param
 
     if args.size is not None:
