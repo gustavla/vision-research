@@ -268,6 +268,10 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         self.settings.update(settings)
 
     @property
+    def degrees_per_step(self):
+        return 360 / self.settings.get('orientations', 1)
+
+    @property
     def num_features(self):
         return self._num_parts
 

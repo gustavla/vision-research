@@ -87,7 +87,8 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
         for f in xrange(F):
             indf = indices[indices[...,2] == f]
 
-            new_indices[L*f:L*f + indf.shape[0]] = indf
+        
+            new_indices[L*f:L*f + min(L, indf.shape[0])] = indf[:L]
 
             # Fill up the rest with random indices that are not taken
             for l in xrange(int(indf.shape[0]), L):

@@ -1165,13 +1165,16 @@ class BernoulliDetector(Detector):
         if resmap.size == 0:
             return [], resmap, bkgcomp
 
-        kern = sub_kernels[mixcomp]
+        #kern = sub_kernels[mixcomp]
 
         psize = self.settings['subsample_size']
 
         # TODO: Decide this in a way common to response_map
-        sh = kern.shape
-        sh0 = kern.shape
+        sh = self.weights_shape(mixcomp)
+        sh0 = sh
+
+        #sh = kern.shape
+        #sh0 = kern.shape
 
         image_padding = (padding[0] * psize[0], padding[1] * psize[1])
 
@@ -1254,7 +1257,7 @@ class BernoulliDetector(Detector):
 
 
             # TEMP [
-            if not self.settings.get('plain'):
+            if not self.settings.get('plain') and False: # TODO
                 F = self.num_features
                 w = self.extra['weights'][mixcomp]
                 II = self.indices[mixcomp]
@@ -1878,7 +1881,7 @@ class BernoulliDetector(Detector):
         return self.extra['weights'][mixcomp]
 
     def new_kp_weights(self, mixcomp):
-        return self.extra['weights'][mixcomp][tuple(self.indices[0].T)].reshape((-1, self.num_features))
+        return self.extra['weights'][mixcomp][tuple(self.indices[mixcomp].T)].reshape((-1, self.num_features))
 
     def cascade_weights(self, mixcomp, bkgcomp):
         if bkgcomp == -1:
@@ -1916,13 +1919,8 @@ class BernoulliDetector(Detector):
         if np.min(sub_feats.shape) <= 1:
             return np.zeros((0, 0, 0)), None, None, None
 
-        # TODO: Temporary
-        kern = sub_kernels[mixcomp]
-        if self.settings.get('per_mixcomp_bkg') or True:
-            spread_bkg =  spread_bkg[mixcomp]
 
-
-        sh = kern.shape
+        sh = self.weights_shape(mixcomp)
         pmult = self.settings.get('padding_multiple_of_object', 0.5)
         if not use_padding:
             pmult = 0
@@ -1938,13 +1936,16 @@ class BernoulliDetector(Detector):
         #spread_bkg = np.clip(spread_bkg, eps, 1 - eps)
 
         
-        # TEMP
-        spread_bkg = np.clip(spread_bkg, self.eps, 1 - self.eps)
-        kern = np.clip(kern, self.eps, 1 - self.eps) 
+
 
         if 'weights' in self.extra:
             weights = self.extra['weights'][mixcomp]
         else:
+            kern = sub_kernels[mixcomp]
+            kern = np.clip(kern, self.eps, 1 - self.eps) 
+            if self.settings.get('per_mixcomp_bkg') or True:
+                spread_bkg =  spread_bkg[mixcomp]
+            spread_bkg = np.clip(spread_bkg, self.eps, 1 - self.eps)
             weights = self.build_weights(kern, spread_bkg)
     
         from .fast import multifeature_correlate2d
