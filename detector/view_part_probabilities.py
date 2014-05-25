@@ -21,7 +21,7 @@ import os
 import gv
 
 #parts_dictionary = gv.PatchDictionary.load(part_file)
-descriptor = gv.BinaryDescriptor.getclass('parts').load(parts_file)
+descriptor = gv.BinaryDescriptor.load(parts_file)
 
 originals = descriptor.visparts
 parts = descriptor.parts
