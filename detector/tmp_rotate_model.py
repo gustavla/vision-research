@@ -62,12 +62,11 @@ def main():
                 plt.imshow(rotted, vmin=-3, vmax=3, cmap=plt.cm.RdBu_r, interpolation='nearest')
                 plt.savefig(vz.generate_filename())
 
+        slices = np.rollaxis(np.asarray(slices), 0, 3)
 
         # THE PARTS ARE NOT ROTATED YET!
         for k in xrange(w0.shape[-1]//ROT):
-            slices[k*ROT:(k+1)*ROT] = np.roll(slices[k*ROT:(k+1)*ROT], rot)
-
-        slices = np.rollaxis(np.asarray(slices), 0, 3)
+            slices[k*ROT:(k+1)*ROT] = np.roll(slices[k*ROT:(k+1)*ROT], rot, axis=-1)
 
         weights.append(slices)
 

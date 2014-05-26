@@ -13,7 +13,7 @@ def apply_filter(im, imfilter, seed=0):
         return (im + rs.normal(0, sigma, size=im.shape)).clip(0, 1)
     elif imfilter == 'random-gamma':
         rs = np.random.RandomState(seed)
-        gamma = np.exp(rs.normal(loc=0, scale=1.0))
+        gamma = np.exp(rs.normal(loc=0, scale=0.5))
         return im**gamma
     elif imfilter.endswith('-gamma'):
         gamma = dict(low=0.5, high=2.0)[imfilter.split('-')[0]]
