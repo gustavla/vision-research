@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 import numpy as np
 from .named_registry import NamedRegistry
 

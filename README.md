@@ -1,4 +1,4 @@
-vision-research
+Vision Research
 ===============
 
-Code for my Computer vision research
+Code for my computer vision research. Stricly Python 3. 

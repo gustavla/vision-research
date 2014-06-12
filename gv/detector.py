@@ -1,4 +1,4 @@
-from __future__ import division, print_function
+
 
 import amitgroup as ag
 import numpy as np
@@ -228,7 +228,7 @@ class BernoulliDetector(Detector):
     
         mixtures = []
         llhs = []
-        for i in xrange(1):
+        for i in range(1):
             mixture = ag.stats.BernoulliMixture(self.num_mixtures, output, float_type=np.float32, init_seed=seed+i)
             minp = 0.01
             mixture.run_EM(1e-10, minp)
@@ -320,9 +320,9 @@ class BernoulliDetector(Detector):
             #import pylab as plt
             #plt.imshow(kernels[0].sum(axis=-1), interpolation='nearest')
             #plt.show()
-            print(np.asarray(output).shape, shape)
+            print((np.asarray(output).shape, shape))
             X = np.asarray(output).reshape((-1,) + shape) #sub_output.reshape((sub_output.shape[0], -1))
-            llhs = [[] for i in xrange(self.num_mixtures)] 
+            llhs = [[] for i in range(self.num_mixtures)] 
 
             comps = mixture.mixture_components()
             for i, Xi in enumerate(X):
@@ -331,18 +331,18 @@ class BernoulliDetector(Detector):
                 llh = np.sum(Xi * a)
                 llhs[mixcomp].append(llh)
 
-            self.standardization_info = [dict(mean=np.mean(llhs[k]), std=np.std(llhs[k])) for k in xrange(self.num_mixtures)]
+            self.standardization_info = [dict(mean=np.mean(llhs[k]), std=np.std(llhs[k])) for k in range(self.num_mixtures)]
 
         return mixture, kernel_templates, kernel_sizes, support
 
     def determine_optimal_bounding_boxes(self, comps, alpha_maps):
         self.extra['bbs'] = []
-        for k in xrange(self.num_mixtures):
+        for k in range(self.num_mixtures):
             ag.info("Determining bounding box for mixcomp", k)
             print('CP 1')
             alphas = alpha_maps[comps == k] 
             print('CP 2')
-            bbs = map(gv.img.bounding_box, alphas) 
+            bbs = list(map(gv.img.bounding_box, alphas)) 
             print('CP 3')
 
             #def score(bb):
@@ -356,15 +356,15 @@ class BernoulliDetector(Detector):
 
             contendors = set() 
             # TODO: Up to 7 is not necessary here, but I guess it doesn't hurt either.
-            for inflate in xrange(7):
-                print('CP 4', inflate)
+            for inflate in range(7):
+                print(('CP 4', inflate))
                 for bbi in bbs:
                     contendors.add(gv.bb.inflate(bbi, inflate)) 
             #import pdb; pdb.set_trace()
 
             contendors = list(contendors)
 
-            print('CP 5', len(contendors))
+            print(('CP 5', len(contendors)))
             #best0 = np.argmin([loss(bbi) for bbi in contendors])
             from gv.fast import best_bounding_box
 
@@ -372,7 +372,7 @@ class BernoulliDetector(Detector):
             bbs = np.asarray(bbs).astype(np.int64)
 
             best = best_bounding_box(contendors, bbs)
-            print('Best', best, best//len(bbs))
+            print(('Best', best, best//len(bbs)))
             bb0 = contendors[best]
             print('CP 6')
 
@@ -383,8 +383,8 @@ class BernoulliDetector(Detector):
                 bb = tuple(res.x)
 
                 # What is the worst value in this mixture component? If below 0.5, there might be no point keeping it
-                print(k, 'loss', loss(bb))
-                print(k, 'minimum', min([gv.bb.fraction_metric(bb, bbi) for bbi in bbs]))
+                print((k, 'loss', loss(bb)))
+                print((k, 'minimum', min([gv.bb.fraction_metric(bb, bbi) for bbi in bbs])))
             #}}}
             bb = bb0
 
@@ -523,12 +523,12 @@ class BernoulliDetector(Detector):
             # Fix kernels
             istep = 2*radii[0]
             jstep = 2*radii[1]
-            for mixcomp in xrange(self.num_mixtures):
+            for mixcomp in range(self.num_mixtures):
                 sh = kernels[mixcomp].shape[:2]
                 # Note, we are going in strides of psize, given a certain offset, since
                 # we will be subsampling anyway, so we don't need to do the rest.
-                for i in xrange(offsets[0], sh[0], psize[0]):
-                    for j in xrange(offsets[1], sh[1], psize[1]):
+                for i in range(offsets[0], sh[0], psize[0]):
+                    for j in range(offsets[1], sh[1], psize[1]):
                         p = gv.img.integrate(integral_aa_log[mixcomp], i, j, i+istep, j+jstep)
                         kernels[mixcomp][i,j] = 1 - np.exp(p)
 
@@ -546,7 +546,7 @@ class BernoulliDetector(Detector):
                 kernels = a * cad_kernels + C.sum(axis=-2) / self.kernel_basis_samples
                 
 
-        for i in xrange(self.num_mixtures):
+        for i in range(self.num_mixtures):
             sub_kernels[i] = np.clip(sub_kernels[i], self.eps, 1-self.eps)
 
         K = self.settings.get('quantize_bins')
@@ -743,7 +743,7 @@ class BernoulliDetector(Detector):
     #{{{ Old function
     def detect_coarse_OLD(self, img, fileobj=None, mixcomps=None):
         if mixcomps is None:
-            mixcomps = range(self.num_mixtures)
+            mixcomps = list(range(self.num_mixtures))
 
         # TODO: Temporary stuff
         if 0:
@@ -776,7 +776,7 @@ class BernoulliDetector(Detector):
             factors = []
             skips = 0
             eps = 1e-8
-            for i in xrange(1000):
+            for i in range(1000):
                 factor = self.settings['scale_factor']**(i-1)
                 if factor > max_factor+eps:
                     break
@@ -836,7 +836,7 @@ class BernoulliDetector(Detector):
         factors = []
         skips = 0
         eps = 1e-8
-        for i in xrange(1000):
+        for i in range(1000):
             factor = self.settings['scale_factor']**i
             if factor > max_factor+eps:
                 break
@@ -859,14 +859,14 @@ class BernoulliDetector(Detector):
         def extract(image):
             return self.descriptor.extract_features(image, dict(spread_radii=self.settings['spread_radii'], preserve_size=True))
 
-        edge_pyramid = map(self.extract_spread_features, pyramid)
+        edge_pyramid = list(map(self.extract_spread_features, pyramid))
         ag.info("Getting edge pyramid")
-        unspread_edge_pyramid = map(extract, pyramid)
-        spread_edge_pyramid = map(extract, pyramid)
+        unspread_edge_pyramid = list(map(extract, pyramid))
+        spread_edge_pyramid = list(map(extract, pyramid))
 
         ag.info("Extract background model")
-        unspread_bkg_pyramid = map(self.bkg_model, unspread_edge_pyramid)
-        spread_bkg_pyramid = map(lambda p: self.bkg_model(p, spread=True), spread_edge_pyramid)
+        unspread_bkg_pyramid = list(map(self.bkg_model, unspread_edge_pyramid))
+        spread_bkg_pyramid = [self.bkg_model(p, spread=True) for p in spread_edge_pyramid]
 
         ag.info("Subsample")
         #small_pyramid = map(self.subsample, edge_pyramid) 
@@ -896,7 +896,7 @@ class BernoulliDetector(Detector):
 
     def detect_coarse(self, img, fileobj=None, mixcomps=None, return_resmaps=False, use_padding=True, use_scale_prior=True, cascade=True, more_detections=False, farming=False, discard_weak=False, return_scores_only=False, strides=(1, 1), save_samples=False):
         if mixcomps is None:
-            mixcomps = range(self.num_mixtures)
+            mixcomps = list(range(self.num_mixtures))
 
         prepare_resmaps = return_resmaps or return_scores_only
 
@@ -916,7 +916,7 @@ class BernoulliDetector(Detector):
         factors = []
         skips = 0
         eps = 1e-8
-        for i in xrange(1000):
+        for i in range(1000):
             factor = self.settings['scale_factor']**(i-1)
             if factor > max_factor+eps:
                 break
@@ -968,7 +968,7 @@ class BernoulliDetector(Detector):
         if return_scores_only:
             assert len(mixcomps) == 1, 'return_scores_only only works with 1 mixcomp for now'
             th = self.settings.get('classify_threshold', -np.inf)
-            scores = np.concatenate([resmap[0][resmap[0] > th].ravel() for resmap in resmaps.values()]) 
+            scores = np.concatenate([resmap[0][resmap[0] > th].ravel() for resmap in list(resmaps.values())]) 
             ret += (scores, windows_count)
         else:
             ret += (final_bbs,)
@@ -1012,8 +1012,8 @@ class BernoulliDetector(Detector):
 
             self.indices[mixcomp] = self.extra['bkg_mixtures'][mixcomp]['indices']
 
-            sub_kernels = [[self.extra['bkg_mixtures'][i][j]['kern'] for j in xrange(1)] for i in xrange(self.num_mixtures)]
-            spread_bkg = [[self.extra['bkg_mixtures'][i][j]['bkg'] for j in xrange(1)] for i in xrange(self.num_mixtures)]
+            sub_kernels = [[self.extra['bkg_mixtures'][i][j]['kern'] for j in range(1)] for i in range(self.num_mixtures)]
+            spread_bkg = [[self.extra['bkg_mixtures'][i][j]['bkg'] for j in range(1)] for i in range(self.num_mixtures)]
 
         resmap, bigger, weights, padding = self.response_map(sub_feats, sub_kernels, spread_bkg, mixcomp, level=-1, use_padding=use_padding, strides=strides)
 
@@ -1118,8 +1118,8 @@ class BernoulliDetector(Detector):
             pixels0 = 1000000 / (2**x0)**2 
             amount = pixels0 * 10
 
-            mus = np.asarray([st.norm.ppf(1 - 1/Ns[i]) for i in xrange(len(amount))])
-            sigs = np.asarray([st.norm.ppf(1 - 1/Ns[i]/np.exp(1)) - mus[i] for i in xrange(len(amount))])
+            mus = np.asarray([st.norm.ppf(1 - 1/Ns[i]) for i in range(len(amount))])
+            sigs = np.asarray([st.norm.ppf(1 - 1/Ns[i]/np.exp(1)) - mus[i] for i in range(len(amount))])
 
             def rescale(x, i):
                 #mu = st.norm.ppf(1 - 1/amount[i])
@@ -1136,7 +1136,7 @@ class BernoulliDetector(Detector):
                 xc = max(x, mu-0.5)
                 v = st.genextreme.logcdf(xc, 0, loc=mu, scale=sig)
                 if np.isinf(v):
-                    raise 'Hell'
+                    raise Exception('Something bad happened') 
                 return v
 
         #f = np.log(100 * factor * 0.8) / np.log(2)
@@ -1192,8 +1192,8 @@ class BernoulliDetector(Detector):
         #th = resmap.mean() 
         bbs = []
 
-        agg_factors = tuple([psize[i] * factor for i in xrange(2)])
-        agg_factors2 = tuple([factor for i in xrange(2)])
+        agg_factors = tuple([psize[i] * factor for i in range(2)])
+        agg_factors2 = tuple([factor for i in range(2)])
         #bb_bigger = (0.0, 0.0, sub_feats.shape[0] * agg_factors[0], sub_feats.shape[1] * agg_factors[1])
 
         # TODO: New
@@ -1283,8 +1283,8 @@ class BernoulliDetector(Detector):
 
             # ]
 
-            for i0 in xrange(0, resmap.shape[0], s):
-                for j0 in xrange(0, resmap.shape[1], s):
+            for i0 in range(0, resmap.shape[0], s):
+                for j0 in range(0, resmap.shape[1], s):
             #resmap[:] = -1000 
             #for i0 in [19, 30, 5, 30, 25, 10, 14]:
                 #for j0 in [23, 5, 14, 10, 20, 40, 30]:
@@ -1607,7 +1607,7 @@ class BernoulliDetector(Detector):
                             Xes = []
                             iis = []
                             jjs = []
-                            for ii, jj in itr.product(xrange(max(i-r, 0), min(i+r+1, resmap.shape[0])), xrange(max(j-r, 0), min(j+r+1, resmap.shape[1]))):
+                            for ii, jj in itr.product(list(range(max(i-r, 0), min(i+r+1, resmap.shape[0]))), list(range(max(j-r, 0), min(j+r+1, resmap.shape[1])))):
                                 # It still has to be greater than the cascade threshold
                                 if resmap[ii,jj] >= cascade_score:
                                     thisX = bigger[ii:ii+sh0[0], jj:jj+sh0[1]]
@@ -1658,7 +1658,7 @@ class BernoulliDetector(Detector):
 
                                 if 1:
                                     # Check backgrounds
-                                    for bk in xrange(BK):
+                                    for bk in range(BK):
                                         k, b = info[bk]['kern'], info[bk]['bkg']        
                                         k = np.clip(k, self.eps, 1-self.eps)
                                         b = np.clip(b, self.eps, 1-self.eps)
@@ -1790,7 +1790,7 @@ class BernoulliDetector(Detector):
 
                             P1b = (P0[0] + self.kernel_sizes[mixcomp][0], P0[1] + self.kernel_sizes[mixcomp][1])
 
-                            for i in xrange(2):
+                            for i in range(2):
                                 if P1b[i] <= image.shape[i]:
                                     P1[i] = P1b[i]
                                 else:
@@ -2022,7 +2022,7 @@ class BernoulliDetector(Detector):
             neg_logs = np.zeros_like(neg_hist[0])
             pos_logs = np.zeros_like(pos_hist[0])
 
-            for x, y in itr.product(xrange(res.shape[0]), xrange(res.shape[1])):
+            for x, y in itr.product(list(range(res.shape[0])), list(range(res.shape[1]))):
                 res[x,y] = score2(res[x,y], neg_hist, pos_hist, neg_logs, pos_logs)
 
         if testing_type == 'fixed':
@@ -2066,7 +2066,7 @@ class BernoulliDetector(Detector):
         while i < len(bbs_sorted):
             # TODO: This can be vastly improved performance-wise
             area_i = gv.bb.area(bbs_sorted[i].box)
-            for j in xrange(i):
+            for j in range(i):
                 # VERY TEMPORARY: This avoids suppression between classes
                 #if bbs_sorted[i].mixcomp != bbs_sorted[j].mixcomp:
                    #continue
@@ -2088,11 +2088,11 @@ class BernoulliDetector(Detector):
         # Take the bounding box of the support, with a certain threshold.
         if self.support is not None:
             supp = self.support[k] 
-            supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
+            supp_axs = [supp.max(axis=1-i) for i in range(2)]
 
             th = self.settings['bounding_box_opacity_threshold']
             # Check first and last value of that threshold
-            bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
+            bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in range(2)]
 
             # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
             psize = self.settings['subsample_size']
@@ -2121,11 +2121,11 @@ class BernoulliDetector(Detector):
 
         elif self.support is not None:
             supp = self.support[k] 
-            supp_axs = [supp.max(axis=1-i) for i in xrange(2)]
+            supp_axs = [supp.max(axis=1-i) for i in range(2)]
             th = self.settings['bounding_box_opacity_threshold']
 
             # Check first and last value of that threshold
-            bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
+            bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in range(2)]
 
             # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
             psize = self.descriptor.subsample_size
@@ -2185,8 +2185,8 @@ class BernoulliDetector(Detector):
         self.descriptor.settings['spread_radii'] = self.settings['spread_radii']
         
         # Prepare bounding boxes for all mixture model
-        self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in xrange(self.num_mixtures)])
-        self.boundingboxes2 = np.array([self.bounding_box_for_mix_comp2(i) for i in xrange(self.num_mixtures)])
+        self.boundingboxes = np.array([self.bounding_box_for_mix_comp(i) for i in range(self.num_mixtures)])
+        self.boundingboxes2 = np.array([self.bounding_box_for_mix_comp2(i) for i in range(self.num_mixtures)])
 
     @classmethod
     def load_from_dict(cls, d):

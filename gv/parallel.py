@@ -8,7 +8,7 @@ _g_initialized = False
 
 def kill_workers():
     from mpi4py import MPI
-    all_workers = range(1, MPI.COMM_WORLD.Get_size())
+    all_workers = list(range(1, MPI.COMM_WORLD.Get_size()))
     for worker in all_workers:
         MPI.COMM_WORLD.send(None, dest=worker, tag=666)
 
@@ -94,7 +94,7 @@ def imap(f, workloads, star=False):
         yield results[i]
 
 def starmap(f, workloads):
-    return imap(f, workloads, star=True)
+    return map(f, workloads, star=True)
 
 def starmap_unordered(f, workloads):
     return imap_unordered(f, workloads, star=True)

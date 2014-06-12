@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 import scipy.misc
 import amitgroup as ag
@@ -9,7 +9,7 @@ def resize_to_size(im, new_size):
     return scipy.misc.imresize((im*255).astype(np.uint8), new_size).astype(np.float64)/255
 
 def raw_resize(im, factor):
-    new_size = tuple([int(round(im.shape[i] * factor)) for i in xrange(2)])
+    new_size = tuple([int(round(im.shape[i] * factor)) for i in range(2)])
     # TODO: Change to something much more suited for this.
     return resize_to_size(im, new_size)
 
@@ -32,7 +32,7 @@ def resize_with_factor_new(im, factor):
     return im2
 
 def resize_with_factor(im, factor, preserve_aspect_ratio=True, prefilter=True):
-    new_size = [int(im.shape[i] * factor) for i in xrange(2)]
+    new_size = [int(im.shape[i] * factor) for i in range(2)]
     return resize(im, new_size, preserve_aspect_ratio=preserve_aspect_ratio, prefilter=prefilter)
 
 def resize_to_box(im, size):
@@ -45,7 +45,7 @@ def resize_to_box(im, size):
     """
     #mx = np.max(im.shape[:2])
 
-    factors = [size[i]/im.shape[i] for i in xrange(2)]
+    factors = [size[i]/im.shape[i] for i in range(2)]
 
     f = np.min(factors)
     if f < 1.0:
@@ -58,7 +58,7 @@ def resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
     This is a not-very-rigorous function to do image resizing, with
     pre-filtering.
     """
-    factors = [new_size[i] / im.shape[i] for i in xrange(2)]
+    factors = [new_size[i] / im.shape[i] for i in range(2)]
 
     #assert factors[0] == factors[1], "Must have same factor for now"
     f = factors[0] 
@@ -83,8 +83,8 @@ def old_resize(im, new_size, preserve_aspect_ratio=True, prefilter=True):
         im2 = im.copy()
         size = im.shape
         while max(factors) < 0.5:
-            half_size = tuple([size[i]/2.0 for i in xrange(2)])
-            factors = [factors[i] * 2.0 for i in xrange(2)]
+            half_size = tuple([size[i]/2.0 for i in range(2)])
+            factors = [factors[i] * 2.0 for i in range(2)]
             im2 = _filtered_resize_once(im2, half_size, preserve_aspect_ratio, prefilter)
 
             size = half_size
@@ -198,11 +198,11 @@ def bounding_box(alpha):
 
     # Take the bounding box of the support, with a certain threshold.
     #print("Using alpha", self.use_alpha, "support", self.support)
-    supp_axs = [alpha.max(axis=1-i) for i in xrange(2)]
+    supp_axs = [alpha.max(axis=1-i) for i in range(2)]
 
     th = 0.5 
     # Check first and last value of that threshold
-    bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in xrange(2)]
+    bb = [np.where(supp_axs[i] > th)[0][[0,-1]] for i in range(2)]
 
     # This bb looks like [(x0, x1), (y0, y1)], when we want it as (x0, y0, x1, y1)
     #psize = self.settings['subsample_size']
@@ -233,7 +233,7 @@ def generate_random_patches(filenames, size, seed=0, per_image=1):
     for fn in itr.cycle(filenames):
         img = asgray(load_image(fn))
 
-        for l in xrange(per_image):
+        for l in range(per_image):
             # Random position
             x_to = img.shape[0]-size[0]+1
             y_to = img.shape[1]-size[1]+1

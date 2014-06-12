@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 import gv
 #from scipy.ndimage.interpolation import zoom
@@ -55,5 +55,5 @@ class ImageGrid(object):
         data = self._data
         if scale != 1:
             from skimage.transform import resize
-            data = resize(self._data, tuple([self._data.shape[i] * scale for i in xrange(2)]), order=0)
+            data = resize(self._data, tuple([self._data.shape[i] * scale for i in range(2)]), order=0)
         gv.img.save_image(path, data)

@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division
+
 import random
 import copy
 import amitgroup as ag
@@ -22,14 +22,14 @@ def convert_partprobs_to_feature_vector(partprobs, tau=0.0):
     mx = 0.0
     feats = np.zeros((X_dim_0, X_dim_1, num_parts), dtype=np.uint8)
 
-    for i in xrange(X_dim_0):
-        for j in xrange(X_dim_1):
+    for i in range(X_dim_0):
+        for j in range(X_dim_1):
             m = partprobs[i,j].argmax()
             mx = partprobs[i,j,m]
             if m != 0:
                 if mx > -150:
                     d = partprobs[i,j,m] - 20
-                    for f in xrange(1,num_parts+1):
+                    for f in range(1,num_parts+1):
                         if partprobs[i,j,f] >= d:
                             feats[i,j,f-1] = 1 
                 else:
@@ -121,19 +121,19 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         #edges_nospread = ag.features.bedges_from_image(filename, radius=0, **s)
 
         # How many patches could we extract?
-        w, h = [edges.shape[i]-self.patch_size[i]+1 for i in xrange(2)]
+        w, h = [edges.shape[i]-self.patch_size[i]+1 for i in range(2)]
 
         # TODO: Maybe shuffle an iterator of the indices?
-        indices = list(itr.product(xrange(w-1), xrange(h-1)))
+        indices = list(itr.product(range(w-1), range(h-1)))
         random.shuffle(indices)
         i_iter = iter(indices)
 
         th = self.threshold_in_counts(self.settings['threshold'], edges.shape[-1])
 
-        for sample in xrange(samples_per_image):
-            for tries in xrange(20):
+        for sample in range(samples_per_image):
+            for tries in range(20):
                 #x, y = random.randint(0, w-1), random.randint(0, h-1)
-                x, y = i_iter.next()
+                x, y = next(i_iter)
                 selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
                 selection_padded = [slice(x, x+radius*2+self.patch_size[0]), slice(y, y+radius*2+self.patch_size[1])]
                 # Return grayscale patch and edges patch
@@ -236,10 +236,10 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         counts = np.bincount(comps[:,0], minlength=self.num_features)
         self.extra['counts'] = counts
 
-        print counts
-        print 'Total', np.sum(counts)
+        print(counts)
+        print('Total', np.sum(counts))
         from scipy.stats.mstats import mquantiles
-        print mquantiles(counts)
+        print(mquantiles(counts))
 
 
         llhs = np.zeros(len(raw_patches))
@@ -252,7 +252,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
         means = []
         sigmas = []
-        for f in xrange(self.num_features):
+        for f in range(self.num_features):
             model = mixture.means_[f,0] 
             mu = np.sum((model * np.log(model)) + (1 - model) * np.log(1 - model))
             a = np.log(model / (1 - model))
@@ -275,7 +275,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         
         II = comps[:,0]
 
-        for f in xrange(self.num_features):
+        for f in range(self.num_features):
             X = llhs[II == f]
             mu = X.mean()
             sigma = X.std()
@@ -298,7 +298,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         if 0:
             keepers = np.zeros(llhs.shape, dtype=np.bool)
 
-            for f in xrange(self.num_features):
+            for f in range(self.num_features):
                 llhs_f = llhs[II == f] 
                 th_f = scipy.stats.scoreatpercentile(llhs_f, 80)
 
@@ -329,7 +329,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         #self.visparts = np.asarray([np.average(data, axis=0, weights=aff[:,m]) for m in xrange(self.num_mix)])
         self.visparts = np.zeros((mixture.n_components,) + raw_originals.shape[2:])
         counts = np.zeros(mixture.n_components)
-        for n in xrange(raw_originals.shape[0]):
+        for n in range(raw_originals.shape[0]):
             f, polarity = comps[n]# np.unravel_index(np.argmax(mixture.q[n]), mixture.q.shape[1:])
             self.visparts[f] += raw_originals[n,polarity]
             counts[f] += 1
@@ -378,10 +378,10 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         assert len(order_single) > 0, "No edges kept! Something probably went wrong"
 
         self._num_parts = len(order_single)
-        print 'num_parts', self._num_parts
+        print('num_parts', self._num_parts)
 
         order = np.zeros(self.num_features * 2, dtype=int) 
-        for f in xrange(self.num_features):
+        for f in range(self.num_features):
             order[2*f] = order_single[f]*2
             order[2*f+1] = order_single[f]*2+1
         II = order
@@ -430,7 +430,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         if 0:
             counts = np.bincount(mixture.mixture_components(), minlength=self.num_parts)
             scores = np.empty(self.num_parts) 
-            for i in xrange(self.num_parts):
+            for i in range(self.num_parts):
                 part = mixture.templates[i]
                 sh = part.shape
                 p = part.reshape((sh[0]*sh[1], sh[2]))
@@ -459,7 +459,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             
                 # Improved visparts
                 comps = mixture.mixture_components()
-                for i in xrange(self.num_parts):
+                for i in range(self.num_parts):
                     ims = raw_originals[comps == i].copy()
 
                     self.extra['originals'].append(ims)
@@ -614,7 +614,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
             else:
                 all_feats = []
-                for i in xrange(10):
+                for i in range(10):
                     feats = ag.features.extract_parts(edges, unspread_edges,
                                                       self._log_parts,
                                                       self._log_invparts,
@@ -629,9 +629,9 @@ class PolarityPartsDescriptor(BinaryDescriptor):
 
                 feats = all_feats.max(axis=0)
             
-            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
+            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in range(2))
             lower = (buf[0]//2, buf[1]//2)
-            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in range(2))
 
         else:
             sett = self.settings.copy()
@@ -642,9 +642,9 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             psize = sett.get('subsample_size', (1, 1))
             feats = gv.sub.subsample(feats, psize)
 
-            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
+            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in range(2))
             lower = (buf[0]//2, buf[1]//2)
-            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in range(2))
 
             # Now collapse the polarities
             #feats = feats.reshape((int(feats.shape[0]//2), 2) + feats.shape[1:])
@@ -657,7 +657,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
             new_feats_shape = feats.shape
             new_feats = np.empty(new_feats_shape, dtype=np.uint8)
             #import pdb; pdb.set_trace()
-            for i, j in itr.product(xrange(feats.shape[0]), xrange(feats.shape[1])):
+            for i, j in itr.product(range(feats.shape[0]), range(feats.shape[1])):
                 # Transform the basis 0.572
                 #new_feats[i,j] = np.dot(Q[:,-ARTS:].T, feats[i,j])
                 new_feats[i,j] = (np.fabs(np.dot(Q.T, feats[i,j].astype(float))) > 15)
@@ -811,7 +811,7 @@ class PolarityPartsDescriptor(BinaryDescriptor):
         # Do spreading
         radii = sett.get('spread_radii', (0, 0))
 
-        print tau
+        print(tau)
         spread_parts = ag.features.spread_patches_new(partprobs.astype(np.float32), radii[0], radii[1], tau)
 
         cb = sett.get('crop_border')

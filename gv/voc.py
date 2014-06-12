@@ -1,4 +1,4 @@
-from __future__ import division
+
 import os.path
 import numpy as np
 from xml.dom.minidom import parse
@@ -120,7 +120,7 @@ def load_specific_files(class_name, img_ids, has_objects=None, padding=0, poses=
 
     files = [] 
     hasobject = 1 
-    for i in xrange(N):
+    for i in range(N):
         img_id = img_ids[i]
         if has_objects is not None:
             hasobject = has_objects[i] 
@@ -148,8 +148,8 @@ _TEST_NEGS = [
 ]
 
 _NEGS = [1, 2, 5, 6, 8, 9, 10, 11, 13, 15, 16, 30, 31, 42, 43, 44, 45, 46, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 61, 62, 63, 64, 65, 66, 67, 68, 70, 73, 75, 76, 100]
-_NEGS2 = range(104, 130)
-_NEGS3 = range(138, 141+1) + range(143, 151+1) + range(162, 168+1) + [170, 171] + range(173, 179+1) + range(181, 187+1) + range(191, 196+1) + range(198, 209+1) + range(211, 219+1)
+_NEGS2 = list(range(104, 130))
+_NEGS3 = list(range(138, 141+1)) + list(range(143, 151+1)) + list(range(162, 168+1)) + [170, 171] + list(range(173, 179+1)) + list(range(181, 187+1)) + list(range(191, 196+1)) + list(range(198, 209+1)) + list(range(211, 219+1))
 _VOC_OTHER_PROFILES = [3971, 3973, 4830, 4962, 5199, 5350, 5749, 6062, 7843, 8057, 8329, 8429, 8461, 9029, 9671, 9913]
 _VOC_PROFILES = [153, 220, 263, 317, 522, 871, 1060, 1119, 1662, 2182, 3790, 3936]
 _VOC_PROFILES2 = _VOC_PROFILES + _NEGS
@@ -219,7 +219,7 @@ def _load_images(objfiles, tot, size, padding=0):
                 if gv.bb.box_sticks_out(bbsquare_padded, bbim):
                     continue
     
-                bbsquare_resized = tuple([bbsquare_padded[i] * factor for i in xrange(4)])
+                bbsquare_resized = tuple([bbsquare_padded[i] * factor for i in range(4)])
 
                 padded_size = (size[0] + 2*padding, size[1] + 2*padding)
                 if 1:
@@ -252,9 +252,9 @@ def load_negative_images_of_size(class_name, size, dataset='train', count=10, pa
 
         im_resized = gv.img.resize_with_factor(im, factor)
     
-        shift = [im_resized.shape[i] - padded_size[i] for i in xrange(2)]
+        shift = [im_resized.shape[i] - padded_size[i] for i in range(2)]
         if min(shift) > 0: 
-            i, j = [np.random.randint(shift[i]) for i in xrange(2)]
+            i, j = [np.random.randint(shift[i]) for i in range(2)]
 
             # Extract image
             im_patch = im_resized[i:i+padded_size[0], j:j+padded_size[1]]

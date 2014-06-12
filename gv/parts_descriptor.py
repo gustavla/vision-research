@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 import random
 import copy
 import amitgroup as ag
@@ -87,21 +87,21 @@ class PartsDescriptor(BinaryDescriptor):
         #edges_nospread = ag.features.bedges_from_image(filename, radius=0, **s)
 
         # How many patches could we extract?
-        w, h = [edges.shape[i]-self.patch_size[i]+1 for i in xrange(2)]
+        w, h = [edges.shape[i]-self.patch_size[i]+1 for i in range(2)]
 
         # TODO: Maybe shuffle an iterator of the indices?
-        indices = list(itr.product(xrange(w-1), xrange(h-1)))
+        indices = list(itr.product(range(w-1), range(h-1)))
         random.shuffle(indices)
         i_iter = iter(indices)
 
         E = edges.shape[-1]
         th = _threshold_in_counts(self.settings, 8)
-        print('th', th)
+        print(('th', th))
 
-        for sample in xrange(samples_per_image):
-            for tries in xrange(20):
+        for sample in range(samples_per_image):
+            for tries in range(20):
                 #x, y = random.randint(0, w-1), random.randint(0, h-1)
-                x, y = i_iter.next()
+                x, y = next(i_iter)
                 selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
                 selection_padded = [slice(x, x+radius*2+self.patch_size[0]), slice(y, y+radius*2+self.patch_size[1])]
                 # Return grayscale patch and edges patch
@@ -113,7 +113,7 @@ class PartsDescriptor(BinaryDescriptor):
                 else:
                     tot = unspread_edgepatch[fr:-fr,fr:-fr].sum()
 
-                print('tot', tot)
+                print(('tot', tot))
 
                 if th <= tot: 
                     the_patches.append(edgepatch)
@@ -183,7 +183,7 @@ class PartsDescriptor(BinaryDescriptor):
 
         mixtures = []
         llhs = []
-        for i in xrange(1):
+        for i in range(1):
             mixture = ag.stats.BernoulliMixture(self.num_parts, raw_patches, init_seed=0+i)
             mixture.run_EM(1e-8, min_probability=self.settings['min_probability'])
             mixtures.append(mixture)
@@ -196,14 +196,14 @@ class PartsDescriptor(BinaryDescriptor):
         ag.info("Done.")
 
         counts = np.bincount(mixture.mixture_components(), minlength=self.num_parts)
-        print counts
-        print 'Total', np.sum(counts)
+        print(counts)
+        print('Total', np.sum(counts))
         from scipy.stats.mstats import mquantiles
-        print mquantiles(counts)
+        print(mquantiles(counts))
 
         # Reject weak parts
         scores = np.empty(self.num_parts) 
-        for i in xrange(self.num_parts):
+        for i in range(self.num_parts):
             part = mixture.templates[i]
             sh = part.shape
             p = part.reshape((sh[0]*sh[1], sh[2]))
@@ -232,7 +232,7 @@ class PartsDescriptor(BinaryDescriptor):
         
             # Improved visparts
             comps = mixture.mixture_components()
-            for i in xrange(self.num_parts):
+            for i in range(self.num_parts):
                 ims = raw_originals[comps == i].copy()
 
                 #self.extra['originals'].append(ims)
@@ -334,9 +334,9 @@ class PartsDescriptor(BinaryDescriptor):
         psize = sett.get('subsample_size', (1, 1))
         feats = gv.sub.subsample(feats, psize)
 
-        buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
+        buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in range(2))
         lower = (buf[0]//2, buf[1]//2)
-        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in range(2))
 
         return gv.ndfeature(feats, lower=lower, upper=upper)
 
@@ -448,7 +448,7 @@ class PartsDescriptor(BinaryDescriptor):
         # Do spreading
         radii = sett.get('spread_radii', (0, 0))
 
-        print tau
+        print(tau)
         spread_parts = ag.features.spread_patches_new(partprobs.astype(np.float32), radii[0], radii[1], tau)
 
         cb = sett.get('crop_border')

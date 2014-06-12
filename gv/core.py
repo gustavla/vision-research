@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 
 def imshow(*args, **kwargs):
@@ -42,7 +42,7 @@ def sigmoid(x):
 
 def multirange(*args):
     import itertools
-    return itertools.product(*map(xrange, args))
+    return itertools.product(*list(map(xrange, args)))
 
 
 class SlicesClass(object):
@@ -60,4 +60,4 @@ class Timer(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.end = time.time()
-        print "TIMER {0}: {1} s".format(self.name, self.end - self.start)
+        print(("TIMER {0}: {1} s".format(self.name, self.end - self.start)))

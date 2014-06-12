@@ -66,7 +66,7 @@ def load_files(contest, obj_class):
     elif contest.startswith('custom'):
         name = contest[len('custom-'):]
         files, tot = gv.custom.load_testing_files(name)
-    if contest == 'voc-traingen':
+    elif contest == 'voc-traingen':
         files, tot = gv.voc.load_files(obj_class, dataset='traingen')
     else:
         raise ValueError("Contest does not exist: {0}".format(contest))

@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 
 def filter_names():

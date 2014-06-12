@@ -1,4 +1,4 @@
-from __future__ import division, print_function, absolute_import
+
 
 import numpy as np
 
@@ -24,10 +24,10 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
         F = weights.shape[-1]
         between_feature_spreading = np.zeros((F, rotspread*2 + 1), dtype=np.int32)
 
-        for f in xrange(F):
+        for f in range(F):
             thepart = f // ORI
             ori = f % ORI 
-            for i in xrange(rotspread*2 + 1):
+            for i in range(rotspread*2 + 1):
                 between_feature_spreading[f,i] = thepart * ORI + (ori - rotspread + i) % ORI
 
     # }TEMP
@@ -61,7 +61,7 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
             absw[max(0, ii[0]-suppress_radius):ii[0]+suppress_radius+1, max(0, ii[1]-suppress_radius):ii[1]+suppress_radius+1,ii[2]] = 0.0
             #absw[max(0, ii[0]-suppress_radius):ii[0]+suppress_radius+1, max(0, ii[1]-suppress_radius):ii[1]+suppress_radius+1,between_feature_spreading[ii[2]]] = 0.0
             if 0:
-                for j in xrange(3):
+                for j in range(3):
                     r = suppress_radii[j]
                     absw[max(0, ii[0]-r):ii[0]+r+1, max(0, ii[1]-r):ii[1]+r+1,between_feature_spreading[ii[2],j]] = 0.0
 
@@ -80,18 +80,18 @@ def get_key_points(weights, suppress_radius=2, max_indices=np.inf, even=False):
         Ls = np.bincount(indices[:,2], minlength=weights.shape[-1])
         L = int(np.median(Ls))
 
-        print('indices per features:', L)
+        print(('indices per features:', L))
 
         new_indices = np.zeros((L * F, 3), dtype=np.int32)
 
-        for f in xrange(F):
+        for f in range(F):
             indf = indices[indices[...,2] == f]
 
         
             new_indices[L*f:L*f + min(L, indf.shape[0])] = indf[:L]
 
             # Fill up the rest with random indices that are not taken
-            for l in xrange(int(indf.shape[0]), L):
+            for l in range(int(indf.shape[0]), L):
                 while True:
                     l0, l1 = rs.randint(weights.shape[0]), rs.randint(weights.shape[1])
 

@@ -1,9 +1,9 @@
-from __future__ import division
+
 import numpy as np
-from ndfeature import ndfeature
-from real_descriptor import RealDescriptor
-from polarity_parts_descriptor import PolarityPartsDescriptor
-from unraveled_hog import unraveled_hog
+from .ndfeature import ndfeature
+from .real_descriptor import RealDescriptor
+from .polarity_parts_descriptor import PolarityPartsDescriptor
+from .unraveled_hog import unraveled_hog
 
 @RealDescriptor.register('polarity-parts')
 class RealPolarityPartsDescriptor(RealDescriptor):

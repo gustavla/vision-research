@@ -1,4 +1,4 @@
-from __future__ import division, print_function, absolute_import
+
 import random
 import copy
 import amitgroup as ag
@@ -81,7 +81,7 @@ def _get_patches(bedges_settings, settings, filename):
     # Make it square, to accommodate all types of rotations
     new_size = int(np.max(size) * np.sqrt(2))
     img_padded = ag.util.zeropad_to_shape(img, (new_size, new_size))
-    pad = [(new_size-size[i])//2 for i in xrange(2)]
+    pad = [(new_size-size[i])//2 for i in range(2)]
 
     angles = np.arange(0, 360, 360/ORI)
     radians = angles*np.pi/180
@@ -129,23 +129,23 @@ def _get_patches(bedges_settings, settings, filename):
     # TODO: Maybe shuffle an iterator of the indices?
 
     # These indices represent the center of patches
-    indices = list(itr.product(xrange(pad[0]+avoid_edge, pad[0]+img.shape[0]-avoid_edge), xrange(pad[1]+avoid_edge, pad[1]+img.shape[1]-avoid_edge)))
+    indices = list(itr.product(range(pad[0]+avoid_edge, pad[0]+img.shape[0]-avoid_edge), range(pad[1]+avoid_edge, pad[1]+img.shape[1]-avoid_edge)))
     random.shuffle(indices)
     i_iter = itr.cycle(iter(indices))
 
-    minus_ps = [-ps[i]//2 for i in xrange(2)]
-    plus_ps = [minus_ps[i] + ps[i] for i in xrange(2)]
+    minus_ps = [-ps[i]//2 for i in range(2)]
+    plus_ps = [minus_ps[i] + ps[i] for i in range(2)]
 
     E = all_edges.shape[-1]
     th = _threshold_in_counts(settings, E, bedges_settings['contrast_insensitive'])
 
     rs = np.random.RandomState(0)
 
-    for sample in xrange(samples_per_image):
-        for tries in xrange(100):
+    for sample in range(samples_per_image):
+        for tries in range(100):
             #selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
             #x, y = random.randint(0, w-1), random.randint(0, h-1)
-            x, y = i_iter.next()
+            x, y = next(i_iter)
 
             selection0 = [0, slice(x+minus_ps[0], x+plus_ps[0]), slice(y+minus_ps[1], y+plus_ps[1])]
 
@@ -173,9 +173,9 @@ def _get_patches(bedges_settings, settings, filename):
                 patch = np.zeros((ORI * POL,) + ps + (E,))
                 vispatch = np.zeros((ORI * POL,) + ps)
 
-                for ori in xrange(ORI * POL):
+                for ori in range(ORI * POL):
                     p = matrices[ori] * XY
-                    ip = [int(round(p[i])) for i in xrange(2)]
+                    ip = [int(round(p[i])) for i in range(2)]
 
                     selection = [ori, slice(ip[0]+minus_ps[0], ip[0]+plus_ps[0]), slice(ip[1]+minus_ps[1], ip[1]+plus_ps[1])]
 
@@ -223,14 +223,14 @@ def convert_partprobs_to_feature_vector(partprobs, tau=0.0):
     mx = 0.0
     feats = np.zeros((X_dim_0, X_dim_1, num_parts), dtype=np.uint8)
 
-    for i in xrange(X_dim_0):
-        for j in xrange(X_dim_1):
+    for i in range(X_dim_0):
+        for j in range(X_dim_1):
             m = partprobs[i,j].argmax()
             mx = partprobs[i,j,m]
             if m != 0:
                 if mx > -150:
                     d = partprobs[i,j,m] - 20
-                    for f in xrange(1,num_parts+1):
+                    for f in range(1,num_parts+1):
                         if partprobs[i,j,f] >= d:
                             feats[i,j,f-1] = 1 
                 else:
@@ -326,13 +326,13 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         P = ORI * POL
 
         def cycles(X):
-            return np.asarray([np.concatenate([X[i:], X[:i]]) for i in xrange(len(X))])
+            return np.asarray([np.concatenate([X[i:], X[:i]]) for i in range(len(X))])
 
         # Arrange permutations (probably a roundabout way of doing it)
         RR = np.arange(ORI)
         PP = np.arange(POL)
         II = [list(itr.product(PPi, RRi)) for PPi in cycles(PP) for RRi in cycles(RR)]
-        lookup = dict(zip(itr.product(PP, RR), itr.count()))
+        lookup = dict(list(zip(itr.product(PP, RR), itr.count())))
         permutations = np.asarray([[lookup[ii] for ii in rows] for rows in II])
         n_init = self.settings.get('n_init', 1)
         n_iter = self.settings.get('n_iter', 10)
@@ -363,7 +363,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
 
         means = []
         sigmas = []
-        for f in xrange(self.num_features):
+        for f in range(self.num_features):
             model = mixture.means_[f,0] 
             mu = np.sum((model * np.log(model)) + (1 - model) * np.log(1 - model))
             a = np.log(model / (1 - model))
@@ -386,7 +386,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         
         II = comps[:,0]
 
-        for f in xrange(self.num_features):
+        for f in range(self.num_features):
             X = llhs[II == f]
             if len(X) > 0:
                 mu = X.mean()
@@ -414,7 +414,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         if 0:
             keepers = np.zeros(llhs.shape, dtype=np.bool)
 
-            for f in xrange(self.num_features):
+            for f in range(self.num_features):
                 llhs_f = llhs[II == f] 
                 th_f = scipy.stats.scoreatpercentile(llhs_f, 80)
 
@@ -441,7 +441,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         #self.visparts = None#self.visparts[II]
 
         firsts = np.zeros(self.parts.shape[0], dtype=int)
-        for f in xrange(self.parts.shape[0]): 
+        for f in range(self.parts.shape[0]): 
             avgs = np.apply_over_axes(np.mean, self.parts[f,:ORI,...,0], [1, 2]).squeeze()
             firsts[f] = np.argmax(avgs)
 
@@ -456,7 +456,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         #self.visparts = np.asarray([np.average(data, axis=0, weights=aff[:,m]) for m in xrange(self.num_mix)])
         self.visparts = np.zeros((mixture.n_components,) + raw_originals.shape[2:])
         counts = np.zeros(mixture.n_components)
-        for n in xrange(raw_originals.shape[0]):
+        for n in range(raw_originals.shape[0]):
             f, polarity = comps[n]# np.unravel_index(np.argmax(mixture.q[n]), mixture.q.shape[1:])
             self.visparts[f] += raw_originals[n,(polarity+firsts[f])%P]
             counts[f] += 1
@@ -513,8 +513,8 @@ class OrientedPartsDescriptor(BinaryDescriptor):
         print('num_true_parts', self._num_true_parts)
 
         order = np.zeros(len(order_single) * P, dtype=int) 
-        for f in xrange(len(order_single)):
-            for p in xrange(P):
+        for f in range(len(order_single)):
+            for p in range(P):
                 order[P*f+p] = order_single[f]*P+p
 
         II = order
@@ -586,7 +586,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
 
             if POL == 2 and not self.settings.get('no_collapse', False):
                 part_to_feature = np.zeros(self.parts.shape[0], dtype=np.int64)
-                for f in xrange(part_to_feature.shape[0]):
+                for f in range(part_to_feature.shape[0]):
                     thepart = f // P
                     ori = f % H
                     v = thepart * H + ori
@@ -602,10 +602,10 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             else:
                 between_feature_spreading = np.zeros((self.num_parts, rotspread*2 + 1), dtype=np.int32)
 
-                for f in xrange(self.num_parts):
+                for f in range(self.num_parts):
                     thepart = f // ORI
                     ori = f % ORI 
-                    for i in xrange(rotspread*2 + 1):
+                    for i in range(rotspread*2 + 1):
                         between_feature_spreading[f,i] = thepart * ORI + (ori - rotspread + i) % ORI
 
             feats = ag.features.extract_parts(edges, unspread_edges,
@@ -620,9 +620,9 @@ class OrientedPartsDescriptor(BinaryDescriptor):
                                               between_feature_spreading=between_feature_spreading)
 
             
-            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
+            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in range(2))
             lower = (buf[0]//2, buf[1]//2)
-            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in range(2))
 
         else:
             sett = self.settings.copy()
@@ -633,9 +633,9 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             psize = sett.get('subsample_size', (1, 1))
             feats = gv.sub.subsample(feats, psize)
 
-            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
+            buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in range(2))
             lower = (buf[0]//2, buf[1]//2)
-            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+            upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in range(2))
 
             # Now collapse the polarities
             #feats = feats.reshape((int(feats.shape[0]//2), 2) + feats.shape[1:])
@@ -647,7 +647,7 @@ class OrientedPartsDescriptor(BinaryDescriptor):
             Q = np.load('Q.npy')
             new_feats_shape = feats.shape
             new_feats = np.empty(new_feats_shape, dtype=np.uint8)
-            for i, j in itr.product(xrange(feats.shape[0]), xrange(feats.shape[1])):
+            for i, j in itr.product(range(feats.shape[0]), range(feats.shape[1])):
                 # Transform the basis 0.572
                 #new_feats[i,j] = np.dot(Q[:,-ARTS:].T, feats[i,j])
                 new_feats[i,j] = (np.fabs(np.dot(Q.T, feats[i,j].astype(float))) > 15)
