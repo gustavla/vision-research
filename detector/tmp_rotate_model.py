@@ -19,6 +19,7 @@ def main():
     d = gv.BernoulliDetector.load(args.model)
 
     assert len(d.kernel_templates) == 1, "Can only rotate a model that has a single component to begin with"
+    #assert d.descriptor.settings.get('polarities', 1) == 1, "Only POL 1 for now"
 
     deg_per_step = d.descriptor.degrees_per_step
     ROT = d.descriptor.settings.get('orientations', 1)
@@ -43,9 +44,9 @@ def main():
         print('deg', deg)
         slices = []
         for f in xrange(w0.shape[-1]):
-            rotted = (rotate(w0[...,f] / 10 + 0.5, deg, resize=True, cval=0.5) - 0.5) * 10
+            rotated = (rotate(w0[...,f] / 20 + 0.5, deg, resize=True, cval=0.5) - 0.5) * 20
 
-            slices.append(rotted)
+            slices.append(rotated)
 
             if f % 50 == 0:
                 print(f)
@@ -59,7 +60,7 @@ def main():
                 plt.savefig(vz.generate_filename())
 
                 plt.figure()
-                plt.imshow(rotted, vmin=-3, vmax=3, cmap=plt.cm.RdBu_r, interpolation='nearest')
+                plt.imshow(rotated, vmin=-3, vmax=3, cmap=plt.cm.RdBu_r, interpolation='nearest')
                 plt.savefig(vz.generate_filename())
 
         slices = np.rollaxis(np.asarray(slices), 0, 3)

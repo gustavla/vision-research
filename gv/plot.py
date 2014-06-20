@@ -4,12 +4,13 @@ import gv
 #from scipy.ndimage.interpolation import zoom
 
 class ImageGrid(object):
-    def __init__(self, rows, cols, size, border_color=np.array([0.5, 0.5, 0.5])):
+    def __init__(self, rows, cols, size, border_color=np.array([0.5, 0.5, 0.5]), nan_color=np.array([1.0, 1.0, 1.0])):
         self._rows = rows
         self._cols = cols
         self._size = size
         self._border = 1
         self._border_color = np.array(border_color)
+        self._nan_color = np.array(nan_color)
 
         self._fullsize = (self._border + (size[0] + self._border) * self._rows,
                           self._border + (size[1] + self._border) * self._cols)
@@ -48,8 +49,10 @@ class ImageGrid(object):
         anchor = (self._border + row * (self._size[0] + self._border),
                   self._border + col * (self._size[1] + self._border))
 
+        not_valid = np.isnan(image)[...,np.newaxis]
+
         self._data[anchor[0] : anchor[0] + rgb.shape[0],
-                   anchor[1] : anchor[1] + rgb.shape[1]] = rgb
+                   anchor[1] : anchor[1] + rgb.shape[1]] = rgb * (1 - not_valid) + self._nan_color * not_valid
 
     def save(self, path, scale=1):
         data = self._data
