@@ -1,5 +1,5 @@
 
-from __future__ import division
+
 import numpy as np
 from scipy.stats import beta
 from scipy.misc import logsumexp
@@ -56,10 +56,10 @@ class BetaMixture(object):
         while self.iterations < 200 and (np.isinf(loglikelihood) or self.iterations < 2 or np.fabs((new_loglikelihood - loglikelihood)/loglikelihood) > tol):
             loglikelihood = new_loglikelihood
             ag.info("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
-            for m in xrange(M):
+            for m in range(M):
                 v = qlogs[m] 
                 v[:] = 0.0
-                for d in xrange(D):
+                for d in range(D):
                     #print beta.logpdf(Xsafe[:,d], self.theta_[m,d,0], self.theta_[m,d,1])
                     v += beta.logpdf(Xsafe[:,d], self.theta_[m,d,0], self.theta_[m,d,1])
                 qlogs[m] = v
@@ -81,8 +81,8 @@ class BetaMixture(object):
             
             # Update thetas with the new labels
             if 0:
-                for m in xrange(M):
-                    for d in xrange(D):
+                for m in range(M):
+                    for d in range(D):
                         Xsafem = Xsafe[self.labels_ == m, d]
                         sm, sv = weighted_avg_and_var(Xsafe[:,d], q[m])
                         #sm = np.mean(Xsafem)
@@ -94,8 +94,8 @@ class BetaMixture(object):
                             raise Exception()
 
             else:
-                for m in xrange(M):
-                    for d in xrange(D):
+                for m in range(M):
+                    for d in range(D):
                         #from scipy.optimize import newton_krylov, nonlin
                         from scipy.special import psi
 
@@ -131,7 +131,7 @@ class BetaMixture(object):
         
             #import pdb; pdb.set_trace()
     
-            for m in xrange(M):
+            for m in range(M):
                 Xm = Xsafe[self.labels_ == m]
                 self.theta_[m] = self.fit_beta_atleast_std(Xm, 0.225)
 
@@ -140,8 +140,8 @@ class BetaMixture(object):
                     
 
         if 0:
-            for m in xrange(M):
-                for d in xrange(D):
+            for m in range(M):
+                for d in range(D):
                     if self.theta_[m,d].max() > 50:
                         self.theta_[m,d] /= self.theta_[m,d].max() / 50
             #self.theta_ = np.maximum(self.theta_, 1.0)
@@ -151,8 +151,8 @@ class BetaMixture(object):
         M = self._n_clusters
         D = X.shape[1]
         #print self.theta_.min(), self.theta_.max()
-        for m in xrange(M):
-            for d in xrange(D):
+        for m in range(M):
+            for d in range(D):
                 #print self.theta_[m,d,0], self.theta_[m,d,1]
                 #print X[:,d].min(), X[:,d].max(), self.theta_[m,d]
                 llh += np.sum((self.labels_ == m) * \
@@ -172,9 +172,9 @@ class BetaMixture(object):
 
         self.theta_ = np.zeros((M, D, 2))
 
-        for m in xrange(M):
+        for m in range(M):
             Xm = X[self.labels_ == m]
-            for d in xrange(D):
+            for d in range(D):
                 sm = np.mean(Xm[:,d])
                 sv = np.var(Xm[:,d])
                 self.theta_[m,d,0] = sm * (sm * (1 - sm) / sv - 1)
@@ -205,9 +205,9 @@ class BetaMixture(object):
         
         scores = np.zeros(len(params))
         
-        for d in xrange(D):
+        for d in range(D):
             # Check likelihood of the dists
-            for p in xrange(len(params)):
+            for p in range(len(params)):
                 scores[p] = beta.logpdf(Xsafe[:,d], *params[p]).sum()
 
             ii = scores.argmax()
@@ -234,9 +234,9 @@ class BetaMixture(object):
         
         scores = np.zeros(len(params))
         
-        for d in xrange(D):
+        for d in range(D):
             # Check likelihood of the dists
-            for p in xrange(len(params)):
+            for p in range(len(params)):
                 scores[p] = beta.logpdf(Xsafe[:,d], *params[p]).sum()
 
             ii = scores.argmax()
@@ -253,7 +253,7 @@ class BetaMixture(object):
 
         theta = np.zeros((D, 2))
         
-        for d in xrange(D):
+        for d in range(D):
             sm = np.mean(X[:,d])
             sv = np.var(X[:,d])
 
@@ -264,13 +264,13 @@ class BetaMixture(object):
             theta[d,1] = (1 - sm) * (sm * (1 - sm) / sv - 1)
 
 
-        print 'theta min/max', theta.min(), theta.max()
+        print(('theta min/max', theta.min(), theta.max()))
         
         #for d in xrange(D):
             #if theta[d].max() > 20:
                 #theta[d] /= theta[d].max() / 20
 
-        for d in xrange(D):
+        for d in range(D):
             if theta[d].min() < 0.5:
                 theta[d] /= theta[d].min() / 0.5 
 

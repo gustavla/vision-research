@@ -1,4 +1,4 @@
-from __future__ import division, absolute_import, print_function
+
 from .real_descriptor import RealDescriptor
 from .detector import Detector, BernoulliDetector
 import numpy as np
@@ -51,11 +51,11 @@ class RealDetector(BernoulliDetector):
 
             comps = mixture.predict(X)
 
-            comp_feats = [pos_feats[comps==k] for k in xrange(K)]
+            comp_feats = [pos_feats[comps==k] for k in range(K)]
 
         kernel_sizes = []
         svms = []
-        for k in xrange(K):
+        for k in range(K):
             from sklearn import linear_model
             from sklearn import svm
             #from sklearn.svm import sparse
@@ -269,13 +269,13 @@ class RealDetector(BernoulliDetector):
         top_th = 200.0
         bbs = []
 
-        agg_factors = tuple([psize[i] * factor for i in xrange(2)])
-        agg_factors2 = tuple([factor for i in xrange(2)])
+        agg_factors = tuple([psize[i] * factor for i in range(2)])
+        agg_factors2 = tuple([factor for i in range(2)])
         #bb_bigger = (0.0, 0.0, feats.shape[0] * agg_factors[0], feats.shape[1] * agg_factors[1])
         bbs_sorted = [] 
         if return_bounding_boxes:
-            for i in xrange(resmap.shape[0]):
-                for j in xrange(resmap.shape[1]):
+            for i in range(resmap.shape[0]):
+                for j in range(resmap.shape[1]):
                     score = resmap[i,j]
                     if score >= th:
                         X = bigger[i:i+sh0[0], j:j+sh0[1]]

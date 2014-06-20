@@ -1,8 +1,8 @@
-from __future__ import division, print_function
+
 import numpy as np
-from ndfeature import ndfeature
-from real_descriptor import RealDescriptor
-from unraveled_hog import unraveled_hog
+from .ndfeature import ndfeature
+from .real_descriptor import RealDescriptor
+from .unraveled_hog import unraveled_hog
 
 @RealDescriptor.register('hog')
 class HOGDescriptor(RealDescriptor):
@@ -50,7 +50,7 @@ class HOGDescriptor(RealDescriptor):
 
         if 0:
             # The HOG we're using is not that configurable. It uses polarity insensitive gradients.
-            print('orientations', orientations)
+            print(('orientations', orientations))
             if not sett['polarity_sensitive']:
                 assert orientations % 2 == 0, "Must have even number of orientations for polarity insensitive edges"
                 S = orientations // 2
@@ -70,9 +70,9 @@ class HOGDescriptor(RealDescriptor):
             hog = hog[cb:-cb, cb:-cb]
 
         # How much space was cut away?
-        buf = tuple(image.shape[i] - hog.shape[i] * ppc[i] for i in xrange(2))
-        lower = tuple(buf[i]//2 for i in xrange(2))
-        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+        buf = tuple(image.shape[i] - hog.shape[i] * ppc[i] for i in range(2))
+        lower = tuple(buf[i]//2 for i in range(2))
+        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in range(2))
 
         return ndfeature(hog, lower=lower, upper=upper)
 

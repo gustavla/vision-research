@@ -25,7 +25,9 @@ def main():
     ROT = d.descriptor.settings.get('orientations', 1)
     print('degrees per step', deg_per_step)
 
-    rots = [-ROT//4, ROT//4]
+    #rots = [-ROT//4, ROT//4]
+    rots = np.arange(ROT)[::1][1:]
+    print('rots', rots)
     new_components = []
 
     #kern = d.kernel_templates[0]
@@ -82,12 +84,30 @@ def main():
 
     print(map(np.shape, weights))
 
-    # Invent new keypoints    
+    bkg = np.apply_over_axes(np.mean, d.fixed_spread_bkg[0], [0, 1]).ravel()
+
+    # Invent new keypoints and determine standardization info   
     indices = []
+    info = []
     for m in xrange(d.num_mixtures):
         w = weights[m]
         ii = get_key_points(w, suppress_radius=d.settings.get('indices_suppress_radius', 4), even=True)
         indices.append(ii)
+
+        llh_mean = 0.0
+        llh_var = 0.0
+        for index in ii:
+            part = index[-1]
+            # TODO: Should this really be clipped before averaging?
+            mvalue = bkg[part]
+
+            llh_mean += mvalue * w[tuple(index)]
+            llh_var += mvalue * (1 - mvalue) * w[tuple(index)]**2
+
+        info.append(dict(mean=llh_mean, std=np.sqrt(llh_var)))
+
+    d.settings['testing_type'] = 'fixed'
+    d.standardization_info = info
 
     # Now store the weights preprocessed
     d.indices = indices

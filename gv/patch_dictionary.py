@@ -2,7 +2,7 @@ import random
 import copy
 import amitgroup as ag
 import numpy as np
-from saveable import Saveable
+from .saveable import Saveable
 
 class PatchDictionary(Saveable):
     def __init__(self, patch_size, num_patches, settings={}):
@@ -24,7 +24,7 @@ class PatchDictionary(Saveable):
         # Or maybe just do defaults?
         # self.settings['bedges'] = {}
         self.settings['bedges'] = dict(k=5, radius=1, minimum_contrast=0.05, contrast_insensitive=True)
-        for k, v in settings.items():
+        for k, v in list(settings.items()):
             self.settings[k] = v
 
     def _get_patches(self, filename):
@@ -42,12 +42,12 @@ class PatchDictionary(Saveable):
         edges_nospread = ag.features.bedges_from_image(filename, radius=0, **s)
 
         # How many patches could we extract?
-        w, h = [edges.shape[i]-self.patch_size[i]+1 for i in xrange(2)]
+        w, h = [edges.shape[i]-self.patch_size[i]+1 for i in range(2)]
 
         # TODO: Maybe shuffle an iterator of the indices?
 
-        for sample in xrange(samples_per_image):
-            for tries in xrange(20):
+        for sample in range(samples_per_image):
+            for tries in range(20):
                 x, y = random.randint(0, w-1), random.randint(0, h-1)
                 selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
                 # Return grayscale patch and edges patch
@@ -83,7 +83,7 @@ class PatchDictionary(Saveable):
             else:
                 mapfunc = map
 
-        ret = map(self._get_patches, filenames)
+        ret = list(map(self._get_patches, filenames))
 
         for patches, originals in ret:
             raw_patches.extend(patches)

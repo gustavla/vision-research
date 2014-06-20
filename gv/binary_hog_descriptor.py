@@ -1,8 +1,8 @@
-from __future__ import division
+
 import numpy as np
-from ndfeature import ndfeature
-from binary_descriptor import BinaryDescriptor
-from unraveled_hog import unraveled_hog
+from .ndfeature import ndfeature
+from .binary_descriptor import BinaryDescriptor
+from .unraveled_hog import unraveled_hog
 
 @BinaryDescriptor.register('bhog')
 class BinaryHOGDescriptor(BinaryDescriptor):
@@ -33,9 +33,9 @@ class BinaryHOGDescriptor(BinaryDescriptor):
             hog = hog.reshape(hog.shape[:2] + (-1,))
 
         # How much space was cut away?
-        buf = tuple(image.shape[i] - hog.shape[i] * ppc[i] for i in xrange(2))
-        lower = tuple(buf[i]//2 for i in xrange(2))
-        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+        buf = tuple(image.shape[i] - hog.shape[i] * ppc[i] for i in range(2))
+        lower = tuple(buf[i]//2 for i in range(2))
+        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in range(2))
 
         return ndfeature(hog, lower=lower, upper=upper)
         if 0: 

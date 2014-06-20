@@ -27,12 +27,12 @@ class PolarityBernoulliMM(object):
 
         # Initialize
         clusters = np.random.randint(K, size=N)
-        theta = np.asarray([np.mean(X[clusters == k], axis=0) for k in xrange(K)])
+        theta = np.asarray([np.mean(X[clusters == k], axis=0) for k in range(K)])
         theta[:] = np.clip(theta, eps, 1 - eps)
 
         self.q = np.empty((N, K, P))
         logq = np.empty((N, K, P))
-        for i in xrange(self.n_iter):
+        for i in range(self.n_iter):
             ag.info("Iteration ", i+1)
             #logq[:] = np.log(pi)[np.newaxis,:,np.newaxis]
 
@@ -40,7 +40,7 @@ class PolarityBernoulliMM(object):
             #    logq[:,k,p] = np.log(pi[k,p])
             logq[:] = np.log(pi[np.newaxis])
 
-            for p in xrange(P):
+            for p in range(P):
                 p0, p1 = p, (p+1)%2
                 logq[:,:,p] += np.dot(X[:,p0], np.log(theta[:,0] / (1 - theta[:,0])).T) + np.log(1 - theta[:,0]).sum(axis=1)[np.newaxis] +\
                                np.dot(X[:,p1], np.log(theta[:,1] / (1 - theta[:,1])).T) + np.log(1 - theta[:,1]).sum(axis=1)[np.newaxis]
@@ -91,9 +91,9 @@ class PolarityBernoulliMM(object):
             # Calculate the log likelihood
             if 0:
                 llh = 0.0
-                for n in xrange(N):
+                for n in range(N):
                     v = 0.0
-                    for k, p in itr.product(xrange(K), xrange(P)):
+                    for k, p in itr.product(range(K), range(P)):
                         v += pi[k,p] * self.q[n,k,p]
                         #llh += pi[k]/2 * q[n,k,p] * np.sum(X[n,p0] * np.log(theta[k,0]) + (1 - X[n,p0]) * np.log(1 - theta[k,0]) + \
                         #                                   X[n,p1] * np.log(theta[k,1]) + (1 - X[n,p1]) * np.log(1 - theta[k,1]))
@@ -113,4 +113,4 @@ class PolarityBernoulliMM(object):
         components: list 
             A list of length `num_data`  where `components[i]` indicates which mixture index the `i`-th data entry belongs the most to (results should be degenerate).
         """
-        return np.asarray([np.unravel_index(self.q[n].argmax(), self.q.shape[1:]) for n in xrange(self.q.shape[0])])
+        return np.asarray([np.unravel_index(self.q[n].argmax(), self.q.shape[1:]) for n in range(self.q.shape[0])])

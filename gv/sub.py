@@ -1,23 +1,23 @@
-from __future__ import division
+
 import numpy as np
 
 def subsample_size(data, size):
-    return tuple([data.shape[i]//size[i] for i in xrange(2)])
+    return tuple([data.shape[i]//size[i] for i in range(2)])
 
 def subsample_size_new(shape, size):
-    return tuple([shape[i]//size[i] for i in xrange(2)])
+    return tuple([shape[i]//size[i] for i in range(2)])
 
 def iround(x):
     return int(round(x))
 
 def subsample_offset_shape(shape, size):
-    return [int(shape[i]%size[i]/2 + size[i]/2)  for i in xrange(2)]
+    return [int(shape[i]%size[i]/2 + size[i]/2)  for i in range(2)]
 
 def subsample_offset(data, size):
-    return [int(data.shape[i]%size[i]/2 + size[i]/2)  for i in xrange(2)]
+    return [int(data.shape[i]%size[i]/2 + size[i]/2)  for i in range(2)]
 
 def subsample_offset2(data, size):
-    return [size[i]//2  for i in xrange(2)]
+    return [size[i]//2  for i in range(2)]
 
 def subsample(data, size, skip_first_axis=False):
     # TODO: Make nicer
@@ -34,11 +34,11 @@ def subsample(data, size, skip_first_axis=False):
 def erase(x, y, psize):
     offset = np.asarray(subsample_offset(x, psize)) - np.asarray(subsample_offset2(x, psize))
         
-    for i in xrange(y.shape[0]):
-        for j in xrange(y.shape[1]):
+    for i in range(y.shape[0]):
+        for j in range(y.shape[1]):
             if y[i,j] == 0:
                 edges = [[0, 0], [0, 0]] 
-                for k in xrange(2):
+                for k in range(2):
                     it = (i,j)[k]
                     edges[k][0] = offset[k]+it*psize[k]
                     edges[k][1] = offset[k]+(it+1)*psize[k]

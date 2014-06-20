@@ -6,7 +6,7 @@ from scipy.special import logit
 from scipy.misc import logsumexp
 
 # TEMP
-import vz
+from . import vz
 
 class LatentBernoulliMM(object):
     def __init__(self, n_components=1, permutations=1, n_iter=20, n_init=1, random_state=0, min_probability=0.05, thresh=1e-8):
@@ -15,11 +15,11 @@ class LatentBernoulliMM(object):
 
         self.random_state = random_state
         self.n_components = n_components
-        if isinstance(permutations, (int, long)):
+        if isinstance(permutations, int):
             # Cycle through them
             P = permutations
             self.permutations = np.zeros((P, P))
-            for p1, p2 in itr.product(xrange(P), xrange(P)):
+            for p1, p2 in itr.product(list(range(P)), list(range(P))):
                 self.permutations[p1,p2] = (p1 + p2) % P
         else:
             self.permutations = np.asarray(permutations)
@@ -46,12 +46,12 @@ class LatentBernoulliMM(object):
         #import scipy.sparse
         #X = scipy.sparse.csr_matrix(X)
     
-        for trial in xrange(self.n_init):
+        for trial in range(self.n_init):
             pi = np.ones((K, P)) / (K * P)
 
             # Initialize
             clusters = self.random_state.randint(K, size=N)
-            theta = np.asarray([np.mean(X[clusters == k], axis=0) for k in xrange(K)])
+            theta = np.asarray([np.mean(X[clusters == k], axis=0) for k in range(K)])
             theta[:] = np.clip(theta, eps, 1 - eps)
 
             # TEMP
@@ -64,7 +64,7 @@ class LatentBernoulliMM(object):
             self.q = np.empty((N, K, P))
             logq = np.empty((N, K, P))
             loglikelihood = None
-            for loop in xrange(self.n_iter):
+            for loop in range(self.n_iter):
                 if calc_loglikelihood:
                     ag.info("Iteration ", loop+1, 'log-likelihood', loglikelihood)
                 else:
@@ -75,8 +75,8 @@ class LatentBernoulliMM(object):
                 #    logq[:,k,p] = np.log(pi[k,p])
                 logq[:] = np.log(pi[np.newaxis])
 
-                for p in xrange(P):
-                    for shift in xrange(P):
+                for p in range(P):
+                    for shift in range(P):
                         #p0_ = (p + shift)%P
                         p0 = self.permutations[shift,p]
                         #assert p0 == p0_, self.permutations
@@ -102,9 +102,9 @@ class LatentBernoulliMM(object):
                 log_dens = logsumexp(np.rollaxis(norm_logq, 2, 1).reshape((-1, norm_logq.shape[1])), axis=0)[np.newaxis,:,np.newaxis]
                 dens = np.exp(log_dens)
 
-                for p in xrange(P):
+                for p in range(P):
                     v = 0 #np.dot(self.q[:,:,0].T, X[:,0]) + np.dot(self.q[:,:,1].T, X[:,1])
-                    for shift in xrange(P):
+                    for shift in range(P):
                         #p0_ = (p + shift)%P
                         p0 = self.permutations[shift,p]
                         #assert p0 == p0_, self.permutations
@@ -148,7 +148,7 @@ class LatentBernoulliMM(object):
             all_mu.append(theta)
             all_loglikelihoods.append(loglikelihood)
 
-        print all_loglikelihoods
+        print(all_loglikelihoods)
         best_i = np.argmax(all_loglikelihoods)
         self.weights_ = all_pi[best_i]
         self.means_ = all_mu[best_i]
@@ -163,4 +163,4 @@ class LatentBernoulliMM(object):
         components: list 
             A list of length `num_data`  where `components[i]` indicates which mixture index the `i`-th data entry belongs the most to (results should be degenerate).
         """
-        return np.asarray([np.unravel_index(self.q[n].argmax(), self.q.shape[1:]) for n in xrange(self.q.shape[0])])
+        return np.asarray([np.unravel_index(self.q[n].argmax(), self.q.shape[1:]) for n in range(self.q.shape[0])])

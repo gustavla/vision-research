@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 
 def calc_precision_recall(detections, tp_fn):
@@ -9,7 +9,7 @@ def calc_precision_recall(detections, tp_fn):
     precisions = []
     recalls = []
     last_i = None
-    for i in xrange(N):
+    for i in range(N):
         indx = indices[i]
         if i==0 or indices[i-1] != indx-1:
             arr = detections['correct'][indx:]
@@ -37,7 +37,7 @@ def calc_fppi_miss_rate(detections, tp_fn, num_images):
     fppi = []
     recalls = []
     last_i = None
-    for i in xrange(N):
+    for i in range(N):
         indx = indices[i]
         if i==0 or indices[i-1] != indx-1:
             arr = detections['correct'][indx:]
@@ -59,7 +59,7 @@ def calc_fppi_summary(fppi, miss_rate):
     fppis = 10**np.linspace(-2, 0, 9)
 
     scores = np.zeros(len(fppis))
-    for i in xrange(len(fppis)):
+    for i in range(len(fppis)):
         ind = np.where(fppi >= fppis[i])[0][0]
         #fppis[i], miss_rate[ind]
         scores[i] = miss_rate[ind]

@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 import random
 import copy
 import amitgroup as ag
@@ -91,7 +91,7 @@ class BinaryTreePartsDescriptor(BinaryDescriptor):
         def crop(im):
             return gv.img.crop(im, (300, 300))
 
-        ims = map(crop, filter(size_ok, [gv.img.asgray(gv.img.load_image(fn)) for fn in filenames]))
+        ims = list(map(crop, list(filter(size_ok, [gv.img.asgray(gv.img.load_image(fn)) for fn in filenames]))))
         ims = np.asarray(ims)
         ag.info('Training images shape', ims.shape)
         ag.info('Training parts')
@@ -112,9 +112,9 @@ class BinaryTreePartsDescriptor(BinaryDescriptor):
 
         feats = self._net.extract(image[np.newaxis])[0]
 
-        buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in xrange(2))
+        buf = tuple(image.shape[i] - feats.shape[i] * psize[i] for i in range(2))
         lower = (buf[0]//2, buf[1]//2)
-        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in xrange(2))
+        upper = tuple(image.shape[i] - (buf[i]-lower[i]) for i in range(2))
 
         return gv.ndfeature(feats, lower=lower, upper=upper)
 

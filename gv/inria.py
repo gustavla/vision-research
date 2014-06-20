@@ -1,4 +1,4 @@
-from __future__ import division
+
 import os.path
 import numpy as np
 import gv
@@ -77,7 +77,7 @@ def load_specific_files(class_name, img_ids, has_objects=None, padding=0, poses=
 
     files = [] 
     hasobject = 1 
-    for i in xrange(N):
+    for i in range(N):
         img_id = img_ids[i]
         if has_objects is not None:
             hasobject = has_objects[i] 
@@ -92,7 +92,7 @@ def load_specific_files(class_name, img_ids, has_objects=None, padding=0, poses=
 def load_files(class_name, dataset='train', poses=None):
     path = os.path.join(os.environ['INRIA_PASCAL_DIR'], 'ImageSets', '{0}.txt'.format(dataset))
 
-    f = map(str.strip, open(path).readlines())
+    f = list(map(str.strip, open(path).readlines()))
     N = len(f)
     img_ids = f
     has_objects = np.ones(N)
@@ -121,7 +121,7 @@ def _load_images(objfiles, tot, size, padding=0):
                 if gv.bb.box_sticks_out(bbsquare_padded, bbim):
                     continue
     
-                bbsquare_resized = tuple([bbsquare_padded[i] * factor for i in xrange(4)])
+                bbsquare_resized = tuple([bbsquare_padded[i] * factor for i in range(4)])
 
                 padded_size = (size[0] + 2*padding, size[1] + 2*padding)
                 if 1:
@@ -154,9 +154,9 @@ def load_negative_images_of_size(class_name, size, dataset='train', count=10, pa
 
         im_resized = gv.img.resize_with_factor(im, factor)
     
-        shift = [im_resized.shape[i] - padded_size[i] for i in xrange(2)]
+        shift = [im_resized.shape[i] - padded_size[i] for i in range(2)]
         if min(shift) > 0: 
-            i, j = [np.random.randint(shift[i]) for i in xrange(2)]
+            i, j = [np.random.randint(shift[i]) for i in range(2)]
 
             # Extract image
             im_patch = im_resized[i:i+padded_size[0], j:j+padded_size[1]]

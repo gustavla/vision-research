@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 from .binary_descriptor import BinaryDescriptor
 import amitgroup as ag
 import amitgroup.features

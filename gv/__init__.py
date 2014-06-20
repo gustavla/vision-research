@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 from .detector import *
 from .real_detector import RealDetector
 from . import img
@@ -47,7 +47,6 @@ def load_descriptor(settings):
     descriptor_cls = detector_class.DESCRIPTOR.getclass(des_name)
     if descriptor_filename is None:
         # If there is no descriptor filename, we'll just build it from the settings
-        print settings[des_name]
         descriptor = descriptor_cls.load_from_dict(settings[des_name])
     else:
         descriptor = descriptor_cls.load(descriptor_filename)
