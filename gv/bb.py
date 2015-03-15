@@ -7,7 +7,7 @@ def _repr(tup):
     return "("+(", ".join(["{"+str(i)+":0.1f}" for i in range(4)])).format(*tup)+")"
 
 class DetectionBB(object):
-    def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, index_pos=(0, 0), truncated=False, scale=0, mixcomp=None, plusscore=0.0, score0=0.0, score1=0.0, bkgcomp=None, img_id=None, image=None, X=None, overlap=None):
+    def __init__(self, box, score=0.0, confidence=0.5, correct=False, difficult=False, index_pos=(0, 0), truncated=False, scale=0, mixcomp=None, plusscore=0.0, score0=0.0, score1=0.0, bkgcomp=None, img_id=None, image=None, X=None, overlap=None, class_name=None):
         self.score = score
         self.score0 = score0
         self.score1 = score1
@@ -25,17 +25,19 @@ class DetectionBB(object):
         self.image = image
         self.X = X
         self.overlap = overlap
+        self.class_name = class_name
 
     def __repr__(self):
         try:
-            return "DetectionBB(score={score:.2f}, box={box}, correct={correct}, confidence={confidence:.2f}, mixcomp={mixcomp}, bkgcomp={bkgcomp}, scale={scale})".format(
+            return "DetectionBB(score={score:.2f}, box={box}, correct={correct}, confidence={confidence:.2f}, mixcomp={mixcomp}, bkgcomp={bkgcomp}, scale={scale}, class={class_name})".format(
                 score=self.score, 
                 box=_repr(self.box), 
                 correct=self.correct, 
                 confidence=self.confidence, 
                 mixcomp=self.mixcomp, 
                 bkgcomp=self.bkgcomp,
-                scale=self.scale)
+                scale=self.scale,
+                class_name=self.class_name)
         except:
             import pdb; pdb.set_trace()
 

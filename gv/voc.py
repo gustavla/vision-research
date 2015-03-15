@@ -87,7 +87,8 @@ def load_xml_file(xml_path, class_name=None, poses=None):
             # Note: -1 is taken because they use 1-base indexing
             bb = tuple([float(_get_text(bndbox_obj.getElementsByTagName(s)[0].childNodes)) - 1 \
                     for s in ('ymin', 'xmin', 'ymax', 'xmax')])
-            bbobj = gv.bb.DetectionBB(box=bb, difficult=difficult, truncated=truncated)
+            bbobj = gv.bb.DetectionBB(box=bb, difficult=difficult,
+                                      truncated=truncated, class_name=name)
             bbs.append(bbobj)
     return bbs, (height, width)
 
