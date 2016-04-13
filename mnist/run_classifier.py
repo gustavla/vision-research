@@ -160,6 +160,6 @@ else:
     print("Deformed: {0:.2f}%".format(100*num_deformed/N))
     if num_deformed > 0:
         print("Average contendors: {0:.2f}".format(num_contendors/num_deformed))
-    print("Incorrect and undeformed: {0:.2f}%".format(100*incorrect_and_undeformed/N))
-    print("Turned correct, incorrect: {0:.2f}%, {1:.2f}%".format(100*turned_correct/N, 100*turned_incorrect/N))
-    print("Miss rate: {0:.2f}% ({1}/{2})".format(100*(N-c)/N, (N-c), N))
+    print("Incorrect and undeformed: {0:.2%}".format(incorrect_and_undeformed/N))
+    print("Turned correct, incorrect: {0:.2%}, {1:.2%}".format(turned_correct/N, turned_incorrect/N))
+    print("Miss rate: {0:.2%} ({1}/{2})".format((N-c)/N, (N-c), N))
